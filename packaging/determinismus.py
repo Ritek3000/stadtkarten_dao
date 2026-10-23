@@ -1,9 +1,12 @@
-"""Prüft, ob derselbe Seed immer dieselbe Karte liefert, und zeigt bei Abweichungen den ersten Arbeitsschritt,
-an dem sich die Läufe unterscheiden.
+"""Prüft, ob derselbe Seed immer dieselbe Karte liefert, auch auf einem anderen Prozessor, und zeigt bei
+Abweichungen den ersten Arbeitsschritt, an dem sich die Läufe unterscheiden.
 
 Nach jedem Schritt des Generators (Küste, Fluss, Stadtumriss, Straßen, Viertel, Häuser ...) wird ein
 Fingerabdruck festgehalten: Zustand des Zufallsgenerators sowie Ergebnis und Stadtmodell bitgenau und auf
-0,01 px gerundet. Jede Karte entsteht mehrmals, im selben Prozess hintereinander und in frischen Prozessen.
+0,01 px gerundet. Jede Karte entsteht mehrmals: im selben Prozess hintereinander und in frischen Prozessen,
+die andere Prozessoren nachahmen (anderer OpenBLAS-Rechenkern, numpy ohne AVX-512). Früher rundete OpenBLAS
+je nach Prozessor anders und derselbe Seed ergab andere Karten; diese Prüfung fängt solche Rückfälle ab.
+Nicht abgedeckt: Windows und Linux untereinander (eigene Mathebibliotheken, auch in GEOS).
 
 Aufruf (im Projektordner):  python packaging/determinismus.py
 Exit-Code 0 = alle Läufe gleich, 1 = Abweichung gefunden (Einzelheiten in der Ausgabe).
@@ -12,6 +15,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import pathlib
 import random
 import subprocess
@@ -127,10 +131,13 @@ def trace(beispiel, seed):
 
 
 def compare(name, runs):
-    """Vergleicht alle Läufe mit dem ersten; liefert True, wenn alle gleich sind."""
+    """Vergleicht alle Läufe mit dem ersten; liefert True, wenn alle gleich sind. Läufe mit nachgeahmtem
+    Prozessor vergleichen nur die Karte, nicht die SVG: deren Bodentextur darf in einzelnen Pixeln abweichen."""
     ok = True
-    ref_label, ref = runs[0]
-    for label, tr in runs[1:]:
+    ref_label, ref_all, _ = runs[0]
+    for label, tr, variant in runs[1:]:
+        ref = [t for t in ref_all if not (variant and t[0] == "render_svg")]
+        tr = [t for t in tr if not (variant and t[0] == "render_svg")]
         if tr == ref:
             continue
         ok = False
@@ -149,8 +156,11 @@ def compare(name, runs):
         print(f"    davor gleich: {', '.join(t[0] for t in ref[max(0, i - 3):i]) or '-'}")
         if ref[-1][0] == "Anzahl Gebäude":
             print(f"    Gebäude: {ref[-1][2]} gegen {tr[-1][2]}")
+        print("    Schritte (Nr. Schritt Zufall bitgenau gerundet), Referenz | Abweichung:")
+        for k, (a, b) in enumerate(zip(ref, tr), 1):
+            print(f"    {k:2d} {a[0]:28s} {a[1]} {a[2]} {a[3]} | {b[1]} {b[2]} {b[3]}")
     if ok:
-        print(f"  gleich      {name}: {len(runs)} Läufe, {len(ref)} Schritte, {ref[-1][2]} Gebäude")
+        print(f"  gleich      {name}: {len(runs)} Läufe, {len(ref_all)} Schritte, {ref_all[-1][2]} Gebäude")
     return ok
 
 
@@ -197,6 +207,23 @@ def numpy_cpu_features():
                     if feats.get(k))
 
 
+def variants():
+    """Prozessor-Varianten, die auf diesem Rechner laufen können (ein Rechenkern mit Befehlen, die der Prozessor
+    nicht kennt, würde abstürzen). Auf Rechnern mit AVX-512 ist auch der früher abweichende SkylakeX-Kern dabei."""
+    try:
+        from numpy._core._multiarray_umath import __cpu_features__ as feats
+    except ImportError:
+        feats = {}
+    out = [("frischer Prozess", {}), ("OpenBLAS-Kern Prescott (SSE3)", {"OPENBLAS_CORETYPE": "Prescott"})]
+    if feats.get("AVX2"):
+        out.append(("OpenBLAS-Kern Haswell (AVX2)", {"OPENBLAS_CORETYPE": "Haswell"}))
+    if feats.get("AVX512_SKX"):
+        out.append(("OpenBLAS-Kern SkylakeX (AVX-512)", {"OPENBLAS_CORETYPE": "SkylakeX"}))
+    if feats.get("AVX512F"):
+        out.append(("numpy ohne AVX-512", {"NPY_DISABLE_CPU_FEATURES": "X86_V4 AVX512_ICL AVX512_SPR"}))
+    return out
+
+
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--einzeln":   # Kindprozess: eine Karte, Ergebnis als JSON
         install()
@@ -208,19 +235,17 @@ def main():
     print(f"Prozessor: {cpu_name()}")
     print(f"numpy nutzt: {numpy_cpu_features()}")
     print("Rechen-Fingerabdruck: " + " ".join(f"{k}={v}" for k, v in math_fingerprints().items()))
+    vs = variants()
+    print("Verglichen werden: Lauf 1 und 2 im selben Prozess, " + ", ".join(v for v, _ in vs))
     all_ok = True
     for beispiel, seed in FAELLE:
-        runs = [("Prozess A, Lauf 1", trace(beispiel, seed)), ("Prozess A, Lauf 2", trace(beispiel, seed))]
-        for k in (1, 2):
+        runs = [("Lauf 1", trace(beispiel, seed), False), ("Lauf 2", trace(beispiel, seed), False)]
+        for label, env in vs:
             out = subprocess.run([sys.executable, __file__, "--einzeln", beispiel, str(seed)],
-                                 capture_output=True, text=True, check=True).stdout
-            runs.append((f"frischer Prozess {k}", json.loads(out.strip().splitlines()[-1])))
+                                 capture_output=True, text=True, check=True, env={**os.environ, **env}).stdout
+            runs.append((label, json.loads(out.strip().splitlines()[-1]), bool(env)))
         all_ok &= compare(f"{beispiel} Seed {seed}", runs)
-        if (beispiel, seed) == FAELLE[0]:   # zum Vergleich zwischen Maschinen: Fingerabdruck jedes Schritts
-            print(f"  Schritte {beispiel} Seed {seed} (Nr. Schritt Zufall bitgenau gerundet):")
-            for k, (step, r, exact, rounded) in enumerate(runs[0][1], 1):
-                print(f"    {k:2d} {step:28s} {r} {exact} {rounded}")
-    print("Alle Läufe gleich." if all_ok else "Es gibt Abweichungen (siehe oben).")
+    print("Alle Läufe gleich." if all_ok else "FEHLER: derselbe Seed ergibt verschiedene Karten (siehe oben).")
     return 0 if all_ok else 1
 
 
