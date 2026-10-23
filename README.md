@@ -80,7 +80,7 @@ früher nacheinander.
 | `festung` / `bastion` / `burg` | Sternfestung; `lage: insel` (Brücke), `landzunge` oder `land`. Mit Stadtmauer liegt der Zugang immer innerhalb: Brückenkopf bzw. Landzunge am Ufer in der Stadt, an Land als Zitadelle in der Mauer mit Tor zur Stadt |
 | `kontor`, `werft`, `adelshaus` | ganzer Block als ein großes Gebäude (Adelshaus mit Garten) |
 | `gasthaus`, `schmiede`, `laden` | einzelnes, passend gelegenes Haus |
-| `wassermuehle` | Mühlhaus am Flussufer mit Wasserrad (Schaufeln, Gischt) im Fluss; ohne Fluss wird es eine Windmühle |
+| `wassermuehle` | Mühlhaus am Flussufer mit Wasserrad (Schaufeln, Gischt) im Fluss; ohne Fluss und in der Klamm (Gebirge) wird es eine Windmühle |
 | `muehle` (auch `windmuehle`) | Windmühle vor der Stadt an einer Landstraße: runder Turm mit Kegeldach und vier Flügeln |
 | `rathaus` (auch `dorfhalle`, `halle`) | lange Halle mit Turm zur Straße und gepflastertem Vorplatz mit Brunnen |
 | `palast` (auch `schloss`) | drei Flügel mit Eckpavillons um einen Ehrenhof zur Straße, dahinter ein Garten mit Hecken, Wegkreuz, Brunnen und Baumalleen, alles ummauert; braucht einen großen Block |

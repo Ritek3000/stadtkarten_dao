@@ -722,6 +722,9 @@ class CityBuilder:
             if typ == "wassermuehle" and self.t["river"] is None:
                 print(f"Hinweis: Kein Fluss für die Wassermühle '{o['name']}' - es wird eine Windmühle.")
                 typ = "muehle"
+            elif typ == "wassermuehle" and self.t["biome"]["chasm"]:   # der Fluss liegt tief unten in der Klamm
+                print(f"Hinweis: In der Klamm ist keine Wassermühle möglich - '{o['name']}' wird eine Windmühle.")
+                typ = "muehle"
             if typ in ("muehle", "bauernhof"):   # Windmühle und Bauernhof stehen vor der Stadt an einer Landstraße
                 self.out["deferred"].append(dict(o, typ=typ))
                 continue
@@ -738,7 +741,10 @@ class CityBuilder:
                              "palast": 5000}.get(typ, 900) * s * s
                         < bk["poly"].area < (16000 if typ in COMPACT else 9000) * s * s
                         and min_width(bk["poly"]) > (42 if typ in COMPACT else 28) * s
-                        and (typ not in COMPACT or bk["poly"].area / bk["poly"].minimum_rotated_rectangle.area > 0.7)]
+                        and (typ not in COMPACT or bk["poly"].area / bk["poly"].minimum_rotated_rectangle.area > 0.7)
+                        # Blöcke mit einem schon gesetzten besonderen Ort nicht abräumen (sonst bliebe z.B. von der
+                        # Wassermühle nur das Rad samt Beschriftung übrig)
+                        and not any(self.out["buildings"][i].get("landmark") for i in bk["ids"])]
                 outside = str(o.get("lage", "")).lower() in ("ausserhalb", "aussen", "draussen", "vor der stadt")
                 if typ == "friedhof" and (outside or not blks):
                     self.out["deferred"].append(o)   # wird vom Generator vor der Mauer angelegt
@@ -762,9 +768,7 @@ class CityBuilder:
             if target is None and alive:
                 if typ == "wassermuehle":   # Haus direkt am Flussufer, das Wasserrad hängt im Fluss
                     river = self.t["river"]
-                    alive.sort(key=lambda b: b["poly"].distance(river))
-                    target = alive[0]
-                    p, q = nearest_points(target["poly"], river)
+                    target, p, q = self._mill_house(alive, river)
                     n = unit((q.x - p.x, q.y - p.y)) if q.distance(p) > 0.1 else (0.0, 1.0)
                     c = (q.x + n[0] * 3 * s, q.y + n[1] * 3 * s)       # Rad an der Uferkante, halb im Wasser
                     self.out["wheels"].append({"x": c[0], "y": c[1], "len": 18 * s, "wid": 6 * s, "house": (p.x, p.y),
@@ -788,6 +792,60 @@ class CityBuilder:
             c = target["poly"].centroid
             self.out["labels"].append({"x": c.x, "y": c.y, "text": text, "kind": "ort",
                                        "lift": math.sqrt(target["poly"].area) * 0.5 + 6 * s})
+
+    def _mill_house(self, alive, river):
+        """Mühlhaus der Wassermühle: ein Haus direkt am Wasser, ohne Straße zwischen Haus und Fluss. Gibt es keins,
+        entsteht ein eigenes Mühlhaus auf dem Uferstreifen. Liefert (Haus, Punkt am Haus, Punkt am Ufer)."""
+        s = self.s
+        streets = unary_union(self.out["streets"] + self.out["plazas"] + self.out["paved"])
+        # Abstand zu Brücken: dort, wo eine Straße den Fluss quert, hätte das Rad keinen Platz
+        crossings = unary_union([ln.intersection(river).buffer(w / 2 + 22 * s) for ln, w in self.out["internal_roads"]
+                                 if ln.intersects(river)])
+        best = None
+        for b in alive:
+            d = b["poly"].distance(river)
+            if d > 12 * s or (best is not None and d >= best[0]) or b["poly"].intersects(crossings):
+                continue
+            p, q = nearest_points(b["poly"], river)
+            if d > 1 * s and LineString([p, q]).intersects(streets):
+                continue
+            best = (d, b, p, q)
+        if best is not None:
+            return best[1], best[2], best[3]
+        # eigenes Mühlhaus am Ufer: Rechteck parallel zum Ufer, auf Land, ohne Straßen und Häuser zu berühren
+        taken = unary_union([streets, crossings] + [b["poly"] for b in self.out["buildings"]
+                                                    if not b.get("removed")]).buffer(1.5 * s)
+        L, H = 16 * s, 11 * s
+        cx, cy = self.center
+        spot = None
+        for ln in lines(river.boundary.intersection(self.city_land.buffer(1 * s))):
+            k = 4 * s
+            while k < ln.length - 4 * s:
+                q, q2 = ln.interpolate(k), ln.interpolate(k + 2)
+                k += 6 * s
+                tx, ty = unit((q2.x - q.x, q2.y - q.y))
+                nx, ny = -ty, tx
+                if river.contains(Point(q.x + nx * 4 * s, q.y + ny * 4 * s)):
+                    nx, ny = -nx, -ny                         # Normale zeigt aufs Land
+                c = (q.x + nx * (H / 2 + 1 * s), q.y + ny * (H / 2 + 1 * s))
+                rect = Polygon([(c[0] + a * tx * L / 2 + b * nx * H / 2, c[1] + a * ty * L / 2 + b * ny * H / 2)
+                                for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+                if self.city_land.contains(rect) and not rect.intersects(taken) and not rect.intersects(river):
+                    score = math.hypot(c[0] - cx, c[1] - cy)
+                    if spot is None or score < spot[0]:
+                        spot = (score, rect)
+        if spot is None:
+            print("Hinweis: Kein Haus und kein Platz direkt am Fluss für die Wassermühle - sie steht etwas abseits.")
+            b = min(alive, key=lambda b: b["poly"].distance(river))
+            p, q = nearest_points(b["poly"], river)
+            return b, p, q
+        rect = spot[1]
+        rp = rect.representative_point()
+        di = next((i for i, d in enumerate(self.district_list) if d["poly"].buffer(10 * s).contains(rp)), -1)
+        b = {"poly": rect, "form": "rechteck", "color": "#7a3f3f", "district": di}
+        self.out["buildings"].append(b)
+        p, q = nearest_points(rect, river)
+        return b, p, q
 
     def district_labels(self):
         for d in self.district_list:
