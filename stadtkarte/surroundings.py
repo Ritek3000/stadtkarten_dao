@@ -10,12 +10,25 @@ from .geo import blob, clean, lines, roof, unit
 from .styles import COLORS, DISTRICT_TYPES
 
 
-def make_bridges(roads, river, s):
+def _river_side(river_line, x, y):
+    """Auf welcher Seite der Flussmittellinie liegt der Punkt (+1/-1)? An den Enden gilt die verlängerte Linie."""
+    d = river_line.project(Point(x, y))
+    d = min(max(d, 0.5), river_line.length - 0.5)
+    a, b = river_line.interpolate(d - 0.5), river_line.interpolate(d + 0.5)
+    return 1 if (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) > 0 else -1
+
+
+def make_bridges(roads, river, s, river_line=None):
+    """Brücken, wo Straßen den Fluss überqueren. Ein Straßenstück im Wasser wird nur dann zur Brücke, wenn es an
+    beiden Enden auf verschiedenen Seiten des Flusses liegt: Gassen, die am Ufer entlang die Flussfläche nur
+    streifen, bekamen sonst eine Brücke längs des Ufers, von der nur die Laternen zu sehen waren."""
     out = []
     if river is None:
         return out
     for ln, w in roads:
         for seg in lines(ln.intersection(river)):
+            if river_line is not None and _river_side(river_line, *seg.coords[0]) == _river_side(river_line, *seg.coords[-1]):
+                continue
             (x0, y0), (x1, y1) = seg.coords[0], seg.coords[-1]
             ux, uy = unit((x1 - x0, y1 - y0))
             e = 10 * s

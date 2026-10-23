@@ -188,7 +188,7 @@ def generate(cfg):
     # Festungsinseln liegen teils in der Flussmündung: dort ist Land, die Inselstraße braucht keine Brücke
     added = [f["land_add"] for f in forts if f["land_add"] is not None]
     bridge_river = river.difference(unary_union(added)) if river is not None and added else river
-    bridges = make_bridges(ext_roads + internal, bridge_river, s) + fort_bridges
+    bridges = make_bridges(ext_roads + internal, bridge_river, s, river_line) + fort_bridges
     wheels = [Point(wh["x"], wh["y"]).buffer(wh["len"] / 2 + 4 * s) for wh in city["wheels"]]
     if bridges or wheels:   # auch Wasserräder brauchen freies Wasser
         bz = unary_union([ln.buffer(w / 2 + 6 * s) for ln, w in bridges] + wheels)
