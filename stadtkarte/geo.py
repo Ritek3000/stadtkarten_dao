@@ -163,7 +163,10 @@ def hip_planes(poly):
         groups.setdefault(lab, []).append(cell)
     planes = []
     for lab, cl in groups.items():
-        region = unary_union(cl).intersection(poly)
+        try:
+            region = unary_union(cl).intersection(poly)
+        except shapely.errors.GEOSException:   # seltene Rundungsfehler der Voronoi-Zellen: bereinigt erneut versuchen
+            region = unary_union([c.buffer(0) for c in cl]).intersection(poly.buffer(0))
         if region.is_empty or region.area < 0.5:
             continue
         a, rd, n = edges[lab]

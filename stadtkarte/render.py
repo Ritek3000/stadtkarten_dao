@@ -14,7 +14,7 @@ from shapely.ops import unary_union
 from .geo import lines, polys
 from . import noise
 from .roofs import detailed_roof, material_for
-from .styles import COLORS as C, FONT, FONT_FILE
+from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
 
 
 def f(v):
@@ -503,7 +503,7 @@ def night_svg(o, m, lamps, forge_glow):
     # erleuchtete Fenster: nur ein Teil der Häuser, 1-2 Fenster an der Außenwand
     windows = []
     for b in m["buildings"] + m["suburbs"]:
-        if rng.random() > win_share:
+        if rng.random() > win_share * (0.35 if b.get("poor") else 1):   # Arme sparen Licht
             continue
         ring = b["poly"].exterior
         for _ in range(1 if rng.random() < 0.6 else 2):
@@ -809,6 +809,24 @@ def render_svg(m):
     paved_fill = "url(#cobble)" if B["wall"] == "stein" else B["street"]
     for pv in m["paved"] + m["plazas"]:
         o.append(edged(pv, paved_fill))
+    slums = [d["poly"] for d in m.get("districts", []) if DISTRICT_TYPES.get(d["typ"], {}).get("poor")]
+    if slums and m["streets"]:   # Armenviertel: festgetretener Boden, schlammige Gassen mit Pfützen
+        slum = unary_union(slums).buffer(6 * s).intersection(m["city_land"])
+        o.append(f'<path d="{path_d(slum)}" fill="#5a4630" fill-opacity="0.35" filter="url(#softblur)"/>')
+        mud = slum.intersection(unary_union(m["streets"]))
+        if not mud.is_empty:
+            o.append(f'<path d="{path_d(mud)}" fill="#5a4630" fill-opacity="0.5"/>')
+            mrng = random.Random(m["cfg"]["seed"] + 31)
+            minx, miny, maxx, maxy = mud.bounds
+            puddles, inner = [], mud.buffer(-1.5 * s)
+            shapely.prepare(inner)
+            for _ in range(int(mud.area / (900 * s * s))):
+                x, y = mrng.uniform(minx, maxx), mrng.uniform(miny, maxy)
+                if inner.contains_properly(Point(x, y)):
+                    puddles.append(f'<ellipse cx="{f(x)}" cy="{f(y)}" rx="{f(mrng.uniform(1.5, 3.2) * s)}" '
+                                   f'ry="{f(mrng.uniform(1, 2) * s)}" transform="rotate({f(mrng.uniform(0, 180))} {f(x)} {f(y)})"/>')
+            if puddles:
+                o.append(f'<g fill="#3c4a4e" fill-opacity="0.55">{"".join(puddles)}</g>')
     if not m["pools"].is_empty and B["stilts"]:   # Pfahldorf: Gassen über Wasser werden Kanäle, Hauptwege Bohlenstege
         pools = m["pools"]
         canals = unary_union(list(m["streets"]) + list(m["paved"])).intersection(pools)
@@ -942,7 +960,10 @@ def render_svg(m):
         flat = B["flat_roofs"] and not b.get("landmark")
         svg = None
         if detail and not flat and b.get("shade") is not None:
-            svg = detailed_roof(b, s, roof_rng, material_for(b["color"], biome_name, B["thatch"]), to_light, C["outline"])
+            material = material_for(b["color"], biome_name, B["thatch"])
+            if b.get("poor") and material not in ("schnee", "reet"):
+                material = "flicken"
+            svg = detailed_roof(b, s, roof_rng, material, to_light, C["outline"])
         o.append(svg or building_svg(b, s, B["flat_roofs"]))
     o.append("</g>")
     mines_svg(o, m)

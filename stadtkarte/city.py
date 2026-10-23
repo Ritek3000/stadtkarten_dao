@@ -477,6 +477,7 @@ class CityBuilder:
         for quarter, di in quarters:
             d = dl[di]
             st = DISTRICT_TYPES.get(d["typ"], DISTRICT_TYPES["wohn"])
+            poor = st.get("poor", False)
             lot = st["lot"] * s2
             for piece in clean(quarter, lot * 0.5):
                 blocks = subdivide(piece, st["block"] * s2, st["alley"] * s, rng, min_area=lot * 0.5)
@@ -484,7 +485,8 @@ class CityBuilder:
                 for blk in blocks:
                     entry = {"poly": blk, "district": di, "ids": []}
                     self.blocks.append(entry)
-                    lots = subdivide(blk, lot, 0, rng, min_area=lot * 0.12, var=0.5, jitter=0.1)
+                    # Armenviertel: gleichmäßigere Parzellen, sonst entstehen zu viele zu schmale Restflächen
+                    lots = subdivide(blk, lot, 0, rng, min_area=lot * 0.12, var=0.25 if poor else 0.5, jitter=0.1)
                     edge = blk.exterior.buffer(0.8 * s)
                     for lp in lots:
                         # über Sumpfwasser: Pfahlhäuser mit Wasser dazwischen, etwas lockerer
@@ -495,11 +497,17 @@ class CityBuilder:
                             inset = (4 if d["typ"] == "hafen" else 2.4 if wet else 1.0) * s
                             for piece in clean(lp.buffer(-inset, join_style="mitre"), lot * 0.12):
                                 # nur erlaubte geometrische Formen mit Mindestbreite; zu schmale Restflächen bleiben Hof
-                                bp, form = house_shape(piece, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO)
+                                bp, form = house_shape(piece, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO,
+                                                       special_chance=0.0 if poor else 0.12)
+                                if bp is not None and poor:   # Hütten stehen schief auf dem Grundstück
+                                    tilt = shapely.affinity.rotate(bp, rng.uniform(-8, 8), origin="centroid")
+                                    if piece.buffer(0.6 * s).contains(tilt):
+                                        bp = tilt
                                 if bp is not None:
                                     entry["ids"].append(len(self.out["buildings"]))
                                     self.out["buildings"].append(
-                                        {"poly": bp, "form": form, "color": self.roof_color(st), "district": di})
+                                        {"poly": bp, "form": form, "color": self.roof_color(st), "district": di,
+                                         "poor": poor})
                         elif not perim and rng.random() < 0.35:
                             c = lp.representative_point()
                             rad = max(5 * s, min(14 * s, math.sqrt(lp.area) * 0.4))
@@ -518,8 +526,10 @@ class CityBuilder:
         tree = shapely.STRtree([b["poly"] for b in alive])
         moved = dropped = 0
         for i, b in enumerate(alive):
-            if landmarks != bool(b.get("landmark")) or b.get("courtyard"):
-                continue   # erst normale Häuser, nach dem Platzieren die Sondergebäude; Kapellen/Festung über Hof erschlossen
+            if landmarks != bool(b.get("landmark")) or b.get("courtyard") or b.get("poor"):
+                # erst normale Häuser, nach dem Platzieren die Sondergebäude; Kapellen/Festung über Hof erschlossen;
+                # Hütten im Armenviertel stehen auch in den Hinterhöfen, erreichbar über Trampelpfade
+                continue
             poly = b["poly"]
             d = poly.distance(net)
             if d <= 2 * s:
