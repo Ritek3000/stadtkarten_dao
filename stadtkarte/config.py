@@ -27,6 +27,7 @@ DEFAULTS = {
     "mauer": {"vorhanden": True, "tore": 4},
     "viertel": [],
     "orte": [],
+    "beschriftung": {},   # von Hand verschobene Beschriftungen: Schlüssel -> [dx, dy] in % der Kartenbreite
     "ausgabe": {"bildgroesse": 2000, "formate": ["svg", "png"], "raster": 0, "legende": True,
                 "dachdetails": True, "nacht": False},
 }
@@ -78,7 +79,20 @@ def from_dict(raw):
                 raise ValueError(f"Unbekannte Lage bei Viertel {v.get('name')}: {v['lage']}")
     for o in cfg["orte"]:
         o["typ"] = norm(o.get("typ", "laden"))
+    cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
     return cfg
+
+
+def label_offsets(moved):
+    """Prüft die von Hand verschobenen Beschriftungen: {"viertel:Hafen": [dx, dy], ...} in % der Kartenbreite."""
+    moved = moved or {}
+    if not isinstance(moved, dict):
+        raise ValueError('beschriftung muss eine Zuordnung sein, z.B.  "viertel:Hafen": [1.5, -0.8]')
+    for key, val in moved.items():
+        if not (isinstance(val, (list, tuple)) and len(val) == 2
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in val)):
+            raise ValueError(f"beschriftung.{key}: erwartet [dx, dy] in Prozent der Kartenbreite")
+    return moved
 
 
 def to_canonical(direction, rot_deg):

@@ -2,7 +2,9 @@
 import io
 import math
 import random
-from xml.sax.saxutils import escape
+import re
+from html import unescape
+from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
 import shapely
@@ -1004,24 +1006,33 @@ def render_svg(m):
         taken.append((x0, y0, x0 + bw, y0 + bh))
     # jede Art von Beschriftung in einer eigenen Gruppe: lässt sich in der interaktiven Karte (und z.B. in Inkscape)
     # einzeln ausblenden; split_labels() trennt sie von der übrigen Karte
+    # jede einzelne Beschriftung trägt einen Schlüssel (data-key), über den sie von Hand verschoben werden kann
+    offsets = m["cfg"].get("beschriftung") or {}
     groups = {"viertel": [], "orte": []}
+    used = {}
     for x, y, text, size, halo, kind in place_labels(m, taken):
-        groups[kind].append(text_el(x, y, text, size, s, halo=halo))
+        key = f"{kind}:{text}"
+        used[key] = used.get(key, 0) + 1
+        if used[key] > 1:          # gleicher Text mehrfach: zweite Beschriftung heißt "orte:Laden#2"
+            key += f"#{used[key]}"
+        groups[kind].append(movable(key, offsets, W, text_el(x, y, text, size, s, halo=halo)))
     o.append(LABELS_START)
     for kind in ("viertel", "orte"):
         o.append(f'<g id="b-{kind}">{"".join(groups[kind])}</g>')
-    o.append(f'<g id="b-titel">{text_el(W - 60 * s, W - 70 * s, m["name"], title_size, s, anchor="end", halo=7 * s)}</g>')
+    title = text_el(W - 60 * s, W - 70 * s, m["name"], title_size, s, anchor="end", halo=7 * s)
+    o.append(f'<g id="b-titel">{movable("titel", offsets, W, title)}</g>')
     o.append('<g id="b-legende">')
     if rows:
-        o.append(f'<rect x="{f(x0)}" y="{f(y0)}" width="{f(bw)}" height="{f(bh)}" rx="{f(6 * s)}" '
-                 f'fill="#1d2118" fill-opacity="0.72" stroke="#c9b98f" stroke-width="{f(1.5 * s)}"/>')
-        o.append(text_el(x0 + 18 * s, y0 + lh + 2 * s, "Legende", 22 * s, s, anchor="start", halo=0.01))
+        legend = [f'<rect x="{f(x0)}" y="{f(y0)}" width="{f(bw)}" height="{f(bh)}" rx="{f(6 * s)}" '
+                  f'fill="#1d2118" fill-opacity="0.72" stroke="#c9b98f" stroke-width="{f(1.5 * s)}"/>',
+                  text_el(x0 + 18 * s, y0 + lh + 2 * s, "Legende", 22 * s, s, anchor="start", halo=0.01)]
         for i, (k, name) in enumerate(rows):
             y = y0 + lh * (i + 2) + 4 * s
-            o.append(f'<text x="{f(x0 + 18 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
-                     f'fill="{C["text"]}" font-weight="bold">{escape(k)}</text>'
-                     f'<text x="{f(x0 + 70 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
-                     f'fill="{C["text"]}">{escape(name)}</text>')
+            legend.append(f'<text x="{f(x0 + 18 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
+                          f'fill="{C["text"]}" font-weight="bold">{escape(k)}</text>'
+                          f'<text x="{f(x0 + 70 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
+                          f'fill="{C["text"]}">{escape(name)}</text>')
+        o.append(movable("legende", offsets, W, "".join(legend)))
     o.append("</g>" + LABELS_END)
     grid = int(m["cfg"]["ausgabe"].get("raster") or 0)
     if grid > 0:
@@ -1039,6 +1050,29 @@ def render_svg(m):
 
 LABELS_START = '<g id="beschriftung">'
 LABELS_END = "</g><!--/beschriftung-->"
+
+
+def label_offset(key, offsets, W):
+    """Verschiebung einer Beschriftung in Pixeln; gespeichert wird sie in Prozent der Kartenbreite,
+    damit sie auch bei anderer Bildgröße passt."""
+    dx, dy = offsets.get(key) or (0, 0)
+    return float(dx) * W / 100, float(dy) * W / 100
+
+
+def movable(key, offsets, W, body):
+    dx, dy = label_offset(key, offsets, W)
+    return f'<g data-key={quoteattr(key)} transform="translate({f(dx)},{f(dy)})">{body}</g>'
+
+
+_MOVABLE = re.compile(r'<g data-key=("[^"]*"|\'[^\']*\') transform="translate\([^)]*\)">')
+
+
+def move_labels(svg, offsets, W):
+    """Setzt die Verschiebungen in einer fertigen Karte neu, ohne sie neu zu zeichnen."""
+    def sub(mt):
+        dx, dy = label_offset(unescape(mt.group(1)[1:-1]), offsets, W)
+        return f'<g data-key={mt.group(1)} transform="translate({f(dx)},{f(dy)})">'
+    return _MOVABLE.sub(sub, svg)
 
 
 def split_labels(svg):

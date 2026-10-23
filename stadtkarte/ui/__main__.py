@@ -23,7 +23,7 @@ from PIL import Image
 from .. import config
 from ..generator import generate
 from ..interaktiv import interactive_html
-from ..render import render_svg, to_pdf, to_png
+from ..render import font_face_css, move_labels, render_svg, split_labels, to_pdf, to_png
 from ..styles import BIOMES, DISTRICT_TYPES
 
 def documents_dir():
@@ -100,13 +100,18 @@ def build(raw):
     with GEN_LOCK, contextlib.redirect_stdout(out):
         m = generate(cfg)
         svg = render_svg(m)
-        small = to_png(svg, zoom=0.5)
+        base, labels = split_labels(svg)   # die Ansicht zeigt die Beschriftung als verschiebbare Ebene darüber
+        small = to_png(base, zoom=0.5)
     rid = uuid.uuid4().hex[:12]
     while len(RESULTS) >= 4:
         RESULTS.pop(next(iter(RESULTS)))
-    RESULTS[rid] = {"svg": svg, "png": None, "lock": threading.Lock(), "name": cfg["name"], "stem": f"{slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
+    RESULTS[rid] = {"svg": svg, "base": base, "png": None, "view": None, "lock": threading.Lock(), "W": m["W"],
+                    "name": cfg["name"],
+                    "stem": f"{slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
     return {
         "id": rid,
+        "W": m["W"],
+        "labels": labels,
         "preview": "data:image/webp;base64," + base64.b64encode(webp(small, 88)).decode(),
         "hints": [ln.replace("Hinweis: ", "") for ln in out.getvalue().splitlines() if ln.strip()],
         "stats": {"gebaeude": len(m["buildings"]) + len(m["suburbs"]), "baeume": len(m["trees"]),
@@ -118,7 +123,23 @@ def full_png(res):
     with res["lock"]:   # nur einmal rendern, auch wenn Ansicht und Download gleichzeitig fragen
         if res["png"] is None:
             res["png"] = to_png(res["svg"])
-    return res["png"]
+        return res["png"]
+
+
+def view_png(res):
+    """Volle Auflösung ohne Beschriftung für die Ansicht."""
+    with res["lock"]:
+        if res["view"] is None:
+            res["view"] = to_png(res["base"])
+        return res["view"]
+
+
+def set_labels(res, moved):
+    """Übernimmt von Hand verschobene Beschriftungen in die fertige Karte (ohne sie neu zu erzeugen)."""
+    moved = config.label_offsets(moved)
+    with res["lock"]:
+        res["svg"] = move_labels(res["svg"], moved, res["W"])
+        res["png"] = None
 
 
 def file_bytes(res, fmt):
@@ -173,7 +194,9 @@ class Handler(BaseHTTPRequestHandler):
                 res = RESULTS.get(q.get("id", ""))
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher."})
-                self.send(200, webp(full_png(res), 88), "image/webp")
+                self.send(200, webp(view_png(res), 88), "image/webp")
+            elif url.path == "/api/font.css":
+                self.send(200, font_face_css(), "text/css; charset=utf-8")
             elif url.path == "/api/download":
                 res = RESULTS.get(q.get("id", ""))
                 if res is None:
@@ -191,6 +214,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if url.path == "/api/generate":
                 self.send(200, build(json.loads(self.body())))
+            elif url.path == "/api/labels":
+                data = json.loads(self.body())
+                res = RESULTS.get(data.get("id", ""))
+                if res is None:
+                    return self.send(404, {"error": "Karte nicht mehr im Speicher - bitte neu erzeugen."})
+                set_labels(res, data.get("beschriftung"))
+                self.send(200, {"ok": True})
             elif url.path == "/api/yaml":
                 raw = json.loads(self.body())
                 text = yaml.safe_dump(raw, allow_unicode=True, sort_keys=False)

@@ -70,6 +70,27 @@ Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erkl
 - jeder Platz hat einen Laufbrunnen, große Plätze zusätzlich einen Wochenmarkt; an breiten Straßenstellen stehen Ziehbrunnen
 - größere leere Flächen (Höfe, freie Grundstücke) bekommen einzelne Bäume
 
+## Beschriftung verschieben
+
+Liegt eine Beschriftung ungünstig, in der Werkstatt auf „✥ Beschriftung verschieben“ klicken und sie mit der Maus an
+die gewünschte Stelle ziehen. Das geht für Viertel, Orte, Festungen, den Stadtnamen und die Legende. Ein Doppelklick
+setzt eine Beschriftung zurück, „Zurücksetzen“ alle. Die Downloads (PNG, WebP, PDF, SVG, interaktiv) übernehmen die
+neue Lage sofort, ohne dass die Karte neu erzeugt werden muss.
+
+Die Verschiebungen stehen in der Stadtbeschreibung unter `beschriftung` (in Prozent der Kartenbreite, passt daher bei
+jeder Bildgröße) und bleiben beim erneuten Erzeugen und beim Speichern der `.yaml` erhalten:
+
+```yaml
+beschriftung:
+  viertel:Hafen: [2.5, -1.0]   # 2,5 % nach rechts, 1 % nach oben
+  orte:H3: [0.8, 0.4]
+  titel: [-40, 0]
+  legende: [0, -5]
+```
+
+Ändert sich der Seed oder die Stadt stark, kann eine verschobene Beschriftung an einer unpassenden Stelle landen, dann
+einfach zurücksetzen.
+
 ## Interaktive Karte
 
 Der Knopf „Interaktiv“ (Kommandozeile: `formate: [html]`) erzeugt eine einzelne `.html`-Datei, die in jedem Browser ohne
