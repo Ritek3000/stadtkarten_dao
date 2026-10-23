@@ -2,7 +2,9 @@
 import io
 import math
 import random
-from xml.sax.saxutils import escape
+import re
+from html import unescape
+from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
 import shapely
@@ -276,7 +278,7 @@ def place_labels(m, taken):
         inside = b[0] > 5 * s and b[1] > 5 * s and b[2] < W - 5 * s and b[3] < W - 5 * s
         return inside and not any(b[0] < t[2] and t[0] < b[2] and b[1] < t[3] and t[1] < b[3] for t in taken)
 
-    def put(cands, text, size, halo):
+    def put(cands, text, size, halo, kind):
         for x, y in cands:
             b = box_at(x, y, text, size)
             if free(b):
@@ -285,7 +287,7 @@ def place_labels(m, taken):
             x, y = cands[0]
             b = box_at(x, y, text, size)
         taken.append(b)
-        placed.append((x, y, text, size, halo))
+        placed.append((x, y, text, size, halo, kind))
 
     order = sorted(m["labels"], key=lambda lb: lb["kind"] not in ("viertel", "festung"))
     for lb in order:
@@ -295,17 +297,17 @@ def place_labels(m, taken):
             w = text_width(lb["text"], size)
             lift = lb["lift"]
             put([(x + lift + w / 2, y + size * 0.3), (x - lift - w / 2, y + size * 0.3), (x, y - lift),
-                 (x, y + lift + size)], lb["text"], size, 5 * s)
+                 (x, y + lift + size)], lb["text"], size, 5 * s, "orte")
         elif lb["kind"] == "viertel":
             size = 34 * s
-            put([(x, y + dy * s) for dy in (10, -30, 50, -70, 90, -110)], lb["text"], size, 5 * s)
+            put([(x, y + dy * s) for dy in (10, -30, 50, -70, 90, -110)], lb["text"], size, 5 * s, "viertel")
         else:
             size = 17 * s
             lift = lb["lift"]
             w = text_width(lb["text"], size)
             cands = [(x, y - lift), (x, y + lift + size * 0.7), (x + lift + w / 2, y + size * 0.3),
                      (x - lift - w / 2, y + size * 0.3), (x, y - lift - size), (x, y + lift + size * 1.7)]
-            put(cands, lb["text"], size, 3.5 * s)
+            put(cands, lb["text"], size, 3.5 * s, "orte")
     return placed
 
 
@@ -792,12 +794,21 @@ def render_svg(m):
                 o.append(f'<path d="{wet}" fill="none" stroke="#3e2f1c" stroke-width="{f(15 * s)}"/>'
                          f'<path d="{wet}" fill="none" stroke="#7d6544" stroke-width="{f(13 * s)}" '
                          f'stroke-dasharray="{f(2.6 * s)} {f(0.9 * s)}"/>')
-    # Stadtflächen
+    # Stadtflächen; ihre Randlinie läuft nicht quer über die einmündenden Landstraßen
+    # (sonst zeichnet sich dort, wo die Straße in die Gassen übergeht, ein Bogen bzw. Strich ab)
+    joins = unary_union([ln.buffer(9 * s) for ln, _ in m["ext_roads"]]) if m["ext_roads"] else None
+
+    def edged(g, fill):
+        if joins is None:
+            return f'<path d="{path_d(g)}" fill="{fill}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>'
+        edge = line_d(g.boundary.difference(joins))
+        return (f'<path d="{path_d(g)}" fill="{fill}"/>' +
+                (f'<path d="{edge}" fill="none" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>' if edge else ""))
     for st in m["streets"]:
-        o.append(f'<path d="{path_d(st)}" fill="{B["street"]}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>')
+        o.append(edged(st, B["street"]))
     paved_fill = "url(#cobble)" if B["wall"] == "stein" else B["street"]
     for pv in m["paved"] + m["plazas"]:
-        o.append(f'<path d="{path_d(pv)}" fill="{paved_fill}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>')
+        o.append(edged(pv, paved_fill))
     if not m["pools"].is_empty and B["stilts"]:   # Pfahldorf: Gassen über Wasser werden Kanäle, Hauptwege Bohlenstege
         pools = m["pools"]
         canals = unary_union(list(m["streets"]) + list(m["paved"])).intersection(pools)
@@ -1002,19 +1013,36 @@ def render_svg(m):
     x0, y0 = 40 * s, W - 40 * s - bh
     if rows:
         taken.append((x0, y0, x0 + bw, y0 + bh))
-    for x, y, text, size, halo in place_labels(m, taken):
-        o.append(text_el(x, y, text, size, s, halo=halo))
-    o.append(text_el(W - 60 * s, W - 70 * s, m["name"], title_size, s, anchor="end", halo=7 * s))
+    # jede Art von Beschriftung in einer eigenen Gruppe: lässt sich in der interaktiven Karte (und z.B. in Inkscape)
+    # einzeln ausblenden; split_labels() trennt sie von der übrigen Karte
+    # jede einzelne Beschriftung trägt einen Schlüssel (data-key), über den sie von Hand verschoben werden kann
+    offsets = m["cfg"].get("beschriftung") or {}
+    groups = {"viertel": [], "orte": []}
+    used = {}
+    for x, y, text, size, halo, kind in place_labels(m, taken):
+        key = f"{kind}:{text}"
+        used[key] = used.get(key, 0) + 1
+        if used[key] > 1:          # gleicher Text mehrfach: zweite Beschriftung heißt "orte:Laden#2"
+            key += f"#{used[key]}"
+        groups[kind].append(movable(key, offsets, W, text_el(x, y, text, size, s, halo=halo)))
+    o.append(LABELS_START)
+    for kind in ("viertel", "orte"):
+        o.append(f'<g id="b-{kind}">{"".join(groups[kind])}</g>')
+    title = text_el(W - 60 * s, W - 70 * s, m["name"], title_size, s, anchor="end", halo=7 * s)
+    o.append(f'<g id="b-titel">{movable("titel", offsets, W, title)}</g>')
+    o.append('<g id="b-legende">')
     if rows:
-        o.append(f'<rect x="{f(x0)}" y="{f(y0)}" width="{f(bw)}" height="{f(bh)}" rx="{f(6 * s)}" '
-                 f'fill="#1d2118" fill-opacity="0.72" stroke="#c9b98f" stroke-width="{f(1.5 * s)}"/>')
-        o.append(text_el(x0 + 18 * s, y0 + lh + 2 * s, "Legende", 22 * s, s, anchor="start", halo=0.01))
+        legend = [f'<rect x="{f(x0)}" y="{f(y0)}" width="{f(bw)}" height="{f(bh)}" rx="{f(6 * s)}" '
+                  f'fill="#1d2118" fill-opacity="0.72" stroke="#c9b98f" stroke-width="{f(1.5 * s)}"/>',
+                  text_el(x0 + 18 * s, y0 + lh + 2 * s, "Legende", 22 * s, s, anchor="start", halo=0.01)]
         for i, (k, name) in enumerate(rows):
             y = y0 + lh * (i + 2) + 4 * s
-            o.append(f'<text x="{f(x0 + 18 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
-                     f'fill="{C["text"]}" font-weight="bold">{escape(k)}</text>'
-                     f'<text x="{f(x0 + 70 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
-                     f'fill="{C["text"]}">{escape(name)}</text>')
+            legend.append(f'<text x="{f(x0 + 18 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
+                          f'fill="{C["text"]}" font-weight="bold">{escape(k)}</text>'
+                          f'<text x="{f(x0 + 70 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
+                          f'fill="{C["text"]}">{escape(name)}</text>')
+        o.append(movable("legende", offsets, W, "".join(legend)))
+    o.append("</g>" + LABELS_END)
     grid = int(m["cfg"]["ausgabe"].get("raster") or 0)
     if grid > 0:
         d = "".join(f"M{k},0V{W}M0,{k}H{W}" for k in range(grid, W, grid))
@@ -1027,6 +1055,40 @@ def render_svg(m):
             for k, u in tex.items()) + "</defs>")
     o.append("</svg>")
     return "".join(o)
+
+
+LABELS_START = '<g id="beschriftung">'
+LABELS_END = "</g><!--/beschriftung-->"
+
+
+def label_offset(key, offsets, W):
+    """Verschiebung einer Beschriftung in Pixeln; gespeichert wird sie in Prozent der Kartenbreite,
+    damit sie auch bei anderer Bildgröße passt."""
+    dx, dy = offsets.get(key) or (0, 0)
+    return float(dx) * W / 100, float(dy) * W / 100
+
+
+def movable(key, offsets, W, body):
+    dx, dy = label_offset(key, offsets, W)
+    return f'<g data-key={quoteattr(key)} transform="translate({f(dx)},{f(dy)})">{body}</g>'
+
+
+_MOVABLE = re.compile(r'<g data-key=("[^"]*"|\'[^\']*\') transform="translate\([^)]*\)">')
+
+
+def move_labels(svg, offsets, W):
+    """Setzt die Verschiebungen in einer fertigen Karte neu, ohne sie neu zu zeichnen."""
+    def sub(mt):
+        dx, dy = label_offset(unescape(mt.group(1)[1:-1]), offsets, W)
+        return f'<g data-key={mt.group(1)} transform="translate({f(dx)},{f(dy)})">'
+    return _MOVABLE.sub(sub, svg)
+
+
+def split_labels(svg):
+    """Trennt eine Karte in (Karte ohne Beschriftung, Beschriftungsgruppe)."""
+    i = svg.index(LABELS_START)
+    j = svg.index(LABELS_END, i) + len(LABELS_END)
+    return svg[:i] + svg[j:], svg[i:j]
 
 
 def to_png(svg, zoom=None):

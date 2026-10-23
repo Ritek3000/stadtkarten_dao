@@ -1,7 +1,7 @@
 """Selbsttest des gebauten Programms (ohne Python-Umgebung des Projekts lauffähig).
 
 Startet dist/Stadtkarten-Werkstatt ohne Browser, erzeugt eine kleine Karte über die Oberfläche
-(Tag und Nacht), lädt PNG und SVG herunter und prüft sie. Unter Linux wird zusätzlich geprüft, dass
+(Tag und Nacht), lädt PNG, SVG und die interaktive Karte (HTML) herunter und prüft sie, verschiebt eine Beschriftung. Unter Linux wird zusätzlich geprüft, dass
 gestartete Hilfsprogramme (xdg-user-dir, xdg-open) nicht die mitgebrachten Bibliotheken laden.
 Exit-Code 0 = alles in Ordnung.
 
@@ -80,6 +80,14 @@ def main():
             assert status == 200 and png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 100_000, (status, ctype, len(png))
             _, _, svg = get(f"/api/download?id={res['id']}&format=svg")
             assert b"font-family:'EB Garamond'" in svg, "Schrift ist nicht eingebettet"
+            _, _, page = get(f"/api/download?id={res['id']}&format=html")
+            assert b"data:image/webp;base64," in page and b'<g id="b-viertel">' in page and b"<text" in page, \
+                "interaktive Karte unvollständig"
+            if not night:   # Beschriftung verschieben: landet ohne Neuerzeugen in der fertigen Karte
+                assert '<g data-key="titel"' in res["labels"], "Beschriftung nicht verschiebbar"
+                post("/api/labels", {"id": res["id"], "beschriftung": {"titel": [-10, 0]}})
+                _, _, svg = get(f"/api/download?id={res['id']}&format=svg")
+                assert b'<g data-key="titel" transform="translate(-100.0,0.0)">' in svg, "Verschiebung fehlt in der Karte"
             print(f"ok {'Nacht' if night else 'Tag'}: {res['stats']['gebaeude']} Gebäude, "
                   f"{len(png) // 1024} KB PNG, {time.time() - t:.1f} s")
         print("Selbsttest bestanden.")

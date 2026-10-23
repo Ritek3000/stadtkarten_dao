@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stadtkarten-Werkstatt</title>
+<link rel="stylesheet" href="/api/font.css">
 <style>
 :root {
   --bg: #1b1e17; --panel: #252a1f; --panel2: #2e3427; --line: #454d3a;
@@ -67,8 +68,14 @@ button:disabled { opacity: .45; cursor: default; }
 #stage { flex: 1; overflow: auto; position: relative; cursor: grab; background:
   repeating-conic-gradient(#20241b 0 25%, #1b1e17 0 50%) 0 0/24px 24px; }
 #stage.drag { cursor: grabbing; }
-#stage img[hidden], #empty[hidden] { display: none; }
-#stage img { display: block; margin: 0 auto; image-rendering: auto; user-select: none; -webkit-user-drag: none; }
+#mapWrap[hidden], #empty[hidden] { display: none; }
+#mapWrap { position: relative; margin: 0 auto; }
+#mapWrap img { display: block; width: 100%; image-rendering: auto; user-select: none; -webkit-user-drag: none; }
+#labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;
+  user-select: none; -webkit-user-select: none; }
+#labels.edit [data-key] { pointer-events: all; cursor: move; }
+#labels.edit [data-key]:hover, #labels [data-key].moving { filter: drop-shadow(0 0 4px var(--accent2)); }
+button.on { background: var(--accent); color: #241a08; border-color: var(--accent); }
 #empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 30px; }
 #empty b { color: var(--accent2); font-weight: normal; font-size: 22px; font-variant: small-caps; }
 #busy { position: absolute; inset: 0; display: none; place-items: center; background: rgba(15,17,12,.72); z-index: 5; }
@@ -102,6 +109,8 @@ button:disabled { opacity: .45; cursor: default; }
       <button class="icon" id="zoomFit" title="Ganze Karte">Ganz</button>
       <button class="icon" id="zoomIn" title="Vergrößern">+</button>
       <span id="zoomLbl" class="hint">–</span>
+      <button id="btnMove" disabled title="Beschriftungen mit der Maus verschieben; Doppelklick setzt eine Beschriftung zurück">✥ Beschriftung verschieben</button>
+      <button id="btnResetLabels" disabled title="Alle Beschriftungen wieder an ihren automatischen Platz setzen">Zurücksetzen</button>
       <span class="sp"></span>
       <span id="status"></span>
       <span class="sp"></span>
@@ -109,12 +118,13 @@ button:disabled { opacity: .45; cursor: default; }
       <button data-fmt="webp" disabled title="kleiner, gut für Foundry/Roll20">WebP</button>
       <button data-fmt="pdf" disabled>PDF</button>
       <button data-fmt="svg" disabled>SVG</button>
-      <button id="btnSaveOut" disabled title="SVG, PNG und PDF in den Kartenordner schreiben">Alle Formate speichern</button>
+      <button data-fmt="html" disabled title="interaktive Karte für den Browser: zoomen, Beschriftung ein-/ausblenden">Interaktiv</button>
+      <button id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) in den Kartenordner schreiben">Alle Formate speichern</button>
     </div>
     <div id="hints"></div>
     <div id="stage">
       <div id="empty"><div><b>Noch keine Karte</b><br>Stelle links die Stadt zusammen und klicke auf „Karte erzeugen“.</div></div>
-      <img id="map" alt="Erzeugte Stadtkarte" hidden>
+      <div id="mapWrap" hidden><img id="map" alt="Erzeugte Stadtkarte"><svg id="labels" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <div id="busy"><div style="text-align:center"><div class="spinner"></div><div>Die Karte wird gezeichnet…</div><div class="hint" id="busyTime"></div></div></div>
     </div>
   </section>
@@ -130,7 +140,7 @@ const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"
 const PLAGE = {festung: [["insel","auf einer Insel"],["landzunge","auf einer Landzunge"],["land","an Land vor der Stadt"]],
                friedhof: [["","im Ort (wenn Platz)"],["ausserhalb","vor der Stadt"]]};
 
-let OPT = null, cfg = null, resultId = null, zoom = null;
+let OPT = null, cfg = null, resultId = null, zoom = null, mapW = 0;
 const $ = s => document.querySelector(s);
 
 function el(tag, attrs = {}, ...kids) {
@@ -157,6 +167,7 @@ function norm(c) {
   c.mauer.vorhanden ??= true; c.mauer.tore ??= 4;
   c.ausgabe.bildgroesse ??= 2000; c.ausgabe.raster ??= 0; c.ausgabe.legende ??= true; c.ausgabe.dachdetails ??= true; c.ausgabe.nacht ??= false;
   c.ausgabe.formate ??= ["svg", "png"];
+  if (!c.beschriftung || typeof c.beschriftung !== "object") c.beschriftung = {};
   c.name ??= "Neue Stadt"; c.seed ??= 1; c.einwohner ??= 5000;
   for (const o of c.orte) if (o.typ === "bastion" || o.typ === "burg") o.typ = "festung";
   return c;
@@ -289,10 +300,13 @@ async function generateMap() {
   const tick = setInterval(() => $("#busyTime").textContent = `${Math.round((Date.now() - t0) / 1000)} s – meist 5–15 s`, 500);
   try {
     const res = await api("/api/generate", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cfg)});
-    resultId = res.id;
+    resultId = res.id; mapW = res.W;
+    const lab = $("#labels");
+    lab.setAttribute("viewBox", `0 0 ${res.W} ${res.W}`); lab.innerHTML = res.labels;
     showImage(res.preview);
     for (const h of res.hints) $("#hints").append(el("div", {}, h));
-    document.querySelectorAll("[data-fmt], #btnSaveOut").forEach(b => b.disabled = false);
+    document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = false);
+    updateResetButton();
     const info = `${cfg.name}: ${res.stats.gebaeude} Gebäude, ${res.stats.baeume} Bäume – ${res.stats.sekunden} s`;
     status(info + " · volle Auflösung wird berechnet…");
     // Vorschau ist halb so groß; die volle Auflösung im Hintergrund holen und still austauschen
@@ -313,7 +327,7 @@ let lastNatural = 0;
 function showImage(src) {
   const img = $("#map"), st = $("#stage");
   img.onload = () => {
-    $("#empty").hidden = true; img.hidden = false;
+    $("#empty").hidden = true; $("#mapWrap").hidden = false;
     if (zoom === null) { fit(); }
     else {
       const k = lastNatural ? lastNatural / img.naturalWidth : 1;
@@ -328,7 +342,7 @@ function showImage(src) {
 // Ansicht: Zoom und Verschieben
 function applyZoom() {
   const img = $("#map"); if (!img.naturalWidth) return;
-  img.style.width = Math.round(img.naturalWidth * zoom) + "px";
+  $("#mapWrap").style.width = Math.round(img.naturalWidth * zoom) + "px";
   // Prozent bezogen auf die volle Kartengröße (die Vorschau ist nur halb so groß)
   const fullW = Number(cfg?.ausgabe?.bildgroesse) || img.naturalWidth;
   $("#zoomLbl").textContent = Math.round(zoom * img.naturalWidth / fullW * 100) + " %";
@@ -349,14 +363,71 @@ $("#zoomOut").onclick = () => zoomBy(0.8);
 $("#zoomFit").onclick = fit;
 const stage = $("#stage");
 stage.addEventListener("wheel", e => {
-  if (!$("#map").naturalWidth || $("#map").hidden) return;
+  if (!$("#map").naturalWidth || $("#mapWrap").hidden) return;
   e.preventDefault(); const r = stage.getBoundingClientRect();
   zoomBy(e.deltaY < 0 ? 1.15 : 0.87, e.clientX - r.left, e.clientY - r.top);
 }, {passive: false});
-let drag = null;
-stage.addEventListener("pointerdown", e => { drag = {x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop}; stage.classList.add("drag"); stage.setPointerCapture(e.pointerId); });
-stage.addEventListener("pointermove", e => { if (drag) { stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); } });
-stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("drag"); });
+let drag = null, moving = null, pressed = null;
+stage.addEventListener("pointerdown", e => {
+  const g = pressed = e.target.closest?.("#labels.edit [data-key]");
+  if (g) {   // Beschriftung anfassen
+    const [dx, dy] = labelOffset(g.dataset.key);
+    moving = {g, x: e.clientX, y: e.clientY, dx, dy, k: mapW / $("#mapWrap").clientWidth};
+    g.classList.add("moving");
+  } else {
+    drag = {x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop}; stage.classList.add("drag");
+  }
+  stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener("pointermove", e => {
+  if (moving) {
+    moving.nx = moving.dx + (e.clientX - moving.x) * moving.k;
+    moving.ny = moving.dy + (e.clientY - moving.y) * moving.k;
+    moving.g.setAttribute("transform", `translate(${moving.nx.toFixed(1)},${moving.ny.toFixed(1)})`);
+  } else if (drag) { stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); }
+});
+stage.addEventListener("pointerup", () => {
+  if (moving) {
+    moving.g.classList.remove("moving");
+    if (moving.nx !== undefined) setLabelOffset(moving.g.dataset.key, moving.nx, moving.ny);
+    moving = null;
+  }
+  drag = null; stage.classList.remove("drag");
+});
+stage.addEventListener("dblclick", () => {   // Ziel ist wegen setPointerCapture die Ansicht, daher "pressed"
+  const g = pressed;
+  if (g && $("#labels").classList.contains("edit")) { g.setAttribute("transform", "translate(0,0)"); setLabelOffset(g.dataset.key, 0, 0); }
+});
+
+// Beschriftungen verschieben: gespeichert in cfg.beschriftung als [dx, dy] in Prozent der Kartenbreite,
+// damit sie beim nächsten Erzeugen, in der .yaml und in allen Downloads erhalten bleiben
+function labelOffset(key) {
+  const v = cfg.beschriftung[key] || [0, 0];
+  return [v[0] * mapW / 100, v[1] * mapW / 100];
+}
+function setLabelOffset(key, px, py) {
+  const pct = v => Math.round(v / mapW * 10000) / 100;
+  if (pct(px) || pct(py)) cfg.beschriftung[key] = [pct(px), pct(py)];
+  else delete cfg.beschriftung[key];
+  updateResetButton(); sendLabels();
+}
+async function sendLabels() {
+  if (!resultId) return;
+  try {
+    await api("/api/labels", {method: "POST", body: JSON.stringify({id: resultId, beschriftung: cfg.beschriftung})});
+  } catch (e) { status("Fehler: " + e.message, true); }
+}
+function updateResetButton() { $("#btnResetLabels").disabled = !resultId || !Object.keys(cfg.beschriftung).length; }
+$("#btnMove").onclick = () => {
+  const on = $("#labels").classList.toggle("edit");
+  $("#btnMove").classList.toggle("on", on);
+  if (on) status("Beschriftung mit der Maus ziehen · Doppelklick setzt sie zurück · Ziehen daneben verschiebt die Ansicht");
+};
+$("#btnResetLabels").onclick = () => {
+  cfg.beschriftung = {};
+  document.querySelectorAll("#labels [data-key]").forEach(g => g.setAttribute("transform", "translate(0,0)"));
+  updateResetButton(); sendLabels();
+};
 
 // Downloads
 document.querySelectorAll("[data-fmt]").forEach(b => b.onclick = () => {
@@ -372,7 +443,9 @@ $("#btnSaveOut").onclick = async () => {
 // YAML öffnen/speichern, Beispiele
 $("#btnSaveYaml").onclick = async () => {
   try {
-    const text = await api("/api/yaml", {method: "POST", body: JSON.stringify(cfg)});
+    const out = {...cfg};
+    if (!Object.keys(out.beschriftung).length) delete out.beschriftung;
+    const text = await api("/api/yaml", {method: "POST", body: JSON.stringify(out)});
     const a = el("a", {href: URL.createObjectURL(new Blob([text], {type: "text/yaml"})),
       download: (cfg.name || "stadt").toLowerCase().replace(/[^a-z0-9äöüß]+/g, "_") + ".yaml"});
     document.body.append(a); a.click(); a.remove();
@@ -383,13 +456,13 @@ $("#fileYaml").onchange = async e => {
   const file = e.target.files[0]; if (!file) return;
   try {
     cfg = norm(await api("/api/parse", {method: "POST", body: await file.text()}));
-    renderForm(); status(`„${file.name}“ geladen`);
+    renderForm(); updateResetButton(); status(`„${file.name}“ geladen`);
   } catch (err) { status("Datei konnte nicht gelesen werden: " + err.message, true); }
   e.target.value = "";
 };
 async function loadExample(name) {
   cfg = norm(await api("/api/example?name=" + encodeURIComponent(name)));
-  renderForm(); status(`Beispiel „${name}“ geladen`);
+  renderForm(); updateResetButton(); status(`Beispiel „${name}“ geladen`);
 }
 $("#exampleSel").onchange = e => loadExample(e.target.value);
 

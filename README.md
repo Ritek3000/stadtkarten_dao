@@ -9,7 +9,7 @@ Stadtkarten-Werkstatt im Browser:
 
 - links alle Angaben (Gelände, Biotop, Mauer, Viertel, besondere Orte, Ausgabe), Himmelsrichtungen per Kompass
 - „Karte erzeugen“ zeigt rechts die Vorschau (Mausrad zoomt, Ziehen verschiebt)
-- Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF oder SVG, oder alles auf einmal in den Ordner `ausgabe`
+- Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF, SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`
 - „Öffnen…“/„Speichern“ lädt bzw. speichert die Stadtbeschreibung als `.yaml`; oben rechts lassen sich die Beispiele laden
 
 Alternativ: `.venv\Scripts\python -m stadtkarte.ui` (Optionen: `--port 8765`, `--kein-browser`).
@@ -46,6 +46,7 @@ Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erkl
 | `stadtkarte/surroundings.py` | Felder, Wald, Bäume, Vorstadthäuser, Brücken |
 | `stadtkarte/styles.py` | Viertel-Typen, Farben, Schrift |
 | `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF |
+| `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
 | `stadtkarte/shapes.py` | Hausgrundrisse: Quadrat, Rechteck, Raute, Fünfeck, Sechseck, L-Form, Achteck; Kreuz nur für Gotteshäuser; Mindestbreite 8 px |
 | `stadtkarte/roofs.py` | detaillierte Dächer: Dachflächen mit Licht, Material je Biotop, Schornsteine, Gauben, Moos |
 | `stadtkarte/noise.py` | vorberechnete Bodentexturen und Details (Körnung, Gras, Sandrippel, Schneeverwehungen, Felsrisse) |
@@ -68,6 +69,40 @@ Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erkl
 - jedes Haus grenzt an eine Straße oder einen Platz (sonst wird es verschoben oder entfällt)
 - jeder Platz hat einen Laufbrunnen, große Plätze zusätzlich einen Wochenmarkt; an breiten Straßenstellen stehen Ziehbrunnen
 - größere leere Flächen (Höfe, freie Grundstücke) bekommen einzelne Bäume
+
+## Beschriftung verschieben
+
+Liegt eine Beschriftung ungünstig, in der Werkstatt auf „✥ Beschriftung verschieben“ klicken und sie mit der Maus an
+die gewünschte Stelle ziehen. Das geht für Viertel, Orte, Festungen, den Stadtnamen und die Legende. Ein Doppelklick
+setzt eine Beschriftung zurück, „Zurücksetzen“ alle. Die Downloads (PNG, WebP, PDF, SVG, interaktiv) übernehmen die
+neue Lage sofort, ohne dass die Karte neu erzeugt werden muss.
+
+Die Verschiebungen stehen in der Stadtbeschreibung unter `beschriftung` (in Prozent der Kartenbreite, passt daher bei
+jeder Bildgröße) und bleiben beim erneuten Erzeugen und beim Speichern der `.yaml` erhalten:
+
+```yaml
+beschriftung:
+  viertel:Hafen: [2.5, -1.0]   # 2,5 % nach rechts, 1 % nach oben
+  orte:H3: [0.8, 0.4]
+  titel: [-40, 0]
+  legende: [0, -5]
+```
+
+Ändert sich der Seed oder die Stadt stark, kann eine verschobene Beschriftung an einer unpassenden Stelle landen, dann
+einfach zurücksetzen.
+
+## Interaktive Karte
+
+Der Knopf „Interaktiv“ (Kommandozeile: `formate: [html]`) erzeugt eine einzelne `.html`-Datei, die in jedem Browser ohne
+Internet und ohne weitere Dateien läuft und sich z.B. per Mail weitergeben lässt:
+
+- Mausrad bzw. zwei Finger zoomen, Ziehen verschiebt, „Ganz“ zeigt die ganze Karte
+- Beschriftung ein-/ausblenden: alles auf einmal (auch mit der Taste B) oder einzeln Stadtname, Viertel,
+  Orte und Festungen, Legende
+
+Die Karte ohne Beschriftung ist als Bild eingebettet, die Beschriftung liegt als Vektorebene darüber und bleibt beim
+Vergrößern scharf. Auch in der SVG-Datei stehen die Beschriftungen in eigenen Gruppen (`b-viertel`, `b-orte`, `b-titel`,
+`b-legende`) und lassen sich z.B. in Inkscape ausblenden.
 
 ## Nachtmodus
 
