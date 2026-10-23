@@ -722,6 +722,9 @@ class CityBuilder:
             if typ == "wassermuehle" and self.t["river"] is None:
                 print(f"Hinweis: Kein Fluss für die Wassermühle '{o['name']}' - es wird eine Windmühle.")
                 typ = "muehle"
+            elif typ == "wassermuehle" and self.t["biome"]["chasm"]:   # der Fluss liegt tief unten in der Klamm
+                print(f"Hinweis: In der Klamm ist keine Wassermühle möglich - '{o['name']}' wird eine Windmühle.")
+                typ = "muehle"
             if typ in ("muehle", "bauernhof"):   # Windmühle und Bauernhof stehen vor der Stadt an einer Landstraße
                 self.out["deferred"].append(dict(o, typ=typ))
                 continue
