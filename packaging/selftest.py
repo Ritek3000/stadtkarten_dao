@@ -1,14 +1,18 @@
 """Selbsttest des gebauten Programms (ohne Python-Umgebung des Projekts lauffähig).
 
 Startet dist/Stadtkarten-Werkstatt ohne Browser, erzeugt eine kleine Karte über die Oberfläche
-(Tag und Nacht), lädt PNG und SVG herunter und prüft sie. Exit-Code 0 = alles in Ordnung.
+(Tag und Nacht), lädt PNG und SVG herunter und prüft sie. Unter Linux wird zusätzlich geprüft, dass
+gestartete Hilfsprogramme (xdg-user-dir, xdg-open) nicht die mitgebrachten Bibliotheken laden.
+Exit-Code 0 = alles in Ordnung.
 
 Aufruf (im Projektordner):  python packaging/selftest.py
 """
 import json
+import os
 import pathlib
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 
@@ -31,11 +35,24 @@ def post(path, data, timeout=300):
         return json.loads(r.read())
 
 
+def fake_xdg_user_dir(folder):
+    """Ersatz für xdg-user-dir, der festhält, welchen Bibliothekspfad das Programm an Hilfsprogramme weitergibt."""
+    script = folder / "xdg-user-dir"
+    script.write_text('#!/bin/sh\nprintf "%s" "$LD_LIBRARY_PATH" > "$(dirname "$0")/ld_library_path.txt"\n'
+                      'echo "$HOME"\n')
+    script.chmod(0o755)
+    env = dict(os.environ, PATH=f"{folder}{os.pathsep}{os.environ.get('PATH', '')}")
+    env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
 def main():
     if not EXE.exists():
         sys.exit(f"Programm nicht gefunden: {EXE}")
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    env = fake_xdg_user_dir(tmp) if sys.platform.startswith("linux") else None
     proc = subprocess.Popen([str(EXE), "--kein-browser", "--port", str(PORT)],
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
     try:
         for _ in range(120):
             try:
@@ -45,6 +62,10 @@ def main():
                 time.sleep(0.5)
         else:
             sys.exit("Server startet nicht.")
+        if env is not None:
+            seen = (tmp / "ld_library_path.txt").read_text()
+            assert seen == "", f"Hilfsprogramme bekommen die Programmbibliotheken untergeschoben: LD_LIBRARY_PATH={seen}"
+            print("ok Umgebung für Hilfsprogramme sauber")
         _, _, raw = get("/api/options")
         opts = json.loads(raw)
         assert len(opts["biomes"]) >= 6 and "hafenstadt" in opts["examples"], opts
