@@ -74,6 +74,8 @@ def main():
             cfg = json.loads(raw)
             cfg["ausgabe"]["bildgroesse"] = 1000
             cfg["ausgabe"]["nacht"] = night
+            if night:
+                cfg["seed"] = 1   # zweite Variante: Seed 1 erzeugte einmal Gassenflächen als GeometryCollection
             t = time.time()
             res = post("/api/generate", cfg)
             status, ctype, png = get(f"/api/download?id={res['id']}&format=png")
