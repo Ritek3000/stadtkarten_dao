@@ -14,7 +14,7 @@ import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 
-from .geo import axes, lines, polys
+from .geo import axes, lines, polys, vlen
 from . import noise
 from .roofs import detailed_roof, material_for
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -981,8 +981,8 @@ def render_svg(m):
             pts = list(st["poly"].exterior.coords)[:-1]
             u, v = np.array(st["u"]), np.array(st["v"])
             p0 = np.array(pts[0])
-            w = np.linalg.norm(np.array(pts[1]) - p0)
-            dd = np.linalg.norm(np.array(pts[3]) - p0)
+            w = vlen(np.array(pts[1]) - p0)
+            dd = vlen(np.array(pts[3]) - p0)
             xy = lambda q: f"{f(q[0])},{f(q[1])}"
             stripes = "".join(f"M{xy(p0 + u * (w * k / 6))}L{xy(p0 + u * (w * k / 6) + v * dd)}" for k in (1, 3, 5))
             o.append(f'<path d="{path_d(st["poly"])}" fill="{c1}"/>'

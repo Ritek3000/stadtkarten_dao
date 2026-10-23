@@ -83,14 +83,14 @@ def axes(poly):
         return None
     c = np.array(rect.exterior.coords)[:4]
     e1, e2 = c[1] - c[0], c[3] - c[0]
-    if np.linalg.norm(e1) < np.linalg.norm(e2):
+    if vlen(e1) < vlen(e2):
         e1, e2 = e2, e1
     return c[0], e1, e2
 
 
 def min_width(poly):
     ax = axes(poly)
-    return 0.0 if ax is None else float(np.linalg.norm(ax[2]))
+    return 0.0 if ax is None else vlen(ax[2])
 
 
 def cut(poly, frac, gap, jitter=0.0):
@@ -99,7 +99,7 @@ def cut(poly, frac, gap, jitter=0.0):
     if ax is None:
         return [poly]
     o, e1, e2 = ax
-    l2 = np.linalg.norm(e2)
+    l2 = vlen(e2)
     if l2 < 1e-6:
         return [poly]
     d = e2 / l2
@@ -107,7 +107,7 @@ def cut(poly, frac, gap, jitter=0.0):
         ca, sa = math.cos(jitter), math.sin(jitter)
         d = np.array([d[0] * ca - d[1] * sa, d[0] * sa + d[1] * ca])
     q = o + e1 * frac
-    ext = l2 * 2 + np.linalg.norm(e1)
+    ext = l2 * 2 + vlen(e1)
     line = LineString([q - d * ext, q + d * ext])
     try:
         res = poly.difference(line.buffer(gap / 2, cap_style="flat")) if gap > 0 else split(poly, line)
@@ -171,7 +171,7 @@ def hip_planes(poly):
             continue
         a, rd, n = edges[lab]
         rc = np.array([c for g in polys(region) for c in g.exterior.coords])
-        depth = float(np.max((rc - a) @ (-n))) if len(rc) else 0.0
+        depth = float(np.max((rc[:, 0] - a[0]) * -n[0] + (rc[:, 1] - a[1]) * -n[1])) if len(rc) else 0.0
         planes.append((region, n, rd, a, max(depth, 0.5)))
     inner = unary_union([pl[0].boundary for pl in planes]).difference(poly.exterior.buffer(0.25))
     ridges = [ln for ln in lines(inner) if ln.length > 0.4]
@@ -188,19 +188,33 @@ def roof(poly):
     if ax is None:
         return [], None
     o, e1, e2 = ax
-    l1, l2 = np.linalg.norm(e1), np.linalg.norm(e2)
+    l1, l2 = vlen(e1), vlen(e2)
     u = e1 / l1
     h = min(l2 / 2, l1 / 2)
     a = o + e2 / 2 + u * h
     b = o + e1 + e2 / 2 - u * h
     ridge_lines = []
-    if np.linalg.norm(b - a) > 0.5:
+    if vlen(b - a) > 0.5:
         ridge_lines.append(LineString([a, b]))
     for p, q in ((a, o), (a, o + e2), (b, o + e1), (b, o + e1 + e2)):
         ridge_lines.append(LineString([p, q]))
     clipped = [ln for r in ridge_lines for ln in lines(r.intersection(poly))]
     half = Polygon([o, o + e1, o + e1 + e2 / 2, o + e2 / 2]).intersection(poly)
     return clipped, (half if not half.is_empty else None)
+
+
+def vlen(v):
+    """Länge eines 2D-Vektors. Bewusst nicht np.linalg.norm/np.dot: die laufen über OpenBLAS, das je nach
+    Prozessor einen anderen Rechenkern wählt und dann in der letzten Stelle anders rundet. Knappe Entscheidungen
+    (passt ein Haus noch?) kippten dadurch, und derselbe Seed ergab auf verschiedenen Rechnern andere Karten.
+    Die schlichte Formel liefert dieselben Werte wie bisher die verbreiteten Rechenkerne (Haswell/Zen)."""
+    x, y = float(v[0]), float(v[1])
+    return math.sqrt(x * x + y * y)
+
+
+def vdot(a, b):
+    """Skalarprodukt zweier 2D-Vektoren, auf jedem Prozessor bitgleich (siehe vlen)."""
+    return float(a[0]) * float(b[0]) + float(a[1]) * float(b[1])
 
 
 def unit(v):
@@ -222,7 +236,7 @@ def fit_rect(poly, min_short=0.0, max_ratio=None, iters=60):
     if ax is None:
         return None
     o, e1, e2 = ax
-    l1, l2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+    l1, l2 = vlen(e1), vlen(e2)
     if l2 < 1e-6:
         return None
     u, v = e1 / l1, e2 / l2

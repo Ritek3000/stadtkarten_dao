@@ -11,7 +11,7 @@ from shapely.ops import nearest_points, unary_union
 from .city import CityBuilder, city_radius, make_shape, ship_footprint
 from .config import ROTATION, to_canonical
 from .fortress import build_fortress
-from .geo import Noise1D, axes, blob, lines, polys, roof, unit
+from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
 from .styles import BIOMES, FORT_TYPES
 from .surroundings import make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
 from .terrain import make_coast, make_islands, make_pools, make_river
@@ -302,7 +302,7 @@ def outside_farm(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
         print(f"Hinweis: Kein Platz für den Bauernhof '{spec['name']}' gefunden.")
         return None
     o, e1, e2 = axes(area)
-    l1, l2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+    l1, l2 = vlen(e1), vlen(e2)
     u, v = e1 / l1, e2 / l2
 
     def rect(x0, y0, x1, y1):

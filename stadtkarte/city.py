@@ -9,7 +9,8 @@ from shapely.ops import nearest_points, polylabel, unary_union
 
 from .config import to_canonical
 from .shapes import cross_in_rect, house_shape
-from .geo import Noise1D, axes, blob, clean, cut, fit_rect, lines, min_width, points, polys, roof, subdivide, unit
+from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, min_width, points, polys, roof, subdivide,
+                  unit, vlen)
 from .roofs import shade as shade_hex
 from .styles import BIG_LANDMARKS, BIOMES, DISTRICT_TYPES, FORT_TYPES, LANDMARK_COLORS
 
@@ -607,7 +608,7 @@ class CityBuilder:
         """Achsen eines rechteckigen Bauplatzes, ausgerichtet zur nächsten Hauptstraße: liefert (o, u, v, L, D)
         mit der Vorderseite bei y = 0 und rect(x0, y0, x1, y1) in Pixeln."""
         o, e1, e2 = axes(rect)
-        L, D = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+        L, D = vlen(e1), vlen(e2)
         u, v = e1 / L, e2 / D
         front = LineString([o, o + e1]).distance(self.main_streets)
         back = LineString([o + e2, o + e1 + e2]).distance(self.main_streets)
@@ -687,7 +688,7 @@ class CityBuilder:
         if ax is None:
             return None
         o, e1, e2 = ax
-        l1, l2 = np.linalg.norm(e1), np.linalg.norm(e2)
+        l1, l2 = vlen(e1), vlen(e2)
         u, v = e1 / l1, e2 / l2
         self.out["grounds"].append((area, "cemetery"))
         cc = o + u * min(18 * s, l1 * 0.2) + v * l2 / 2
@@ -893,7 +894,7 @@ class CityBuilder:
             if ax is None:
                 continue
             _, e1, e2 = ax
-            u, v = e1 / np.linalg.norm(e1), e2 / np.linalg.norm(e2)
+            u, v = e1 / vlen(e1), e2 / vlen(e2)
             room = plaza.buffer(-4 * s).difference(roads).difference(Point(c.x, c.y).buffer(fr + 9 * s))
             shapely.prepare(room)
             sw, sd, gx, gy = 9 * s, 6.5 * s, 13.5 * s, 12.5 * s   # Standbreite/-tiefe, Raster
