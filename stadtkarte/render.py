@@ -853,7 +853,9 @@ def render_svg(m):
     def edged(g, fill):
         if joins is None:
             return f'<path d="{path_d(g)}" fill="{fill}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>'
-        edge = line_d(g.boundary.difference(joins))
+        # Randlinie aus den Teilflächen: Zuschnitte können GeometryCollections mit Linien- oder Punktresten
+        # liefern, deren .boundary None ist
+        edge = line_d(unary_union([p.boundary for p in polys(g)]).difference(joins))
         return (f'<path d="{path_d(g)}" fill="{fill}"/>' +
                 (f'<path d="{edge}" fill="none" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>' if edge else ""))
     for st in m["streets"]:
