@@ -35,6 +35,14 @@ python -m venv .venv
 Ergebnis landet in `ausgabe/`. Mit `--seed 77` probierst du eine andere Variante derselben Stadt.
 Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erklärt.
 
+## Gleicher Seed, gleiche Karte
+
+Gleiche Stadtbeschreibung und gleicher Seed ergeben auf jedem Rechner mit demselben Betriebssystem dieselbe Karte,
+unabhängig vom Prozessor. Zwischen Windows und Linux kann eine Karte leicht abweichen, weil beide Systeme
+Sinus, Kosinus usw. in der letzten Nachkommastelle anders runden. Wer eine Karte teilen will, gibt daher am
+besten die erzeugte Datei weiter. `packaging/determinismus.py` prüft das bei jedem Paketbau: Es erzeugt Karten
+mehrfach und ahmt dabei andere Prozessoren nach (andere OpenBLAS-Rechenkerne, numpy ohne AVX-512).
+
 ## Mehrere Prozessorkerne
 
 Die Bodentexturen entstehen gleichzeitig in mehreren Threads (bei großen Karten begrenzt, damit der Speicher
