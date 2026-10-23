@@ -1,0 +1,59 @@
+# Bergstadt der Zwerge: Terrassen am Fels, großes Tor in den Berg, Klamm mit Steinbrücken
+name: Durmagrund
+seed: 11
+einwohner: 5000
+
+gelaende:
+  biotop: gebirge     # Felsmassiv statt Meer
+  kueste: nord        # im Gebirge: Seite, auf der der Berg liegt
+  fluss: true         # im Gebirge eine Klamm mit Wildbach
+  flussbreite: 44
+  wald: [west, suedwest]
+  felder: [sued, suedost]
+
+mauer:
+  vorhanden: true
+  tore: 3
+
+viertel:
+  - name: Hallenviertel
+    typ: adel
+    lage: nord
+  - name: Schmiedeterrassen
+    typ: handwerk
+    lage: west
+  - name: Steinmetzgassen
+    typ: arbeiter
+    lage: ost
+  - name: Marktebene
+    typ: markt
+    lage: sued
+
+orte:
+  - name: Halle des Bergkönigs
+    typ: adelshaus
+    viertel: Hallenviertel
+  - name: Große Esse
+    kuerzel: E1
+    typ: schmiede
+    viertel: Schmiedeterrassen
+  - name: Ahnentempel
+    typ: tempel
+    viertel: Steinmetzgassen
+  - name: Zum Goldenen Amboss
+    kuerzel: G1
+    typ: gasthaus
+    viertel: Marktebene
+  - name: Garnison
+    typ: kaserne
+  - name: Felsenwacht
+    typ: festung
+  - name: Ahnengruft
+    typ: friedhof
+    lage: ausserhalb
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png, pdf]
+  raster: 0
+  legende: true

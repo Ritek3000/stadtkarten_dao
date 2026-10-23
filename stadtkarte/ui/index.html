@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stadtkarten-Werkstatt</title>
+<style>
+:root {
+  --bg: #1b1e17; --panel: #252a1f; --panel2: #2e3427; --line: #454d3a;
+  --text: #ece6d6; --muted: #a9a58f; --accent: #d9a24a; --accent2: #f0c06a;
+  --danger: #d0705e; --ok: #8fb26a; --field: #1f2319;
+  --font: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.4 var(--font); display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 22px; font-weight: normal; letter-spacing: .06em; font-variant: small-caps; color: var(--accent2); }
+header .sp { flex: 1; }
+main { flex: 1; display: flex; min-height: 0; }
+aside { width: 420px; min-width: 340px; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 12px 14px 90px; }
+section.viewer { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+details { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; background: var(--panel2); }
+summary { cursor: pointer; padding: 8px 12px; font-variant: small-caps; letter-spacing: .05em; font-size: 16px; color: var(--accent2); list-style: none; }
+summary::before { content: "▸ "; color: var(--muted); }
+details[open] > summary::before { content: "▾ "; }
+.box { padding: 4px 12px 12px; display: grid; gap: 9px; }
+label.f { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 8px; }
+label.f > span, .lbl { color: var(--muted); font-size: 14px; }
+input, select, button, textarea { font: inherit; color: var(--text); }
+input[type=text], input[type=number], select {
+  width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0;
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); width: 17px; height: 17px; }
+.row { display: flex; gap: 6px; align-items: center; }
+.hint { color: var(--muted); font-size: 13px; }
+
+button { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #241a08; border-color: var(--accent); font-weight: bold; }
+button.primary:hover { background: var(--accent2); }
+button.icon { padding: 4px 9px; }
+button:disabled { opacity: .45; cursor: default; }
+
+.compass { display: grid; grid-template-columns: repeat(3, 38px); gap: 3px; }
+.compass button { padding: 4px 0; font-size: 12px; }
+.compass button.on { background: var(--accent); color: #241a08; border-color: var(--accent); }
+.compass .mid { display: grid; place-items: center; color: var(--muted); font-size: 18px; }
+
+.list { display: grid; gap: 6px; }
+.item { display: grid; gap: 5px; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
+.item .row > * { flex: 1; }
+.item .row > button { flex: 0 0 auto; }
+
+.generate { position: sticky; bottom: -90px; padding: 10px 0; background: linear-gradient(transparent, var(--panel) 30%); }
+.generate button { width: 100%; padding: 11px; font-size: 17px; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.toolbar .sp { flex: 1; }
+#status { font-size: 14px; color: var(--muted); }
+#status.err { color: var(--danger); }
+#hints { padding: 0 12px; }
+#hints div { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--panel2); font-size: 14px; }
+#stage { flex: 1; overflow: auto; position: relative; cursor: grab; background:
+  repeating-conic-gradient(#20241b 0 25%, #1b1e17 0 50%) 0 0/24px 24px; }
+#stage.drag { cursor: grabbing; }
+#stage img[hidden], #empty[hidden] { display: none; }
+#stage img { display: block; margin: 0 auto; image-rendering: auto; user-select: none; -webkit-user-drag: none; }
+#empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 30px; }
+#empty b { color: var(--accent2); font-weight: normal; font-size: 22px; font-variant: small-caps; }
+#busy { position: absolute; inset: 0; display: none; place-items: center; background: rgba(15,17,12,.72); z-index: 5; }
+#busy.on { display: grid; }
+.spinner { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--line); border-top-color: var(--accent); animation: spin 1s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  aside { width: auto; min-width: 0; max-height: 55vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  #stage { min-height: 50vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Stadtkarten-Werkstatt</h1>
+  <span class="hint">Die Alte Ordnung</span>
+  <span class="sp"></span>
+  <label class="row"><span class="hint">Beispiel:</span>
+    <select id="exampleSel" style="width:auto"></select></label>
+  <button id="btnLoadYaml" title="Stadtbeschreibung (.yaml) öffnen">Öffnen…</button>
+  <button id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern">Speichern</button>
+  <input type="file" id="fileYaml" accept=".yaml,.yml" hidden>
+</header>
+<main>
+  <aside id="form"></aside>
+  <section class="viewer">
+    <div class="toolbar">
+      <button class="icon" id="zoomOut" title="Verkleinern">−</button>
+      <button class="icon" id="zoomFit" title="Ganze Karte">Ganz</button>
+      <button class="icon" id="zoomIn" title="Vergrößern">+</button>
+      <span id="zoomLbl" class="hint">–</span>
+      <span class="sp"></span>
+      <span id="status"></span>
+      <span class="sp"></span>
+      <button data-fmt="png" disabled>PNG</button>
+      <button data-fmt="webp" disabled title="kleiner, gut für Foundry/Roll20">WebP</button>
+      <button data-fmt="pdf" disabled>PDF</button>
+      <button data-fmt="svg" disabled>SVG</button>
+      <button id="btnSaveOut" disabled title="SVG, PNG und PDF in den Kartenordner schreiben">Alle Formate speichern</button>
+    </div>
+    <div id="hints"></div>
+    <div id="stage">
+      <div id="empty"><div><b>Noch keine Karte</b><br>Stelle links die Stadt zusammen und klicke auf „Karte erzeugen“.</div></div>
+      <img id="map" alt="Erzeugte Stadtkarte" hidden>
+      <div id="busy"><div style="text-align:center"><div class="spinner"></div><div>Die Karte wird gezeichnet…</div><div class="hint" id="busyTime"></div></div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const DIRS = [["nordwest","NW"],["nord","N"],["nordost","NO"],["west","W"],null,["ost","O"],["suedwest","SW"],["sued","S"],["suedost","SO"]];
+const DIR_NAMES = {nord:"Nord", nordost:"Nordost", ost:"Ost", suedost:"Südost", sued:"Süd", suedwest:"Südwest", west:"West", nordwest:"Nordwest", mitte:"Mitte"};
+const COAST = {nord:"Norden", ost:"Osten", sued:"Süden", west:"Westen", keine:"keine Küste"};
+const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf / Moor", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)"};
+const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel"};
+const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Mühle", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", tempel:"Tempel / Schrein", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion"};
+const PLAGE = {festung: [["insel","auf einer Insel"],["landzunge","auf einer Landzunge"],["land","an Land vor der Stadt"]],
+               friedhof: [["","im Ort (wenn Platz)"],["ausserhalb","vor der Stadt"]]};
+
+let OPT = null, cfg = null, resultId = null, zoom = null;
+const $ = s => document.querySelector(s);
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else if (k === "class") e.className = v;
+    else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+}
+function select(options, value, onchange) {
+  const s = el("select", {on: {change: e => onchange(e.target.value)}});
+  for (const [v, t] of options) s.append(el("option", {value: v, selected: String(v) === String(value ?? "")}, t));
+  return s;
+}
+const field = (label, input, hint) => el("label", {class: "f"}, el("span", {}, label), hint ? el("div", {}, input, el("div", {class: "hint"}, hint)) : input);
+function norm(c) {
+  c.gelaende ??= {}; c.mauer ??= {}; c.ausgabe ??= {}; c.viertel ??= []; c.orte ??= [];
+  const g = c.gelaende;
+  g.biotop ??= "gemaessigt"; g.kueste ??= "nord"; g.fluss ??= true; g.flussbreite ??= 60; g.inseln ??= 2;
+  g.wald = [].concat(g.wald ?? []); g.felder = [].concat(g.felder ?? []);
+  c.mauer.vorhanden ??= true; c.mauer.tore ??= 4;
+  c.ausgabe.bildgroesse ??= 2000; c.ausgabe.raster ??= 0; c.ausgabe.legende ??= true; c.ausgabe.dachdetails ??= true; c.ausgabe.nacht ??= false;
+  c.ausgabe.formate ??= ["svg", "png"];
+  c.name ??= "Neue Stadt"; c.seed ??= 1; c.einwohner ??= 5000;
+  for (const o of c.orte) if (o.typ === "bastion" || o.typ === "burg") o.typ = "festung";
+  return c;
+}
+
+function compass(list, onchange) {
+  const box = el("div", {class: "compass"});
+  for (const d of DIRS) {
+    if (!d) { box.append(el("div", {class: "mid"}, "✦")); continue; }
+    const b = el("button", {type: "button", class: list.includes(d[0]) ? "on" : "", title: DIR_NAMES[d[0]]}, d[1]);
+    b.onclick = () => { const i = list.indexOf(d[0]); i >= 0 ? list.splice(i, 1) : list.push(d[0]); b.classList.toggle("on"); onchange?.(); };
+    box.append(b);
+  }
+  return box;
+}
+
+function renderForm() {
+  const f = $("#form"); f.innerHTML = "";
+  const g = cfg.gelaende;
+  const num = (obj, key, attrs = {}) => el("input", {type: "number", value: obj[key], ...attrs,
+    on: {input: e => { obj[key] = e.target.value === "" ? "" : Number(e.target.value); }}});
+  // refresh: nach dem Verlassen des Feldes neu aufbauen (z.B. Viertelnamen in den Orte-Auswahllisten)
+  const txt = (obj, key, attrs = {}, refresh = false) => el("input", {type: "text", value: obj[key] ?? "", ...attrs,
+    on: {input: e => { obj[key] = e.target.value; }, change: () => { if (refresh) renderForm(); }}});
+  const chk = (obj, key, after) => el("input", {type: "checkbox", checked: !!obj[key], on: {change: e => { obj[key] = e.target.checked; after?.(); }}});
+
+  // Allgemein
+  const popOut = el("span", {class: "hint"}, `${cfg.einwohner} Einwohner`);
+  const pop = el("input", {type: "range", min: 300, max: 20000, step: 100, value: cfg.einwohner,
+    on: {input: e => { cfg.einwohner = Number(e.target.value); popOut.textContent = `${cfg.einwohner} Einwohner` + (cfg.einwohner < 2500 ? " (Dorf)" : ""); }}});
+  const seedIn = num(cfg, "seed", {min: 0});
+  f.append(el("details", {open: true}, el("summary", {}, "Allgemein"), el("div", {class: "box"},
+    field("Name", txt(cfg, "name")),
+    field("Größe", el("div", {}, pop, popOut)),
+    field("Seed", el("div", {class: "row"}, seedIn,
+      el("button", {type: "button", class: "icon", title: "Zufälliger Seed",
+        on: {click: () => { cfg.seed = Math.floor(Math.random() * 99999) + 1; seedIn.value = cfg.seed; }}}, "🎲")),
+      "Gleicher Seed + gleiche Angaben = gleiche Karte"),
+  )));
+
+  // Gelände
+  const mtn = g.biotop === "gebirge";
+  const riverW = el("input", {type: "range", min: 20, max: 110, step: 2, value: g.flussbreite, disabled: !g.fluss,
+    on: {input: e => g.flussbreite = Number(e.target.value)}});
+  f.append(el("details", {open: true}, el("summary", {}, "Gelände"), el("div", {class: "box"},
+    field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
+      g.biotop = v; if (v === "gebirge" && g.kueste === "keine") g.kueste = "nord"; renderForm(); })),
+    mtn ? field("Berg", select(Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]),
+                               g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt")
+        : field("Küste", select(Object.entries(COAST), g.kueste, v => { g.kueste = v; renderForm(); })),
+    !mtn && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
+    field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
+    el("div", {class: "row", style: "align-items:flex-start; gap:22px"},
+      el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
+      el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
+    el("div", {class: "hint"}, "Himmelsrichtungen um die Stadt, in denen Wald bzw. Felder liegen."),
+  )));
+
+  // Mauer
+  f.append(el("details", {}, el("summary", {}, "Befestigung"), el("div", {class: "box"},
+    field("Stadtmauer", el("div", {class: "row"}, chk(cfg.mauer, "vorhanden"), el("span", {class: "hint"}, "Stein; Sumpf, Nordland, Steppe: Palisade; Wüste: Lehm"))),
+    field("Tore", num(cfg.mauer, "tore", {min: 1, max: 8})),
+  )));
+
+  // Viertel
+  const vList = el("div", {class: "list"});
+  cfg.viertel.forEach((v, i) => vList.append(el("div", {class: "item"},
+    el("div", {class: "row"}, txt(v, "name", {placeholder: "Name des Viertels"}, true),
+      el("button", {type: "button", class: "icon", title: "Entfernen", on: {click: () => { cfg.viertel.splice(i, 1); renderForm(); }}}, "✕")),
+    el("div", {class: "row"},
+      select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => v.typ = x),
+      select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
+  )));
+  f.append(el("details", {open: true}, el("summary", {}, `Viertel (${cfg.viertel.length})`), el("div", {class: "box"},
+    vList, el("button", {type: "button", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "+ Viertel hinzufügen"),
+    el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
+  )));
+
+  // Orte
+  const names = cfg.viertel.map(v => v.name).filter(Boolean);
+  const oList = el("div", {class: "list"});
+  cfg.orte.forEach((o, i) => {
+    const lage = PLAGE[o.typ];
+    oList.append(el("div", {class: "item"},
+      el("div", {class: "row"}, txt(o, "name", {placeholder: "Name des Ortes"}),
+        el("input", {type: "text", value: o.kuerzel ?? "", placeholder: "Kürzel", style: "flex:0 0 70px",
+          title: "Optional: steht statt des Namens auf der Karte, der Name kommt in die Legende",
+          on: {input: e => { if (e.target.value) o.kuerzel = e.target.value; else delete o.kuerzel; }}}),
+        el("button", {type: "button", class: "icon", title: "Entfernen", on: {click: () => { cfg.orte.splice(i, 1); renderForm(); }}}, "✕")),
+      el("div", {class: "row"},
+        select(OPT.place_types.map(t => [t, PTYPE[t] ?? t]), o.typ, x => { o.typ = x; delete o.lage; renderForm(); }),
+        lage ? select(lage, o.lage ?? lage[0][0], x => { if (x) o.lage = x; else delete o.lage; })
+             : select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; })),
+      o.typ === "friedhof" && o.lage !== "ausserhalb"
+        ? select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; }) : null,
+    ));
+  });
+  f.append(el("details", {open: true}, el("summary", {}, `Besondere Orte (${cfg.orte.length})`), el("div", {class: "box"},
+    oList, el("button", {type: "button", on: {click: () => { cfg.orte.push({name: "Neuer Ort", typ: "gasthaus"}); renderForm(); }}}, "+ Ort hinzufügen"),
+  )));
+
+  // Ausgabe
+  f.append(el("details", {}, el("summary", {}, "Ausgabe"), el("div", {class: "box"},
+    field("Bildgröße", select([[1500, "1500 px (schnell)"], [2000, "2000 px"], [3000, "3000 px"], [4000, "4000 px (Druck, langsam)"]],
+      cfg.ausgabe.bildgroesse, v => cfg.ausgabe.bildgroesse = Number(v))),
+    field("Raster", num(cfg.ausgabe, "raster", {min: 0, step: 10}), "Pixel pro Feld, 0 = kein Raster"),
+    field("Legende", chk(cfg.ausgabe, "legende")),
+    field("Nachtmodus", el("div", {class: "row"}, chk(cfg.ausgabe, "nacht"),
+      el("span", {class: "hint"}, "Dunkle Karte mit Laternen und hellen Fenstern; Dörfer haben weniger Licht"))),
+    field("Dachdetails", el("div", {class: "row"}, chk(cfg.ausgabe, "dachdetails"),
+      el("span", {class: "hint"}, "Ziegel, Schiefer, Reet, Schornsteine (SVG wird etwas größer)"))),
+  )));
+
+  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "primary", id: "btnGen", on: {click: generateMap}}, "Karte erzeugen")));
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get("Content-Type") || "";
+  const data = ct.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(data.error || data || r.statusText);
+  return data;
+}
+function status(text, err = false) { const s = $("#status"); s.textContent = text; s.className = err ? "err" : ""; }
+
+async function generateMap() {
+  const btn = $("#btnGen"); btn.disabled = true;
+  $("#busy").classList.add("on"); $("#hints").innerHTML = "";
+  const t0 = Date.now();
+  const tick = setInterval(() => $("#busyTime").textContent = `${Math.round((Date.now() - t0) / 1000)} s – meist 5–15 s`, 500);
+  try {
+    const res = await api("/api/generate", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cfg)});
+    resultId = res.id;
+    showImage(res.preview);
+    for (const h of res.hints) $("#hints").append(el("div", {}, h));
+    document.querySelectorAll("[data-fmt], #btnSaveOut").forEach(b => b.disabled = false);
+    const info = `${cfg.name}: ${res.stats.gebaeude} Gebäude, ${res.stats.baeume} Bäume – ${res.stats.sekunden} s`;
+    status(info + " · volle Auflösung wird berechnet…");
+    // Vorschau ist halb so groß; die volle Auflösung im Hintergrund holen und still austauschen
+    fetch(`/api/full?id=${res.id}`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => {
+      if (resultId !== res.id) return;
+      showImage(URL.createObjectURL(b));
+      status(info);
+    }).catch(() => { if (resultId === res.id) status(info); });
+  } catch (e) {
+    status("Fehler: " + e.message, true);
+  } finally {
+    clearInterval(tick); $("#busy").classList.remove("on"); btn.disabled = false;
+  }
+}
+
+// Bild anzeigen; bei anderer Auflösung (Vorschau ↔ voll) bleiben Ausschnitt und Bildschirmgröße erhalten
+let lastNatural = 0;
+function showImage(src) {
+  const img = $("#map"), st = $("#stage");
+  img.onload = () => {
+    $("#empty").hidden = true; img.hidden = false;
+    if (zoom === null) { fit(); }
+    else {
+      const k = lastNatural ? lastNatural / img.naturalWidth : 1;
+      const sl = st.scrollLeft, stp = st.scrollTop;
+      zoom *= k; applyZoom(); st.scrollLeft = sl; st.scrollTop = stp;
+    }
+    lastNatural = img.naturalWidth;
+  };
+  img.src = src;
+}
+
+// Ansicht: Zoom und Verschieben
+function applyZoom() {
+  const img = $("#map"); if (!img.naturalWidth) return;
+  img.style.width = Math.round(img.naturalWidth * zoom) + "px";
+  // Prozent bezogen auf die volle Kartengröße (die Vorschau ist nur halb so groß)
+  const fullW = Number(cfg?.ausgabe?.bildgroesse) || img.naturalWidth;
+  $("#zoomLbl").textContent = Math.round(zoom * img.naturalWidth / fullW * 100) + " %";
+}
+function fit() {
+  const st = $("#stage"), img = $("#map"); if (!img.naturalWidth) return;
+  zoom = Math.min((st.clientWidth - 8) / img.naturalWidth, (st.clientHeight - 8) / img.naturalHeight); applyZoom();
+}
+function zoomBy(f, cx, cy) {
+  const st = $("#stage"); if (zoom === null) return;
+  const old = zoom; zoom = Math.max(0.1, Math.min(3, zoom * f));
+  cx ??= st.clientWidth / 2; cy ??= st.clientHeight / 2;
+  const x = (st.scrollLeft + cx) / old, y = (st.scrollTop + cy) / old;
+  applyZoom(); st.scrollLeft = x * zoom - cx; st.scrollTop = y * zoom - cy;
+}
+$("#zoomIn").onclick = () => zoomBy(1.25);
+$("#zoomOut").onclick = () => zoomBy(0.8);
+$("#zoomFit").onclick = fit;
+const stage = $("#stage");
+stage.addEventListener("wheel", e => {
+  if (!$("#map").naturalWidth || $("#map").hidden) return;
+  e.preventDefault(); const r = stage.getBoundingClientRect();
+  zoomBy(e.deltaY < 0 ? 1.15 : 0.87, e.clientX - r.left, e.clientY - r.top);
+}, {passive: false});
+let drag = null;
+stage.addEventListener("pointerdown", e => { drag = {x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop}; stage.classList.add("drag"); stage.setPointerCapture(e.pointerId); });
+stage.addEventListener("pointermove", e => { if (drag) { stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); } });
+stage.addEventListener("pointerup", () => { drag = null; stage.classList.remove("drag"); });
+
+// Downloads
+document.querySelectorAll("[data-fmt]").forEach(b => b.onclick = () => {
+  if (resultId) window.location.href = `/api/download?id=${resultId}&format=${b.dataset.fmt}`;
+});
+$("#btnSaveOut").onclick = async () => {
+  try {
+    const res = await api("/api/save", {method: "POST", body: JSON.stringify({id: resultId})});
+    status("Gespeichert in " + res.folder + ": " + res.paths.map(p => p.split(/[\\/]/).pop()).join(", "));
+  } catch (e) { status("Fehler: " + e.message, true); }
+};
+
+// YAML öffnen/speichern, Beispiele
+$("#btnSaveYaml").onclick = async () => {
+  try {
+    const text = await api("/api/yaml", {method: "POST", body: JSON.stringify(cfg)});
+    const a = el("a", {href: URL.createObjectURL(new Blob([text], {type: "text/yaml"})),
+      download: (cfg.name || "stadt").toLowerCase().replace(/[^a-z0-9äöüß]+/g, "_") + ".yaml"});
+    document.body.append(a); a.click(); a.remove();
+  } catch (e) { status("Fehler: " + e.message, true); }
+};
+$("#btnLoadYaml").onclick = () => $("#fileYaml").click();
+$("#fileYaml").onchange = async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    cfg = norm(await api("/api/parse", {method: "POST", body: await file.text()}));
+    renderForm(); status(`„${file.name}“ geladen`);
+  } catch (err) { status("Datei konnte nicht gelesen werden: " + err.message, true); }
+  e.target.value = "";
+};
+async function loadExample(name) {
+  cfg = norm(await api("/api/example?name=" + encodeURIComponent(name)));
+  renderForm(); status(`Beispiel „${name}“ geladen`);
+}
+$("#exampleSel").onchange = e => loadExample(e.target.value);
+
+(async () => {
+  OPT = await api("/api/options");
+  $("#btnSaveOut").title = "SVG, PNG und PDF speichern nach " + OPT.output_dir;
+  for (const ex of OPT.examples) $("#exampleSel").append(el("option", {value: ex, selected: ex === "hafenstadt"}, ex));
+  await loadExample(OPT.examples.includes("hafenstadt") ? "hafenstadt" : OPT.examples[0]);
+  status("Bereit");
+})();
+window.addEventListener("resize", () => { if (zoom !== null && $("#map").naturalWidth) applyZoom(); });
+</script>
+</body>
+</html>

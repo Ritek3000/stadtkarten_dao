@@ -1,0 +1,11 @@
+# Python-Umgebung und Zwischenstände
+.venv/
+__pycache__/
+*.pyc
+# erzeugte Dateien (lassen sich jederzeit neu bauen)
+build/
+dist/
+verteilung/
+ausgabe/
+# lokale Werkzeug-Einstellungen
+.claude/

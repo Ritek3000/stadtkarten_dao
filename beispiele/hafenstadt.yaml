@@ -1,0 +1,91 @@
+# Beispiel-Stadt für "Die Alte Ordnung"
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\hafenstadt.yaml
+
+name: Rabenfurt
+seed: 1234            # gleiche Zahl + gleiche Angaben = gleiche Karte
+einwohner: 6000       # bestimmt die Größe der Stadt
+
+gelaende:
+  kueste: nord        # nord | ost | sued | west | keine
+  fluss: true
+  flussbreite: 60
+  inseln: 3
+  wald: [west, suedwest]
+  felder: [ost, suedost, sued]
+
+mauer:
+  vorhanden: true
+  tore: 4
+
+# typ: hafen | handwerk | arbeiter | fischer | bauern | adel | tempel | markt | wohn
+# lage (optional): nord | nordost | ost | suedost | sued | suedwest | west | nordwest | mitte
+# viertel weglassen (oder leere Liste) = einheitliche Bebauung ohne Viertelnamen
+viertel:
+  - name: Hafen
+    typ: hafen
+  - name: Handwerkerviertel
+    typ: handwerk
+    lage: west
+  - name: Fischerviertel
+    typ: fischer
+    lage: nordost
+  - name: Arbeiterviertel
+    typ: arbeiter
+    lage: ost
+  - name: Bauernviertel
+    typ: bauern
+    lage: suedost
+
+# typ: gasthaus | kontor | adelshaus | tempel | schmiede | muehle | werft | kaserne | friedhof | laden
+#      festung (bzw. bastion/burg) mit lage: insel | landzunge | land  - steht außerhalb der Stadt
+#      friedhof mit lage: ausserhalb  - liegt dann vor einem Tor (passiert auch automatisch, wenn im Ort kein Platz ist)
+# kuerzel (optional): statt des Namens steht das Kürzel auf der Karte, der Name in der Legende
+orte:
+  - name: Kontor
+    typ: kontor
+    viertel: Hafen
+  - name: Werft
+    typ: werft
+    viertel: Hafen
+  - name: Haus Lorint
+    typ: adelshaus
+    viertel: Handwerkerviertel
+  - name: Schmiede
+    typ: schmiede
+    viertel: Handwerkerviertel
+  - name: Die Brücke
+    typ: gasthaus
+    viertel: Handwerkerviertel
+  - name: Mühle
+    typ: muehle
+    viertel: Bauernviertel
+  - name: Gasthaus Zum Fass
+    kuerzel: H3
+    typ: gasthaus
+    viertel: Handwerkerviertel
+  - name: Herberge Seeblick
+    kuerzel: H4
+    typ: gasthaus
+    viertel: Arbeiterviertel
+  - name: Schrein der Alten
+    kuerzel: S1
+    typ: tempel
+    viertel: Arbeiterviertel
+  - name: Bastion
+    typ: festung
+    lage: insel
+  - name: Wachkaserne
+    typ: kaserne
+    viertel: Bauernviertel
+  - name: Gräberfeld
+    kuerzel: F1
+    typ: friedhof
+    viertel: Bauernviertel
+
+ausgabe:
+  bildgroesse: 2000   # Kantenlänge in Pixeln
+  formate: [svg, png, pdf]
+  raster: 0           # >0 zeichnet ein Quadratraster (Pixel pro Feld), z.B. für Foundry/Roll20
+  legende: true
+  dachdetails: true  # Dachmaterial (Ziegel, Schiefer, Reet, Schnee), Licht und Schornsteine
+  nacht: false       # true = Nachtkarte mit Laternen und erleuchteten Fenstern

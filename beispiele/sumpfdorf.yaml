@@ -1,0 +1,47 @@
+# Pfahlbausiedlung im Moor
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\sumpfdorf.yaml
+
+name: Unkenried
+seed: 42
+einwohner: 1800
+
+gelaende:
+  biotop: sumpf       # gemaessigt | sumpf
+  kueste: keine
+  fluss: true
+  flussbreite: 38
+  wald: [west, nord, suedwest]
+  felder: [ost]
+
+mauer:
+  vorhanden: true     # im Sumpf wird daraus eine Holzpalisade
+  tore: 3
+
+viertel:
+  - name: Pfahlgassen
+    typ: fischer
+    lage: west
+  - name: Torfstecher
+    typ: arbeiter
+    lage: ost
+  - name: Moorhöfe
+    typ: bauern
+    lage: sued
+
+orte:
+  - name: Zur Nassen Kröte
+    kuerzel: G1
+    typ: gasthaus
+  - name: Schrein der Moorgöttin
+    kuerzel: S1
+    typ: tempel
+    viertel: Torfstecher
+  - name: Gräberhügel
+    typ: friedhof
+    viertel: Moorhöfe
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png, pdf]
+  raster: 0
+  legende: true

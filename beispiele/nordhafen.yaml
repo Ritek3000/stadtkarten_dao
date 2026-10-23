@@ -1,0 +1,50 @@
+# Verschneite Hafenstadt im hohen Norden
+name: Frostwacht
+seed: 7
+einwohner: 3500
+
+gelaende:
+  biotop: nordland
+  kueste: nord
+  fluss: true
+  flussbreite: 45
+  inseln: 3
+  wald: [west, suedwest, sued]
+  felder: [ost]
+
+mauer:
+  vorhanden: true
+  tore: 3
+
+viertel:
+  - name: Hafen
+    typ: hafen
+  - name: Langhäuser
+    typ: wohn
+    lage: west
+  - name: Fischerplatz
+    typ: fischer
+    lage: nordost
+  - name: Schmiedeviertel
+    typ: handwerk
+    lage: suedost
+
+orte:
+  - name: Jarlshalle
+    typ: adelshaus
+    viertel: Langhäuser
+  - name: Met & Horn
+    kuerzel: G1
+    typ: gasthaus
+  - name: Eisfeste
+    typ: festung
+    lage: landzunge
+  - name: Hügelgräber
+    typ: friedhof
+    lage: ausserhalb
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png, pdf]
+  raster: 0
+  legende: true

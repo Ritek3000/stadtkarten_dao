@@ -1,0 +1,49 @@
+# Handelsstadt in der Wüste mit Oasen
+name: Sar-Kadesh
+seed: 21
+einwohner: 5000
+
+gelaende:
+  biotop: wueste
+  kueste: keine
+  fluss: false
+  wald: [sued]          # in der Wüste ein Palmenhain
+  felder: [ost, west]   # bewässerte Felder
+
+mauer:
+  vorhanden: true       # Lehmmauer
+  tore: 4
+
+viertel:
+  - name: Basar
+    typ: markt
+    lage: mitte
+  - name: Karawanserei
+    typ: handwerk
+    lage: ost
+  - name: Lehmgassen
+    typ: arbeiter
+    lage: west
+  - name: Palastbezirk
+    typ: adel
+    lage: nord
+
+orte:
+  - name: Palast des Satrapen
+    typ: adelshaus
+    viertel: Palastbezirk
+  - name: Tempel der Sonne
+    kuerzel: T1
+    typ: tempel
+  - name: Zur Durstigen Karawane
+    kuerzel: G1
+    typ: gasthaus
+    viertel: Karawanserei
+  - name: Garnison
+    typ: kaserne
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png, pdf]
+  raster: 0
+  legende: true
