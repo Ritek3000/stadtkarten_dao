@@ -94,15 +94,23 @@ def _landing_inside(s, city, water, p, avoid=None):
     return best[1] if best else None
 
 
-def _connect_inside(s, city, start):
-    """Weg vom Zugang (Brückenkopf, Festungstor) zur nächsten Straße in der Stadt; Häuser im Weg werden geräumt."""
+def _connect_inside(s, city, start, direction=None, width=10):
+    """Weg vom Zugang (Brückenkopf, Festungstor) zur nächsten Straße in der Stadt; Häuser im Weg werden geräumt.
+    Mit direction läuft der Weg erst ein Stück geradeaus weiter (z.B. in Brückenrichtung) und biegt dann ab."""
     net = unary_union(city["streets"] + city["plazas"] + city["paved"])
     if net.is_empty:
         return
-    target = nearest_points(net, start)[0]
-    if target.distance(start) < 1:
+    pts = [(start.x, start.y)]
+    if direction is not None:
+        ahead = Point(start.x + direction[0] * 22 * s, start.y + direction[1] * 22 * s)
+        if city["city_land"].contains(ahead) and not net.contains(Point(start.x, start.y)):
+            pts.append((ahead.x, ahead.y))
+    target = nearest_points(net, Point(pts[-1]))[0]
+    if target.distance(Point(pts[-1])) >= 1:
+        pts.append((target.x, target.y))
+    if len(pts) < 2:
         return
-    path = LineString([(start.x, start.y), (target.x, target.y)]).buffer(5 * s).intersection(city["city_land"])
+    path = LineString(pts).buffer(width / 2 * s).intersection(city["city_land"])
     city["buildings"] = [b for b in city["buildings"] if not b["poly"].intersects(path.buffer(1 * s))]
     city["yard_trees"] = [t for t in city["yard_trees"] if not path.buffer(t[2]).contains(Point(t[0], t[1]))]
     city["wells"] = [w for w in city["wells"] if not path.buffer(w[2]).contains(Point(w[0], w[1]))]
@@ -211,9 +219,29 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                     shore = nearest_points(target, p)[0]
                 ux, uy = unit((shore.x - p.x, shore.y - p.y))
                 ang = math.degrees(math.atan2(uy, ux))
-                res["bridges"].append((LineString([(p.x, p.y), (shore.x + ux * 10 * s, shore.y + uy * 10 * s)]), 15 * s))
+                # der berechnete Uferpunkt kann vor der gezeichneten (gewellten) Küste im Wasser liegen:
+                # bis zum ersten Land hinter dem Uferpunkt weitergehen
+                ray = LineString([(p.x, p.y), (shore.x + ux * 40 * s, shore.y + uy * 40 * s)])
+                wet = [g for g in lines(ray.intersection(water).difference(res["land_add"])) if g.length > 1]
+                if wet:
+                    far = max((Point(c) for g in wet for c in (g.coords[0], g.coords[-1])), key=p.distance)
+                    if far.distance(p) > shore.distance(p):
+                        shore = far
+                # Brücke nur über das Wasser zwischen Inselufer und Stadtufer, auf der Insel eine Straße zum Tor
+                line = LineString([(p.x, p.y), (shore.x, shore.y)])
+                off = [g for g in lines(line.difference(res["land_add"])) if g.length > 2 * s]
+                edge = Point(off[0].coords[0]) if off else p
+                e = 6 * s   # Widerlager: Brückenenden liegen ein Stück auf dem Ufer
+                res["bridges"].append((LineString([(edge.x - ux * e, edge.y - uy * e),
+                                                   (shore.x + ux * 2 * e, shore.y + uy * 2 * e)]), 15 * s))
+                if walled:   # Brückenkopf: füllt kleine Buchten der gewellten Küste neben Brückenende und Weg auf
+                    head = LineString([(shore.x - ux * 2 * s, shore.y - uy * 2 * s),
+                                       (shore.x + ux * 45 * s, shore.y + uy * 45 * s)])
+                    res["land_add"] = res["land_add"].union(head.buffer(14 * s, cap_style="flat"))
+                if edge.distance(p) > a:
+                    res["roads"].append((LineString([(p.x, p.y), (edge.x - ux * e * 0.5, edge.y - uy * e * 0.5)]), 12 * s))
                 if walled:
-                    _connect_inside(s, city, Point(shore.x + ux * 8 * s, shore.y + uy * 8 * s))
+                    _connect_inside(s, city, Point(shore.x + ux * 6 * s, shore.y + uy * 6 * s), (ux, uy), width=13)
     if (sea is None or lage == "land") and walled:
         # Zitadelle: in die Stadtmauer eingebaut, Tor zur Stadt hin
         site = _citadel_site(s, W, city, water, a)
