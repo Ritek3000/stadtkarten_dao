@@ -1,8 +1,11 @@
 """Zeichnet das Kartenmodell als SVG (und daraus PNG/PDF)."""
 import io
 import math
+import os
 import random
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from html import unescape
 from xml.sax.saxutils import escape, quoteattr
 
@@ -401,6 +404,30 @@ NOISE = {
 }
 
 
+_TEX_POOL = None
+_TEX_LIMITS = {}
+_TEX_LOCK = threading.Lock()
+
+
+def _texture_limited(W, *args, **kw):
+    """Eine Textur belegt beim Rechnen etwa 70 Byte je Pixel (bei 4000 px rund 1 GB). Damit der Speicher
+    nicht ausufert, rechnen höchstens so viele gleichzeitig, dass zusammen etwa 32 Millionen Pixel anfallen."""
+    n = max(1, min(4, int(32e6 // (W * W))))
+    with _TEX_LOCK:
+        sem = _TEX_LIMITS.setdefault(n, threading.Semaphore(n))
+    with sem:
+        return noise.texture(W, *args, **kw)
+
+
+def _tex_pool():
+    """Threads für die Rauschtexturen: numpy gibt bei den großen Array-Rechnungen die GIL frei,
+    mehrere Texturen entstehen so auf mehreren Kernen gleichzeitig."""
+    global _TEX_POOL
+    if _TEX_POOL is None:
+        _TEX_POOL = ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 1)), thread_name_prefix="textur")
+    return _TEX_POOL
+
+
 def noise_open(m, *keys, extras=(), base=None):
     """Öffnendes <use>-Tag einer vorberechneten Rauschtextur (Attribute und '/>' folgen im Aufrufer).
     keys: Texturname oder (Name, Deckkraft); mehrere werden zu einem Bild zusammengelegt."""
@@ -411,7 +438,9 @@ def noise_open(m, *keys, extras=(), base=None):
         rgb = tuple(float(v) for v in (m["biome"][col] if col in m["biome"] else col).split())
         layers.append(((bf, octv, seed, rgb, gain, bias, turb), op))
     tid = "_".join(k if isinstance(k, str) else k[0] for k in keys) + ("_d" if extras else "") + ("_b" if base else "")
-    m.setdefault("_tex", {})[tid] = noise.texture(m["W"], m["s"], layers, extras=tuple(extras), base=base)
+    tex = m.setdefault("_tex", {})
+    if tid not in tex:   # im Hintergrund berechnen; render_svg wartet erst beim Einbetten am Ende
+        tex[tid] = _tex_pool().submit(_texture_limited, m["W"], m["s"], layers, extras=tuple(extras), base=base)
     return f'<use href="#tex_{tid}"'
 
 
@@ -1143,7 +1172,7 @@ def render_svg(m):
     if grid > 0:
         d = "".join(f"M{k},0V{W}M0,{k}H{W}" for k in range(grid, W, grid))
         o.append(f'<path d="{d}" stroke="#000" stroke-opacity="0.25" stroke-width="1" fill="none"/>')
-    tex = m.pop("_tex", {})
+    tex = {k: fut.result() for k, fut in m.pop("_tex", {}).items()}
     if tex:   # jede Textur nur einmal einbetten, Verwendungen verweisen per <use> darauf
         o.append("<defs>" + "".join(
             f'<image id="tex_{k}" href="{u}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none" '

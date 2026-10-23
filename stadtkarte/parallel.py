@@ -1,0 +1,101 @@
+"""Rendern (SVG -> PNG) in eigenen Prozessen.
+
+resvg hält während des Renderns die GIL, Threads helfen daher nicht. Mehrere voneinander unabhängige Bilder
+(Vorschau, volle Ansicht, PNG mit Beschriftung, Bild der interaktiven Karte) entstehen so gleichzeitig auf
+mehreren Kernen, und der Hauptprozess bleibt frei. Das Modul ist absichtlich schlank: ein Render-Prozess lädt
+nur resvg, nicht numpy, Shapely oder den Generator.
+
+Klappt der Prozess-Pool nicht (z.B. eingeschränkte Umgebung), wird wie bisher im eigenen Prozess gerendert.
+"""
+import multiprocessing
+import os
+import threading
+from concurrent.futures import Future, ProcessPoolExecutor
+
+_POOL = None
+_BROKEN = False
+_LOCK = threading.Lock()
+
+
+def _watch_parent():
+    """Läuft in jedem Render-Prozess: endet das Hauptprogramm (auch hart, z.B. per kill), endet er mit."""
+    parent = multiprocessing.parent_process()
+    if parent is None:
+        return
+
+    def wait():
+        parent.join()
+        os._exit(0)
+    threading.Thread(target=wait, daemon=True).start()
+
+
+def _render(svg, zoom, font):
+    import resvg_py
+    return bytes(resvg_py.svg_to_bytes(svg_string=svg, zoom=zoom, font_files=[font] if font else None))
+
+
+def _font():
+    from .styles import FONT_FILE
+    return str(FONT_FILE) if FONT_FILE.exists() else None
+
+
+def _pool():
+    global _POOL
+    with _LOCK:
+        if _POOL is None and not _BROKEN:
+            workers = max(1, min(3, os.cpu_count() or 1))
+            _POOL = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn"),
+                                        initializer=_watch_parent)
+        return _POOL
+
+
+def _give_up():
+    """Pool unbrauchbar: künftig im eigenen Prozess rendern."""
+    global _POOL, _BROKEN
+    with _LOCK:
+        _BROKEN = True
+        pool, _POOL = _POOL, None
+    if pool is not None:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
+class _Job:
+    """Wie ein Future (result()), rendert aber selbst, falls der Render-Prozess ausfällt."""
+
+    def __init__(self, fut, args):
+        self._fut, self._args = fut, args
+
+    def result(self):
+        try:
+            return self._fut.result()
+        except Exception:   # z.B. BrokenProcessPool, abgestürzter oder blockierter Prozess
+            _give_up()
+            return _render(*self._args)
+
+
+def mode():
+    """'prozesse', solange der Pool arbeitet, sonst 'seriell' (für Statusanzeige und Selbsttest)."""
+    return "seriell" if _BROKEN else "prozesse"
+
+
+def shutdown():
+    """Render-Prozesse beenden (beim Schließen der Werkstatt)."""
+    global _POOL
+    with _LOCK:
+        pool, _POOL = _POOL, None
+    if pool is not None:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
+def png_async(svg, zoom=None):
+    """Startet das Rendern im Hintergrund; .result() liefert die PNG-Bytes."""
+    args = (svg, zoom, _font())
+    pool = _pool()
+    if pool is not None:
+        try:
+            return _Job(pool.submit(_render, *args), args)
+        except Exception:
+            _give_up()
+    done = Future()
+    done.set_result(_render(*args))
+    return done

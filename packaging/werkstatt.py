@@ -13,6 +13,13 @@ if sys.platform.startswith("linux") and getattr(sys, "frozen", False):
     else:
         os.environ.pop("LD_LIBRARY_PATH", None)
 
+import multiprocessing  # noqa: E402
+
+if __name__ == "__main__":
+    # Render-Prozesse (stadtkarte/parallel.py) starten das gebündelte Programm erneut; freeze_support übernimmt
+    # sie hier, bevor die Oberfläche geladen wird
+    multiprocessing.freeze_support()
+
 from stadtkarte.ui.__main__ import main  # noqa: E402  (erst nach dem Bereinigen der Umgebung importieren)
 
 if __name__ == "__main__":

@@ -35,6 +35,14 @@ python -m venv .venv
 Ergebnis landet in `ausgabe/`. Mit `--seed 77` probierst du eine andere Variante derselben Stadt.
 Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erklärt.
 
+## Mehrere Prozessorkerne
+
+Die Bodentexturen entstehen gleichzeitig in mehreren Threads (bei großen Karten begrenzt, damit der Speicher
+nicht ausufert). Die Bilder (Vorschau, volle Ansicht, PNG mit Beschriftung, Bild der interaktiven Karte) rendern
+in eigenen Prozessen nebeneinander; bei mindestens vier Kernen wird das PNG schon beim Erzeugen vorbereitet. Die
+Karten bleiben dabei bitgenau gleich. Klappt das Starten der Render-Prozesse nicht, rendert das Programm wie
+früher nacheinander.
+
 ## Aufbau
 
 | Datei | Aufgabe |
@@ -47,6 +55,7 @@ Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erkl
 | `stadtkarte/styles.py` | Viertel-Typen, Farben, Schrift |
 | `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
+| `stadtkarte/parallel.py` | Rendern in eigenen Prozessen |
 | `stadtkarte/shapes.py` | Hausgrundrisse: Quadrat, Rechteck, Raute, Fünfeck, Sechseck, L-Form, Achteck; Kreuz nur für Gotteshäuser; Mindestbreite 8 px |
 | `stadtkarte/roofs.py` | detaillierte Dächer: Dachflächen mit Licht, Material je Biotop, Schornsteine, Gauben, Moos |
 | `stadtkarte/noise.py` | vorberechnete Bodentexturen und Details (Körnung, Gras, Sandrippel, Schneeverwehungen, Felsrisse) |

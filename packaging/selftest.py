@@ -78,6 +78,7 @@ def main():
                 cfg["seed"] = 1   # zweite Variante: Seed 1 erzeugte einmal Gassenflächen als GeometryCollection
             t = time.time()
             res = post("/api/generate", cfg)
+            assert res["stats"]["rendern"] == "prozesse", "Render-Prozesse laufen nicht (Rückfall auf seriell)"
             status, ctype, png = get(f"/api/download?id={res['id']}&format=png")
             assert status == 200 and png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 100_000, (status, ctype, len(png))
             _, _, svg = get(f"/api/download?id={res['id']}&format=svg")
