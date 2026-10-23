@@ -2,6 +2,7 @@
 import math
 import random
 
+import numpy as np
 import shapely
 import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
@@ -10,7 +11,7 @@ from shapely.ops import nearest_points, unary_union
 from .city import CityBuilder, city_radius, make_shape, ship_footprint
 from .config import ROTATION, to_canonical
 from .fortress import build_fortress
-from .geo import Noise1D, blob, lines, polys, roof, unit
+from .geo import Noise1D, axes, blob, lines, polys, roof, unit
 from .styles import BIOMES, FORT_TYPES
 from .surroundings import make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
 from .terrain import make_coast, make_islands, make_pools, make_river
@@ -111,12 +112,13 @@ def generate(cfg):
         print("Hinweis: Es wird nur eine Festung gebaut.")
     forts_u = unary_union([f["area"] for f in forts]) if forts else Polygon()
 
-    # Friedhöfe ohne Platz im Ort (oder lage: ausserhalb) an eine Landstraße vor die Mauer legen
+    # Friedhöfe ohne Platz im Ort (oder lage: ausserhalb), Windmühlen und Bauernhöfe an eine Landstraße vor die Mauer
     for spec in city["deferred"]:
-        area = outside_cemetery(rng, s, spec, builder, ext_roads, shape, water, pools, forts_u)
+        place = {"muehle": outside_windmill, "bauernhof": outside_farm}.get(spec["typ"], outside_cemetery)
+        area = place(rng, s, spec, builder, ext_roads, shape, water, pools, forts_u)
         if area is not None:
             forts_u = forts_u.union(area.buffer(10 * s))
-            pools = pools.difference(area.buffer(8 * s))   # Gräberhügel: trockener Grund
+            pools = pools.difference(area.buffer(8 * s))   # Gräberhügel bzw. Hofplatz: trockener Grund
 
     mines, paths = [], []
     if biome["mountain"] and sea is not None:
@@ -187,8 +189,9 @@ def generate(cfg):
     added = [f["land_add"] for f in forts if f["land_add"] is not None]
     bridge_river = river.difference(unary_union(added)) if river is not None and added else river
     bridges = make_bridges(ext_roads + internal, bridge_river, s) + fort_bridges
-    if bridges:
-        bz = unary_union([ln.buffer(w / 2 + 6 * s) for ln, w in bridges])
+    wheels = [Point(wh["x"], wh["y"]).buffer(wh["len"] / 2 + 4 * s) for wh in city["wheels"]]
+    if bridges or wheels:   # auch Wasserräder brauchen freies Wasser
+        bz = unary_union([ln.buffer(w / 2 + 6 * s) for ln, w in bridges] + wheels)
         city["piers"] = [p for p in city["piers"] if not p.intersects(bz)]
         city["ships"] = [sh for sh in city["ships"]
                          if not ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).intersects(bz)]
@@ -223,18 +226,34 @@ def generate(cfg):
 def outside_cemetery(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
     """Rechteckiger Friedhof neben einer Landstraße vor dem Tor. Im Sumpf darf er teilweise
     in einen Tümpel ragen und wird dort als trockener Hügel aufgeschüttet."""
+    L, B = rng.uniform(95, 120) * s, rng.uniform(65, 80) * s
+    poly = roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken)
+    if poly is None:
+        print(f"Hinweis: Kein Platz für den Friedhof '{spec['name']}' gefunden.")
+        return None
+    chapel = builder._cemetery(poly, "#8f8a80", -1)
+    if chapel is None:
+        return None
+    chapel["ridges"], chapel["shade"] = roof(chapel["poly"])
+    chapel["landmark"] = True
+    builder.out["buildings"].append(chapel)
+    _outside_label(builder, spec, poly, B / 2 + 6 * s, s)
+    return poly
+
+
+def roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken, start=60, gap=22, max_wet=0.4):
+    """Rechteck L x B neben einer Landstraße vor der Stadt (lange Seite parallel zur Straße), möglichst nah am Tor."""
     blocked = unary_union([shape.buffer(30 * s), water.buffer(12 * s), taken,
                            unary_union([ln.buffer(w / 2 + 8 * s) for ln, w in ext_roads]) if ext_roads else Polygon()])
     wet = pools.buffer(6 * s)
-    L, B = rng.uniform(95, 120) * s, rng.uniform(65, 80) * s
     best = None
     for ln, _ in ext_roads:
-        k = 60 * s
+        k = start * s
         while k < min(ln.length - 10 * s, 400 * s):
             side = rng.choice([-1, 1])
             p, q = ln.interpolate(k), ln.interpolate(k + 3)
             tx, ty = unit((q.x - p.x, q.y - p.y))
-            off = 22 * s + B / 2
+            off = gap * s + B / 2
             cx, cy = p.x - ty * off * side, p.y + tx * off * side
             poly = Polygon([(cx + tx * a * L / 2 - ty * b * B / 2, cy + ty * a * L / 2 + tx * b * B / 2)
                             for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
@@ -242,27 +261,67 @@ def outside_cemetery(rng, s, spec, builder, ext_roads, shape, water, pools, take
             if poly.intersects(blocked):
                 continue
             overlap = poly.intersection(wet).area / poly.area if not wet.is_empty else 0.0
-            if overlap > 0.4:
+            if overlap > max_wet:
                 continue
             score = overlap * 3 + k / (220 * s) + rng.uniform(0, 0.3)
             if best is None or score < best[0]:
                 best = (score, poly)
-    if best is None:
-        print(f"Hinweis: Kein Platz für den Friedhof '{spec['name']}' gefunden.")
-        return None
-    poly = best[1]
-    chapel = builder._cemetery(poly, "#8f8a80", -1)
-    if chapel is None:
-        return None
-    chapel["ridges"], chapel["shade"] = roof(chapel["poly"])
-    chapel["landmark"] = True
-    builder.out["buildings"].append(chapel)
+    return best[1] if best else None
+
+
+def _outside_label(builder, spec, poly, lift, s):
     if spec.get("kuerzel"):
         builder.out["legend"].append((spec["kuerzel"], spec["name"]))
     c = poly.centroid
     builder.out["labels"].append({"x": c.x, "y": c.y, "text": spec.get("kuerzel") or spec["name"],
-                                  "kind": "ort", "lift": B / 2 + 6 * s})
-    return poly
+                                  "kind": "ort", "lift": lift})
+
+
+def outside_windmill(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
+    """Windmühle auf freiem Feld an einer Landstraße: runder Turm mit Kegeldach und vier Flügeln."""
+    span = 54 * s                                   # Flügel brauchen Platz
+    area = roadside_spot(rng, s, span, span, ext_roads, shape, water, pools, taken, start=90, gap=20, max_wet=0.0)
+    if area is None:
+        print(f"Hinweis: Kein Platz für die Windmühle '{spec['name']}' gefunden.")
+        return None
+    c = area.centroid
+    tower = c.buffer(10 * s, quad_segs=4)           # Achteck
+    mill = {"poly": tower, "color": "#8a6a4a", "district": -1, "landmark": True}
+    mill["ridges"], mill["shade"] = roof(tower)
+    builder.out["buildings"].append(mill)
+    builder.out["windmills"].append({"x": c.x, "y": c.y, "len": 25 * s, "angle": rng.uniform(0, 90)})
+    _outside_label(builder, spec, tower, 30 * s, s)
+    return area
+
+
+def outside_farm(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
+    """Bauernhof an einer Landstraße: Wohnhaus und großer Stall im Winkel um einen umzäunten Hofplatz."""
+    L, B = rng.uniform(70, 85) * s, rng.uniform(52, 62) * s
+    area = roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken, start=80, gap=20, max_wet=0.1)
+    if area is None:
+        print(f"Hinweis: Kein Platz für den Bauernhof '{spec['name']}' gefunden.")
+        return None
+    o, e1, e2 = axes(area)
+    l1, l2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+    u, v = e1 / l1, e2 / l2
+
+    def rect(x0, y0, x1, y1):
+        return Polygon([o + u * x0 + v * y0, o + u * x1 + v * y0, o + u * x1 + v * y1, o + u * x0 + v * y1])
+    builder.out["grounds"].append((area, "farmyard"))
+    house = rect(6 * s, 6 * s, 6 * s + 26 * s, 6 * s + 15 * s)                     # Wohnhaus an der einen Ecke
+    barn = rect(l1 - 6 * s - 20 * s, 6 * s, l1 - 6 * s, l2 - 6 * s)                  # Stall quer über die Tiefe
+    for poly, color in ((house, "#a8584f"), (barn, "#7d5a3a")):
+        b = {"poly": poly, "color": color, "district": -1, "landmark": poly is house}
+        b["ridges"], b["shade"] = roof(poly)
+        builder.out["buildings"].append(b)
+    for _ in range(rng.randint(2, 3)):                                               # Heuhaufen im Hof
+        x, y = o + u * rng.uniform(12 * s, l1 - 34 * s) + v * rng.uniform(l2 * 0.55, l2 - 10 * s)
+        builder.out["haystacks"].append((float(x), float(y), rng.uniform(3.5, 5) * s))
+    for k in range(rng.randint(2, 4)):                                               # Obstbäume am Haus
+        t = o + u * (8 + k * 9) * s + v * (l2 - 6 * s)
+        builder.out["yard_trees"].append((float(t[0]), float(t[1]), rng.uniform(5, 7) * s))
+    _outside_label(builder, spec, area, B / 2 + 6 * s, s)
+    return area
 
 
 def make_oases(rng, W, s, count, center, r, water):

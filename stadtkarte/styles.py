@@ -28,9 +28,10 @@ DISTRICT_TYPES = {
 # Besondere Gebäude
 LANDMARK_COLORS = {
     "kontor": "#6b4a2f", "adelshaus": "#5e3f95", "tempel": "#e2dccb", "kaserne": "#6e6e72",
-    "werft": "#456a78", "muehle": "#7a3f3f", "friedhof": "#8f8a80", "festung": "#7d7869", "gasthaus": None, "schmiede": "#4f5a66", "laden": None,
+    "werft": "#456a78", "muehle": "#8a6a4a", "friedhof": "#8f8a80", "festung": "#7d7869", "gasthaus": None, "schmiede": "#4f5a66", "laden": None,
+    "wassermuehle": "#7a3f3f", "rathaus": "#8c4f3a", "palast": "#55657e", "bauernhof": None,
 }
-BIG_LANDMARKS = {"kontor", "adelshaus", "tempel", "kaserne", "werft", "friedhof"}
+BIG_LANDMARKS = {"kontor", "adelshaus", "tempel", "kaserne", "werft", "friedhof", "rathaus", "palast"}
 FORT_TYPES = {"festung", "bastion", "burg"}
 
 COLORS = dict(

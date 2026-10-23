@@ -16,6 +16,11 @@ DIRS = {
 # Die Karte wird intern immer mit Küste im Norden erzeugt und am Ende gedreht.
 ROTATION = {"nord": 0, "ost": 90, "sued": 180, "west": 270, "keine": 0}
 
+# andere Schreibweisen für besondere Orte
+PLACE_ALIASES = {"windmuehle": "muehle", "wasserrad": "wassermuehle", "halle": "rathaus", "dorfhalle": "rathaus",
+                 "stadthalle": "rathaus", "schloss": "palast", "hof": "bauernhof", "bauernhaus": "bauernhof",
+                 "gehoeft": "bauernhof"}
+
 DEFAULTS = {
     "name": "Namenlose Stadt",
     "seed": 1,
@@ -79,6 +84,7 @@ def from_dict(raw):
                 raise ValueError(f"Unbekannte Lage bei Viertel {v.get('name')}: {v['lage']}")
     for o in cfg["orte"]:
         o["typ"] = norm(o.get("typ", "laden"))
+        o["typ"] = PLACE_ALIASES.get(o["typ"], o["typ"])
     cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
     return cfg
 
