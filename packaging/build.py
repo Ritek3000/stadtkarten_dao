@@ -16,7 +16,7 @@ import zipfile
 from PIL import Image, ImageDraw
 
 NAME = "Stadtkarten-Werkstatt"
-VERSION = "1.7.1"
+VERSION = "1.8.0"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PKG = ROOT / "packaging"
 BUILD = ROOT / "build"
