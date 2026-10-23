@@ -17,7 +17,7 @@ mauer:
   vorhanden: true
   tore: 4
 
-# typ: hafen | handwerk | arbeiter | fischer | bauern | adel | tempel | markt | wohn
+# typ: hafen | handwerk | arbeiter | fischer | bauern | adel | tempel | markt | wohn | armen (Armenviertel)
 # lage (optional): nord | nordost | ost | suedost | sued | suedwest | west | nordwest | mitte
 # viertel weglassen (oder leere Liste) = einheitliche Bebauung ohne Viertelnamen
 viertel:

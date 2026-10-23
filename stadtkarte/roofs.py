@@ -16,6 +16,7 @@ MATERIALS = {
     "schindel": dict(row=2.4, joint=2.2, jitter=0.45),
     "reet": dict(row=0, joint=0, jitter=0),
     "schnee": dict(row=3.6, joint=0, jitter=0),
+    "flicken": dict(row=2.0, joint=3.0, jitter=0.6),   # Armenviertel: krumme Bretter, mit Flicken
 }
 
 
@@ -140,7 +141,7 @@ def _texture(geom, n, rd, eave, depth, s, rng, material):
 
 
 # Wie stark Dächer vermoosen bzw. verwittern (Wahrscheinlichkeit je Dach)
-MOSS = {"reet": 0.7, "schindel": 0.55, "ziegel": 0.45, "schiefer": 0.3, "schnee": 0.0}
+MOSS = {"reet": 0.7, "schindel": 0.55, "ziegel": 0.45, "schiefer": 0.3, "schnee": 0.0, "flicken": 0.85}
 
 
 def _weathering(poly, s, rng, material):
@@ -163,6 +164,27 @@ def _weathering(poly, s, rng, material):
         blob = "".join(f'<circle cx="{_f(x + rng.uniform(-2, 2) * s)}" cy="{_f(y + rng.uniform(-2, 2) * s)}" '
                        f'r="{_f(rng.uniform(1.2, 2.6) * s)}"/>' for _ in range(rng.randint(2, 4)))
         out.append(f'<g fill="{col}" fill-opacity="{rng.uniform(0.25, 0.42):.2f}">{blob}</g>')
+    return "".join(out)
+
+
+def _patches(pl, s, rng, base, outline):
+    """Aufgenagelte Flicken: kleine Brettstücke in anderer Farbe, entlang der Traufe ausgerichtet."""
+    out = []
+    for geom, n, rd, eave, depth in pl:
+        inner = geom.buffer(-1.6 * s)
+        if inner.is_empty or rng.random() < 0.3:
+            continue
+        minx, miny, maxx, maxy = inner.bounds
+        for _ in range(rng.randint(1, 2)):
+            x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
+            if not inner.contains(shapely.Point(x, y)):
+                continue
+            c = np.array([x, y])
+            hw, hh = rng.uniform(1.4, 2.6) * s, rng.uniform(0.9, 1.5) * s
+            pts = [c - rd * hw - n * hh, c + rd * hw - n * hh, c + rd * hw + n * hh, c - rd * hw + n * hh]
+            col = shade(rng.choice([base, "#8d7a58", "#6e6a5e", "#9a8664"]), rng.uniform(0.75, 1.2))
+            out.append(f'<polygon points="{" ".join(f"{_f(px)},{_f(py)}" for px, py in pts)}" fill="{col}" '
+                       f'stroke="{outline}" stroke-opacity="0.7" stroke-width="{_f(0.4 * s)}"/>')
     return "".join(out)
 
 
@@ -228,12 +250,15 @@ def detailed_roof(b, s, rng, material, to_light, outline):
         out.append(f'<path d="{rd_}" fill="none" stroke="#000" stroke-opacity="0.55" stroke-width="{_f(1 * s)}"/>'
                    f'<path d="{rd_}" fill="none" stroke="{shade(base, 1.45)}" stroke-opacity="0.8" '
                    f'stroke-width="{_f(0.6 * s)}" transform="translate({_f(-dx)},{_f(-dy)})"/>')
+    if material == "flicken":
+        out.append(_patches(pl, s, rng, base, outline))
     out.append(_weathering(poly, s, rng, material))
-    out.append(_dormers(poly, pl, s, rng, base, to_light, outline, material))
+    if not b.get("poor"):   # Hütten haben keine Gauben
+        out.append(_dormers(poly, pl, s, rng, base, to_light, outline, material))
     out.append(f'<path d="{_pd(poly)}" fill="none" stroke="{outline}" stroke-width="{_f(1.1 * s)}"/>')
     # Schornstein (bei Essen immer, mit Rauch)
     forge = b.get("forge")
-    if b.get("ridges") and (forge or rng.random() < 0.35) and poly.area > 140 * s * s:
+    if b.get("ridges") and (forge or rng.random() < (0.1 if b.get("poor") else 0.35)) and poly.area > 140 * s * s:
         ax = axes(poly)
         o, e1, e2 = ax
         u = e1 / np.linalg.norm(e1)

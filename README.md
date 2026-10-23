@@ -64,9 +64,23 @@ Alle Angaben sind in [beispiele/hafenstadt.yaml](beispiele/hafenstadt.yaml) erkl
 | `kontor`, `werft`, `adelshaus` | ganzer Block als ein großes Gebäude (Adelshaus mit Garten) |
 | `gasthaus`, `schmiede`, `muehle`, `laden` | einzelnes, passend gelegenes Haus |
 
+## Armenviertel
+
+Viertel mit `typ: armen` (Oberfläche: „Armenviertel“) werden als Elendsviertel gezeichnet: winzige, leicht schief
+stehende Hütten dicht an dicht, auch in den Hinterhöfen, enge ungepflasterte Gassen mit Schlamm und Pfützen,
+geflickte Bretterdächer in trüben Farben mit viel Moos, kaum Schornsteine und keine Gauben. Nachts brennt dort
+nur selten Licht. Im Sumpf und im Nordland behalten die Hütten Reet- bzw. Schneedächer, in der Wüste Flachdächer.
+
+```yaml
+viertel:
+  - name: Elendsgasse
+    typ: armen
+```
+
 ## Stadtbild
 
-- jedes Haus grenzt an eine Straße oder einen Platz (sonst wird es verschoben oder entfällt)
+- jedes Haus grenzt an eine Straße oder einen Platz (sonst wird es verschoben oder entfällt); Ausnahme sind die
+  Hütten im Armenviertel, die auch in den Hinterhöfen stehen
 - jeder Platz hat einen Laufbrunnen, große Plätze zusätzlich einen Wochenmarkt; an breiten Straßenstellen stehen Ziehbrunnen
 - größere leere Flächen (Höfe, freie Grundstücke) bekommen einzelne Bäume
 

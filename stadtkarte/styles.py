@@ -19,6 +19,10 @@ DISTRICT_TYPES = {
                   palette=["#c47264", "#b9a66b", "#c98a6b", "#9fae6c"]),
     "wohn": dict(block=9500, lot=600, alley=6, density=0.97, inner=0.3, perimeter=True,
                  palette=["#c47264", "#b4775a", "#a89c5e", "#8b6b5a", "#9fae6c"]),
+    # Armenviertel: winzige, schiefe Hütten dicht an dicht (auch in den Hinterhöfen), enge schlammige Gassen,
+    # geflickte Bretterdächer in trüben Farben
+    "armen": dict(block=4500, lot=380, alley=3.5, density=1.0, inner=0.95, perimeter=True, poor=True,
+                  palette=["#7a6a55", "#6b5e4c", "#857660", "#5f574a", "#8a7a62", "#6f6553", "#77705f"]),
 }
 
 # Besondere Gebäude
