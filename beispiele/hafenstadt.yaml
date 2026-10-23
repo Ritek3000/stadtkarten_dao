@@ -36,7 +36,9 @@ viertel:
     typ: bauern
     lage: suedost
 
-# typ: gasthaus | kontor | adelshaus | tempel | schmiede | muehle | werft | kaserne | friedhof | laden
+# typ: gasthaus | kontor | adelshaus | palast | rathaus | tempel | schmiede | muehle | wassermuehle | werft
+#      | kaserne | friedhof | laden | bauernhof
+#      muehle (Windmühle) und bauernhof stehen vor der Stadt an einer Landstraße, wassermuehle am Flussufer
 #      festung (bzw. bastion/burg) mit lage: insel | landzunge | land  - steht außerhalb der Stadt
 #      friedhof mit lage: ausserhalb  - liegt dann vor einem Tor (passiert auch automatisch, wenn im Ort kein Platz ist)
 # kuerzel (optional): statt des Namens steht das Kürzel auf der Karte, der Name in der Legende
@@ -57,7 +59,7 @@ orte:
     typ: gasthaus
     viertel: Handwerkerviertel
   - name: Mühle
-    typ: muehle
+    typ: wassermuehle
     viertel: Bauernviertel
   - name: Gasthaus Zum Fass
     kuerzel: H3

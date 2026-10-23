@@ -11,7 +11,7 @@ import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 
-from .geo import lines, polys
+from .geo import axes, lines, polys
 from . import noise
 from .roofs import detailed_roof, material_for
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -714,6 +714,58 @@ def great_gate_svg(o, m):
              f'<circle cx="{f(-18 * s)}" cy="{f(34 * s)}" r="{f(3.5 * s)}" fill="#ffd27a" {st}/></g>')
 
 
+def mills_svg(o, m):
+    """Wasserräder am Ufer, Windmühlenflügel und Heuhaufen."""
+    s = m["s"]
+    for wh in m.get("wheels", []):
+        L, Wd = wh["len"], wh["wid"]
+        hx, hy = wh["house"]   # Wellbaum vom Mühlhaus zum Rad
+        o.append(f'<path d="M{f(hx)},{f(hy)}L{f(wh["x"])},{f(wh["y"])}" stroke="{C["outline"]}" stroke-width="{f(3.2 * s)}"/>'
+                 f'<path d="M{f(hx)},{f(hy)}L{f(wh["x"])},{f(wh["y"])}" stroke="#5a4128" stroke-width="{f(2 * s)}"/>')
+        paddles = "".join(f"M{f(x)},{f(-Wd / 2)}V{f(Wd / 2)}" for x in np.arange(-L / 2 + 1.6 * s, L / 2, 2.2 * s))
+        foam = "".join(f'<path d="M{f(x - 1.5 * s)},{f(-Wd / 2 - 1.6 * s)}q{f(1.5 * s)},{f(-1.2 * s)} {f(3 * s)},0"/>'
+                       for x in np.arange(-L / 2 + 1.5 * s, L / 2 - 1 * s, 3.2 * s))
+        o.append(f'<g transform="translate({f(wh["x"])},{f(wh["y"])}) rotate({f(wh["angle"])})">'
+                 f'<rect x="{f(-L / 2 + 1.5 * s)}" y="{f(-Wd / 2 + 1.5 * s)}" width="{f(L)}" height="{f(Wd)}" fill="#000" fill-opacity="0.35"/>'
+                 f'<g fill="none" stroke="#ffffff" stroke-opacity="0.75" stroke-width="{f(0.8 * s)}" stroke-linecap="round">{foam}</g>'
+                 f'<rect x="{f(-L / 2)}" y="{f(-Wd / 2)}" width="{f(L)}" height="{f(Wd)}" rx="{f(0.6 * s)}" fill="#6b4c30" '
+                 f'stroke="{C["outline"]}" stroke-width="{f(0.9 * s)}"/>'
+                 f'<path d="{paddles}" stroke="#2e2014" stroke-width="{f(0.8 * s)}"/>'
+                 f'<rect x="{f(-1 * s)}" y="{f(-Wd / 2 - 1 * s)}" width="{f(2 * s)}" height="{f(Wd + 3 * s)}" fill="#3a2a1a"/></g>')
+    for wm in m.get("windmills", []):
+        # Draufsicht: die Flügel drehen sich in einer senkrechten Ebene vor der Kappe und erscheinen von oben nur
+        # als schmaler Streifen quer zur Windrichtung (lokal +y). Wie weit er reicht, hängt von der Flügelstellung ab.
+        L, y0 = wm["len"], 12.5 * s
+        phase = math.radians(wm["angle"] * 7 % 90)
+        reach = L * max(abs(math.cos(phase)), abs(math.sin(phase)))
+        short = L * min(abs(math.cos(phase)), abs(math.sin(phase)))
+        ticks = "".join(f"M{f(x)},{f(y0 - 1.1 * s)}v{f(2.2 * s)}" for x in np.arange(-reach + 2 * s, reach - 1 * s, 2.6 * s)
+                        if abs(x) > 3 * s)
+        sails = (f'<rect x="{f(-short)}" y="{f(y0 - 0.9 * s)}" width="{f(2 * short)}" height="{f(1.8 * s)}" fill="#cfc5aa" '
+                 f'stroke="#3a2a1a" stroke-width="{f(0.5 * s)}"/>'
+                 f'<rect x="{f(-reach)}" y="{f(y0 - 1.1 * s)}" width="{f(2 * reach)}" height="{f(2.2 * s)}" fill="#e8dfc8" '
+                 f'stroke="#3a2a1a" stroke-width="{f(0.6 * s)}"/>'
+                 f'<path d="{ticks}" stroke="#7a6a52" stroke-width="{f(0.4 * s)}"/>'
+                 f'<path d="M{f(-reach)},{f(y0)}H{f(reach)}" stroke="#3a2a1a" stroke-width="{f(0.7 * s)}"/>')
+        shaft = (f'<rect x="{f(-1.3 * s)}" y="{f(7 * s)}" width="{f(2.6 * s)}" height="{f(y0 - 7 * s)}" fill="#4a3522" '
+                 f'stroke="{C["outline"]}" stroke-width="{f(0.5 * s)}"/>'
+                 f'<circle cx="0" cy="{f(y0)}" r="{f(1.8 * s)}" fill="#3a2a1a"/>')
+        tail = (f'<path d="M0,{f(-7 * s)}V{f(-24 * s)}" stroke="{C["outline"]}" stroke-width="{f(2 * s)}"/>'   # Steert
+                f'<path d="M0,{f(-7 * s)}V{f(-24 * s)}" stroke="#6b4c30" stroke-width="{f(1.2 * s)}"/>'
+                f'<circle cx="0" cy="{f(-24 * s)}" r="{f(1.6 * s)}" fill="#6b4c30" stroke="{C["outline"]}" stroke-width="{f(0.5 * s)}"/>')
+        rot = f'rotate({f(wm["angle"])})'
+        o.append(f'<g transform="translate({f(wm["x"] + 2.5 * s)},{f(wm["y"] + 3 * s)}) {rot}" fill="#000" stroke="#000" '
+                 f'opacity="0.3"><rect x="{f(-reach)}" y="{f(y0 - 1.1 * s)}" width="{f(2 * reach)}" height="{f(2.2 * s)}"/>'
+                 f'<path d="M0,{f(-7 * s)}V{f(-24 * s)}" stroke-width="{f(1.6 * s)}"/></g>'
+                 f'<g transform="translate({f(wm["x"])},{f(wm["y"])}) {rot}">{tail}{shaft}{sails}</g>')
+    if m.get("haystacks"):
+        hs = "".join(f'<circle cx="{f(x + 1.5 * s)}" cy="{f(y + 1.8 * s)}" r="{f(r)}" fill="#000" fill-opacity="0.35"/>'
+                     f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r)}" fill="#d6b65a" stroke="#6d5426" stroke-width="{f(0.8 * s)}"/>'
+                     f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.55)}" fill="none" stroke="#a88a3a" stroke-width="{f(0.6 * s)}"/>'
+                     for x, y, r in m["haystacks"])
+        o.append(hs)
+
+
 def mines_svg(o, m):
     """Mineneingänge mit Holzrahmen, Gleisen und Abraumhalde."""
     s = m["s"]
@@ -843,7 +895,26 @@ def render_svg(m):
     # Sonderflächen: Tempelvorplatz, Exerzierplatz, Friedhof
     for g, kind in m["grounds"]:
         d = path_d(g)
-        if kind == "plaza":
+        if kind == "estate":       # Palastgelände: gepflegter Rasen innerhalb einer Mauer
+            o.append(f'<path d="{d}" fill="#6a8a4c" fill-opacity="0.85"/>'
+                     f'<path d="{d}" fill="none" stroke="{C["outline"]}" stroke-width="{f(4 * s)}"/>'
+                     f'<path d="{d}" fill="none" stroke="#a9a493" stroke-width="{f(2.4 * s)}"/>')
+        elif kind == "garden":     # Barockgarten: Hecke, Beete und Wegkreuz
+            c = g.centroid
+            o_, e1, e2 = axes(g)
+            cross = unary_union([LineString([(c.x - e1[0], c.y - e1[1]), (c.x + e1[0], c.y + e1[1])]),
+                                 LineString([(c.x - e2[0], c.y - e2[1]), (c.x + e2[0], c.y + e2[1])])]
+                                ).intersection(g.buffer(-3 * s))
+            beds = g.buffer(-3 * s).difference(cross.buffer(3 * s))
+            o.append(f'<path d="{d}" fill="#d9cfb2" stroke="#2f4a26" stroke-width="{f(3 * s)}"/>'
+                     f'<path d="{path_d(beds)}" fill="#55783f" stroke="#2f4a26" stroke-width="{f(1.6 * s)}"/>'
+                     f'<path d="{path_d(beds.buffer(-4 * s))}" fill="none" stroke="#7d9e5a" stroke-width="{f(1 * s)}" '
+                     f'stroke-dasharray="{f(1.5 * s)} {f(1.5 * s)}"/>')
+        elif kind == "farmyard":   # Hofplatz: festgetretene Erde und Holzzaun
+            o.append(f'<path d="{d}" fill="#8b7655" fill-opacity="0.85"/>'
+                     f'<path d="{d}" fill="none" stroke="#4a3520" stroke-width="{f(1.4 * s)}" '
+                     f'stroke-dasharray="{f(3 * s)} {f(1.2 * s)}"/>')
+        elif kind == "plaza":
             fill = "url(#cobble)" if B["wall"] == "stein" else "url(#planks)"
             o.append(f'<path d="{d}" fill="{fill}" stroke="{C["street_edge"]}" stroke-width="{f(1.2 * s)}"/>')
         elif kind == "drill":
@@ -966,6 +1037,7 @@ def render_svg(m):
             svg = detailed_roof(b, s, roof_rng, material, to_light, C["outline"])
         o.append(svg or building_svg(b, s, B["flat_roofs"]))
     o.append("</g>")
+    mills_svg(o, m)
     mines_svg(o, m)
     forge_glow = []
     for b in m["buildings"]:
