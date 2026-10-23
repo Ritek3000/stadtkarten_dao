@@ -289,7 +289,7 @@ def outside_windmill(rng, s, spec, builder, ext_roads, shape, water, pools, take
     mill = {"poly": tower, "color": "#8a6a4a", "district": -1, "landmark": True}
     mill["ridges"], mill["shade"] = roof(tower)
     builder.out["buildings"].append(mill)
-    builder.out["windmills"].append({"x": c.x, "y": c.y, "len": 25 * s, "angle": rng.uniform(0, 90)})
+    builder.out["windmills"].append({"x": c.x, "y": c.y, "len": 24 * s, "angle": rng.uniform(0, 360)})   # Windrichtung
     _outside_label(builder, spec, tower, 30 * s, s)
     return area
 
