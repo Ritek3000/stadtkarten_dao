@@ -83,6 +83,14 @@ def main():
             assert status == 200 and png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 100_000, (status, ctype, len(png))
             _, _, svg = get(f"/api/download?id={res['id']}&format=svg")
             assert b"font-family:'EB Garamond'" in svg, "Schrift ist nicht eingebettet"
+            if night:   # gleicher Seed muss dieselbe Karte liefern (vorerst nur Warnung, siehe determinismus.py)
+                again = post("/api/generate", cfg)
+                _, _, svg2 = get(f"/api/download?id={again['id']}&format=svg")
+                if svg2 == svg:
+                    print("ok gleicher Seed, gleiche Karte")
+                else:
+                    print(f"WARNUNG: gleicher Seed, andere Karte ({res['stats']['gebaeude']} gegen "
+                          f"{again['stats']['gebaeude']} Gebäude)")
             _, _, page = get(f"/api/download?id={res['id']}&format=html")
             assert b"data:image/webp;base64," in page and b'<g id="b-viertel">' in page and b"<text" in page, \
                 "interaktive Karte unvollständig"

@@ -50,6 +50,12 @@ jobs:
       - name: Selbsttest (Programm starten, Tag- und Nachtkarte erzeugen)
         run: python packaging/selftest.py
 
+      # Diagnose: liefert derselbe Seed immer dieselbe Karte? Zeigt bei Abweichungen den ersten betroffenen
+      # Arbeitsschritt. Vorerst nur Hinweis, die Pakete entstehen trotzdem.
+      - name: Determinismus prüfen (Diagnose)
+        continue-on-error: true
+        run: python packaging/determinismus.py
+
       - name: Pakete bereitstellen
         uses: actions/upload-artifact@v6
         with:
