@@ -794,12 +794,21 @@ def render_svg(m):
                 o.append(f'<path d="{wet}" fill="none" stroke="#3e2f1c" stroke-width="{f(15 * s)}"/>'
                          f'<path d="{wet}" fill="none" stroke="#7d6544" stroke-width="{f(13 * s)}" '
                          f'stroke-dasharray="{f(2.6 * s)} {f(0.9 * s)}"/>')
-    # Stadtflächen
+    # Stadtflächen; ihre Randlinie läuft nicht quer über die einmündenden Landstraßen
+    # (sonst zeichnet sich dort, wo die Straße in die Gassen übergeht, ein Bogen bzw. Strich ab)
+    joins = unary_union([ln.buffer(9 * s) for ln, _ in m["ext_roads"]]) if m["ext_roads"] else None
+
+    def edged(g, fill):
+        if joins is None:
+            return f'<path d="{path_d(g)}" fill="{fill}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>'
+        edge = line_d(g.boundary.difference(joins))
+        return (f'<path d="{path_d(g)}" fill="{fill}"/>' +
+                (f'<path d="{edge}" fill="none" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>' if edge else ""))
     for st in m["streets"]:
-        o.append(f'<path d="{path_d(st)}" fill="{B["street"]}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>')
+        o.append(edged(st, B["street"]))
     paved_fill = "url(#cobble)" if B["wall"] == "stein" else B["street"]
     for pv in m["paved"] + m["plazas"]:
-        o.append(f'<path d="{path_d(pv)}" fill="{paved_fill}" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>')
+        o.append(edged(pv, paved_fill))
     if not m["pools"].is_empty and B["stilts"]:   # Pfahldorf: Gassen über Wasser werden Kanäle, Hauptwege Bohlenstege
         pools = m["pools"]
         canals = unary_union(list(m["streets"]) + list(m["paved"])).intersection(pools)
