@@ -183,7 +183,10 @@ def generate(cfg):
                     lilies.append((x, y, rng.uniform(2.5, 5) * s))
 
     # keine Überlagerungen auf dem Wasser: Stege und Schiffe weichen allen Brücken (auch der Festungsbrücke)
-    bridges = make_bridges(ext_roads + internal, river, s) + fort_bridges
+    # Festungsinseln liegen teils in der Flussmündung: dort ist Land, die Inselstraße braucht keine Brücke
+    added = [f["land_add"] for f in forts if f["land_add"] is not None]
+    bridge_river = river.difference(unary_union(added)) if river is not None and added else river
+    bridges = make_bridges(ext_roads + internal, bridge_river, s) + fort_bridges
     if bridges:
         bz = unary_union([ln.buffer(w / 2 + 6 * s) for ln, w in bridges])
         city["piers"] = [p for p in city["piers"] if not p.intersects(bz)]

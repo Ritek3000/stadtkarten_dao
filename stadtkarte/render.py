@@ -895,8 +895,9 @@ def render_svg(m):
     lamps = []
     for ln, w in m["bridges"]:
         d = line_d(ln)
-        o.append(f'<path d="{d}" stroke="{C["outline"]}" stroke-width="{f(w + 4 * s)}" fill="none"/>'
-                 f'<path d="{d}" stroke="#bdb39b" stroke-width="{f(w)}" fill="none"/>')
+        o.append(f'<path d="{d}" stroke="{C["outline"]}" stroke-width="{f(w + 4 * s)}" fill="none"/>'   # Kontur
+                 f'<path d="{d}" stroke="#9d9482" stroke-width="{f(w)}" fill="none"/>'                    # Brüstung
+                 f'<path d="{d}" stroke="#c2b9a3" stroke-width="{f(max(w - 4.5 * s, w * 0.5))}" fill="none"/>')  # Fahrbahn
         # Brückenlaternen abwechselnd an beiden Geländern, nicht in der Brückenmitte
         n = max(2, int(ln.length / (45 * s)))
         for k in range(n + 1):
