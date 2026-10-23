@@ -112,3 +112,20 @@ Da das Setup nicht digital signiert ist, warnt Windows SmartScreen beim ersten S
 ```
 
 Die Version steht in `packaging/build.py` (`VERSION`). Ein neues Setup ersetzt eine ältere Installation automatisch.
+
+### Automatisch auf GitHub bauen (Windows und Linux)
+
+Bei jedem Hochladen von Programmänderungen auf `main` baut GitHub Actions ([.github/workflows/pakete.yml](.github/workflows/pakete.yml))
+beide Versionen, startet sie zur Probe (Tag- und Nachtkarte) und stellt sie bereit:
+
+- **Download:** Repository → „Actions“ → „Pakete bauen“ → letzter Lauf → unten „Artifacts“
+  (`stadtkarten-werkstatt-windows`, `stadtkarten-werkstatt-linux`, je 30 Tage verfügbar)
+- **Release:** Einen Versions-Tag hochladen, z.B. `git tag v1.8.0` und `git push origin v1.8.0` – dann entsteht
+  zusätzlich ein GitHub-Release mit Setup, portabler ZIP und Linux-Paket
+- **Von Hand:** „Actions“ → „Pakete bauen“ → „Run workflow“
+
+Linux-Paket: `Stadtkarten-Werkstatt-linux-x86_64.tar.gz` entpacken, `./Stadtkarten-Werkstatt` starten; optional
+`./installiere-menueeintrag.sh` für einen Eintrag im Anwendungsmenü. Läuft ohne Python (gebaut auf Ubuntu 22.04).
+
+Hinweis: Für private Repositories enthält das kostenlose GitHub-Konto 2.000 Actions-Minuten pro Monat; ein Lauf
+braucht etwa 10–15 Minuten (Windows-Minuten zählen doppelt).

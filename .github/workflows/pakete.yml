@@ -1,0 +1,74 @@
+# Baut die Stadtkarten-Werkstatt für Windows und Linux, testet beide Pakete und stellt sie zum Download bereit.
+#  - bei Änderungen am Programm auf main: Pakete unter "Actions" -> Lauf -> "Artifacts" (30 Tage)
+#  - bei einem Versions-Tag (z.B. v1.8.0): zusätzlich ein GitHub-Release mit beiden Paketen
+#  - jederzeit von Hand: Actions -> "Pakete bauen" -> "Run workflow"
+name: Pakete bauen
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "stadtkarte/**"
+      - "packaging/**"
+      - "beispiele/**"
+      - "requirements.txt"
+      - ".github/workflows/pakete.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Paket ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+          - name: linux
+            os: ubuntu-22.04   # ältere glibc: läuft auch auf älteren Distributionen
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Paket bauen
+        run: python packaging/build.py
+
+      - name: Selbsttest (Programm starten, Tag- und Nachtkarte erzeugen)
+        run: python packaging/selftest.py
+
+      - name: Pakete bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: stadtkarten-werkstatt-${{ matrix.name }}
+          path: verteilung/*
+          retention-days: 30
+
+  release:
+    name: Release anlegen
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: pakete
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: pakete/*
+          generate_release_notes: true

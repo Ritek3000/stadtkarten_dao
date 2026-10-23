@@ -1,16 +1,22 @@
-"""Baut die weitergebbare Version der Stadtkarten-Werkstatt.
+"""Baut die weitergebbare Version der Stadtkarten-Werkstatt für das System, auf dem es läuft.
 
-Aufruf (im Projektordner):  .venv\\Scripts\\python packaging\\build.py
+Aufruf (im Projektordner):  Windows: .venv\\Scripts\\python packaging\\build.py
+                             Linux:   .venv/bin/python packaging/build.py
 
 Ergebnis im Ordner 'verteilung':
-  Stadtkarten-Werkstatt-Setup.exe     Setup mit Verknüpfungen und Deinstallation (ohne Adminrechte)
-  Stadtkarten-Werkstatt-portable.zip  zum Entpacken und direkt Starten
+  Windows: Stadtkarten-Werkstatt-Setup.exe            Setup mit Verknüpfungen und Deinstallation (ohne Adminrechte)
+           Stadtkarten-Werkstatt-portable.zip         zum Entpacken und direkt Starten
+  Linux:   Stadtkarten-Werkstatt-linux-x86_64.tar.gz  zum Entpacken und direkt Starten
 Benötigt: PyInstaller (pip install pyinstaller); IExpress ist in Windows enthalten.
+PyInstaller baut nur für das eigene System - die Linux-Version entsteht unter Linux (z.B. per GitHub Actions).
 """
+import os
 import pathlib
+import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 
 from PIL import Image, ImageDraw
@@ -22,6 +28,7 @@ PKG = ROOT / "packaging"
 BUILD = ROOT / "build"
 DIST = ROOT / "dist"
 OUT = ROOT / "verteilung"
+IS_WIN = sys.platform == "win32"
 
 
 def make_icon(path):
@@ -43,12 +50,12 @@ def run(cmd, **kw):
 
 
 def build_app():
-    icon = BUILD / "icon.ico"
     BUILD.mkdir(exist_ok=True)
+    icon = BUILD / ("icon.ico" if IS_WIN else "icon.png")
     make_icon(icon)
-    sep = ";"
+    sep = os.pathsep                      # Trennzeichen für --add-data: ';' unter Windows, ':' unter Linux
     run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--console",
-         "--name", NAME, "--icon", str(icon),
+         "--name", NAME, *(["--icon", str(icon)] if IS_WIN else []),
          "--distpath", str(DIST), "--workpath", str(BUILD / "pyinstaller"), "--specpath", str(BUILD),
          "--add-data", f"{ROOT / 'stadtkarte' / 'ui' / 'index.html'}{sep}stadtkarte/ui",
          "--add-data", f"{ROOT / 'beispiele'}{sep}beispiele",
@@ -102,23 +109,76 @@ def build_setup(app_dir):
     sed_path.write_text(sed, encoding="mbcs")
     if target.exists():
         target.unlink()
-    run([r"C:\Windows\System32\iexpress.exe", "/N", "/Q", str(sed_path)])
+    iexpress = pathlib.Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "iexpress.exe"
+    if not iexpress.exists():
+        print("Hinweis: IExpress nicht gefunden - kein Setup, nur die portable ZIP.")
+        return None
+    run([str(iexpress), "/N", "/Q", str(sed_path)])
     if not target.exists():
         raise SystemExit("IExpress hat kein Setup erzeugt.")
+    return target
+
+
+LINUX_README = """Stadtkarten-Werkstatt {version} für Linux
+=========================================
+
+Starten:   ./Stadtkarten-Werkstatt
+           (öffnet die Werkstatt im Browser; zum Beenden das Terminal schließen oder Strg+C)
+
+Optional ins Anwendungsmenü aufnehmen:
+           ./installiere-menueeintrag.sh
+
+Gespeicherte Karten landen im Dokumente-Ordner unter "Stadtkarten".
+"""
+
+LINUX_MENU = """#!/usr/bin/env bash
+# Legt einen Eintrag im Anwendungsmenü an, der auf diesen Ordner zeigt.
+set -e
+DIR="$(cd "$(dirname "$0")" && pwd)"
+mkdir -p "$HOME/.local/share/applications"
+cat > "$HOME/.local/share/applications/stadtkarten-werkstatt.desktop" <<EOD
+[Desktop Entry]
+Type=Application
+Name=Stadtkarten-Werkstatt
+Comment=Stadtkarten für Die Alte Ordnung erzeugen
+Exec="$DIR/Stadtkarten-Werkstatt"
+Icon=$DIR/icon.png
+Terminal=true
+Categories=Graphics;Game;
+EOD
+echo "Menüeintrag angelegt."
+"""
+
+
+def build_linux_archive(app):
+    """tar.gz mit Programmordner, Symbol, Kurzanleitung und Skript für einen Menüeintrag (Rechte bleiben erhalten)."""
+    shutil.copy(BUILD / "icon.png", app / "icon.png")
+    (app / "LIESMICH.txt").write_text(LINUX_README.format(version=VERSION), encoding="utf-8")
+    menu = app / "installiere-menueeintrag.sh"
+    menu.write_text(LINUX_MENU, encoding="utf-8", newline="\n")
+    menu.chmod(0o755)
+    arch = platform.machine().lower().replace("amd64", "x86_64")
+    target = OUT / f"{NAME}-linux-{arch}.tar.gz"
+    with tarfile.open(target, "w:gz") as tar:
+        tar.add(app, arcname=NAME)
     return target
 
 
 def main():
     OUT.mkdir(exist_ok=True)
     app = build_app()
-    portable = OUT / f"{NAME}-portable.zip"
-    with zipfile.ZipFile(portable, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        for f in sorted(app.rglob("*")):
-            if f.is_file():
-                z.write(f, pathlib.Path(NAME) / f.relative_to(app))
-    setup = build_setup(app)
-    for p in (setup, portable):
-        print(f"fertig: {p}  ({p.stat().st_size / 1e6:.0f} MB)")
+    if IS_WIN:
+        portable = OUT / f"{NAME}-portable.zip"
+        with zipfile.ZipFile(portable, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+            for f in sorted(app.rglob("*")):
+                if f.is_file():
+                    z.write(f, pathlib.Path(NAME) / f.relative_to(app))
+        results = [build_setup(app), portable]
+    else:
+        results = [build_linux_archive(app)]
+    for p in results:
+        if p is not None:
+            print(f"fertig: {p}  ({p.stat().st_size / 1e6:.0f} MB)")
 
 
 if __name__ == "__main__":

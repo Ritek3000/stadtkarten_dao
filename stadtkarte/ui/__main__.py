@@ -25,12 +25,29 @@ from ..generator import generate
 from ..render import render_svg, to_pdf, to_png
 from ..styles import BIOMES, DISTRICT_TYPES
 
+def documents_dir():
+    """Dokumente-Ordner des Benutzers; unter Linux über die XDG-Einstellung (z.B. ~/Dokumente)."""
+    if sys.platform.startswith("linux"):
+        try:
+            import subprocess
+            out = subprocess.run(["xdg-user-dir", "DOCUMENTS"], capture_output=True, text=True, timeout=3).stdout.strip()
+            if out and pathlib.Path(out).is_dir() and pathlib.Path(out) != pathlib.Path.home():
+                return pathlib.Path(out)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        for name in ("Dokumente", "Documents"):
+            if (pathlib.Path.home() / name).is_dir():
+                return pathlib.Path.home() / name
+        return pathlib.Path.home()
+    return pathlib.Path.home() / "Documents"
+
+
 if getattr(sys, "frozen", False):
     # Gebündeltes Programm (PyInstaller): Dateien liegen im Programmordner, Karten gehen nach Dokumente\Stadtkarten
     BUNDLE = pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(sys.executable).parent))
     EXAMPLES = BUNDLE / "beispiele"
     HTML = BUNDLE / "stadtkarte" / "ui" / "index.html"
-    OUTPUT = pathlib.Path.home() / "Documents" / "Stadtkarten"
+    OUTPUT = documents_dir() / "Stadtkarten"
 else:
     ROOT = pathlib.Path(__file__).resolve().parents[2]
     EXAMPLES = ROOT / "beispiele"
