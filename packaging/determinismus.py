@@ -154,6 +154,49 @@ def compare(name, runs):
     return ok
 
 
+def cpu_name():
+    """Prozessormodell (unter Windows aus der Registry, unter Linux aus /proc/cpuinfo)."""
+    try:
+        if sys.platform == "win32":
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+            return winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
+        for line in open("/proc/cpuinfo", encoding="utf-8"):
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    import platform
+    return platform.processor() or "unbekannt"
+
+
+def math_fingerprints():
+    """Bitgenaue Fingerabdrücke mathematischer Funktionen. Unterscheiden sie sich zwischen zwei Maschinen,
+    rechnet die Plattform dort unterschiedlich (z.B. CPU-abhängige Rechenwege der Mathebibliothek)."""
+    import math
+    xs = [i * 0.37 - 1500.0 for i in range(8000)]
+    out = {}
+    for name, fn in (("sin", math.sin), ("cos", math.cos), ("atan2", lambda x: math.atan2(x, 3.1)),
+                     ("exp", lambda x: math.exp(x / 900)), ("log", lambda x: math.log(abs(x) + 1)),
+                     ("sqrt", lambda x: math.sqrt(abs(x))), ("pow", lambda x: abs(x) ** 0.37)):
+        out[f"py.{name}"] = hashlib.sha1(repr([fn(x) for x in xs]).encode()).hexdigest()[:10]
+    a = np.array(xs)
+    for name, fn in (("sin", np.sin), ("cos", np.cos), ("arctan2", lambda v: np.arctan2(v, 3.1)),
+                     ("exp", lambda v: np.exp(v / 900)), ("log", lambda v: np.log(np.abs(v) + 1)),
+                     ("sqrt", lambda v: np.sqrt(np.abs(v))), ("power", lambda v: np.abs(v) ** 0.37)):
+        out[f"np.{name}"] = hashlib.sha1(fn(a).tobytes()).hexdigest()[:10]
+    return out
+
+
+def numpy_cpu_features():
+    try:
+        from numpy._core._multiarray_umath import __cpu_features__ as feats
+    except ImportError:
+        return "?"
+    return " ".join(k for k in ("SSE42", "AVX", "FMA3", "AVX2", "AVX512F", "AVX512_SKX", "AVX512_ICL", "AVX512_SPR")
+                    if feats.get(k))
+
+
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--einzeln":   # Kindprozess: eine Karte, Ergebnis als JSON
         install()
@@ -162,6 +205,9 @@ def main():
     install()
     print(f"Determinismus-Prüfung (Python {sys.version.split()[0]}, Shapely {shapely.__version__}, "
           f"GEOS {shapely.geos_version_string}, numpy {np.__version__}, {sys.platform})")
+    print(f"Prozessor: {cpu_name()}")
+    print(f"numpy nutzt: {numpy_cpu_features()}")
+    print("Rechen-Fingerabdruck: " + " ".join(f"{k}={v}" for k, v in math_fingerprints().items()))
     all_ok = True
     for beispiel, seed in FAELLE:
         runs = [("Prozess A, Lauf 1", trace(beispiel, seed)), ("Prozess A, Lauf 2", trace(beispiel, seed))]
@@ -170,6 +216,10 @@ def main():
                                  capture_output=True, text=True, check=True).stdout
             runs.append((f"frischer Prozess {k}", json.loads(out.strip().splitlines()[-1])))
         all_ok &= compare(f"{beispiel} Seed {seed}", runs)
+        if (beispiel, seed) == FAELLE[0]:   # zum Vergleich zwischen Maschinen: Fingerabdruck jedes Schritts
+            print(f"  Schritte {beispiel} Seed {seed} (Nr. Schritt Zufall bitgenau gerundet):")
+            for k, (step, r, exact, rounded) in enumerate(runs[0][1], 1):
+                print(f"    {k:2d} {step:28s} {r} {exact} {rounded}")
     print("Alle Läufe gleich." if all_ok else "Es gibt Abweichungen (siehe oben).")
     return 0 if all_ok else 1
 
