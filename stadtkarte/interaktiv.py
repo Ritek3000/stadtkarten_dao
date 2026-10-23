@@ -135,10 +135,11 @@ anwenden(); ganz();
 """
 
 
-def interactive_html(svg, name, quality=90):
-    """Baut aus einer fertigen Karte (render_svg) die interaktive HTML-Datei."""
+def interactive_html(svg, name, quality=90, base_png=None):
+    """Baut aus einer fertigen Karte (render_svg) die interaktive HTML-Datei. base_png: bereits gerenderte Karte
+    ohne Beschriftung (spart ein erneutes Rendern)."""
     base, labels = split_labels(svg)
-    img = Image.open(io.BytesIO(to_png(base)))
+    img = Image.open(io.BytesIO(base_png or to_png(base)))
     buf = io.BytesIO()
     img.convert("RGB").save(buf, "WEBP", quality=quality)
     toggles = "\n".join(f'<label><input type="checkbox" data-gruppe="{gid}" checked>{text}</label>'

@@ -11,7 +11,7 @@ import numpy as np
 import shapely
 from shapely.geometry import Polygon
 
-from .geo import axes, fit_rect, min_width
+from .geo import axes, fit_rect, min_width, vdot, vlen
 
 SPECIAL = ("achteck", "sechseck", "fuenfeck", "raute")
 
@@ -63,7 +63,7 @@ def house_shape(piece, rng, min_w, max_ratio, special_chance=0.12):
     if ax is None:
         return None, None
     o, e1, e2 = ax
-    l1, l2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+    l1, l2 = vlen(e1), vlen(e2)
     if l2 < min_w:
         return None, None
     u, v = e1 / l1, e2 / l2
@@ -106,14 +106,14 @@ def house_shape(piece, rng, min_w, max_ratio, special_chance=0.12):
 
 def _rect_name(rect):
     ax = axes(rect)
-    l1, l2 = np.linalg.norm(ax[1]), np.linalg.norm(ax[2])
+    l1, l2 = vlen(ax[1]), vlen(ax[2])
     return "quadrat" if l1 / max(l2, 1e-6) < 1.2 else "rechteck"
 
 
 def _square_up(rect):
     """Fast quadratische Rechtecke werden echte Quadrate (lange Seite mittig gekürzt)."""
     o, e1, e2 = axes(rect)
-    l1, l2 = np.linalg.norm(e1), np.linalg.norm(e2)
+    l1, l2 = vlen(e1), vlen(e2)
     if l1 / max(l2, 1e-6) >= 1.2:
         return rect
     cut = (l1 - l2) / 2
@@ -125,7 +125,7 @@ def _square_up(rect):
 def _l_from_rect(rect, rng, min_w):
     """L-Form aus einem Rechteck: eine zufällige Ecke wird ausgespart, beide Flügel bleiben >= min_w."""
     o, e1, e2 = axes(rect)
-    l1, l2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+    l1, l2 = vlen(e1), vlen(e2)
     cx, cy = rng.uniform(0.35, 0.5), rng.uniform(0.35, 0.5)
     if l1 * (1 - cx) < min_w or l2 * (1 - cy) < min_w or l2 < 1.6 * min_w:
         return None
@@ -143,7 +143,7 @@ def _min_angle(poly):
     for i in range(len(cs)):
         a, b, c = cs[i - 1], cs[i], cs[(i + 1) % len(cs)]
         v1, v2 = a - b, c - b
-        cosang = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-9)
+        cosang = vdot(v1, v2) / (vlen(v1) * vlen(v2) + 1e-9)
         best = min(best, float(np.degrees(np.arccos(np.clip(cosang, -1, 1)))))
     return best
 
@@ -152,7 +152,7 @@ def cross_in_rect(rect, arm=0.42):
     """Kreuzförmiger Grundriss für Gotteshäuser: Längsschiff entlang der langen Achse, Querschiff bei 1/3
     (Kirchengrundriss); bei fast quadratischem Rechteck ein gleicharmiges Kreuz."""
     o, e1, e2 = axes(rect)
-    l1, l2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
+    l1, l2 = vlen(e1), vlen(e2)
     u, v = e1 / l1, e2 / l2
     wy = (1 - arm) / 2                       # Breite des Längsschiffs (quer zur langen Achse)
     wx = arm * l2 / l1                       # Breite des Querschiffs, gleich breit wie das Längsschiff

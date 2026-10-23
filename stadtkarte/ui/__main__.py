@@ -6,6 +6,7 @@ import base64
 import contextlib
 import io
 import json
+import os
 import pathlib
 import re
 import sys
@@ -23,7 +24,8 @@ from PIL import Image
 from .. import config
 from ..generator import generate
 from ..interaktiv import interactive_html
-from ..render import font_face_css, move_labels, render_svg, split_labels, to_pdf, to_png
+from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
+from ..render import font_face_css, move_labels, render_svg, split_labels, to_pdf
 from ..styles import BIOMES, DISTRICT_TYPES
 
 def documents_dir():
@@ -91,9 +93,9 @@ def webp(png, quality):
 
 
 def build(raw):
-    """Erzeugt die Karte und eine schnelle Vorschau in halber Auflösung. Die volle Auflösung wird erst
-    berechnet, wenn sie angefordert wird (die Oberfläche holt sie direkt nach der Vorschau). Ein Hintergrund-
-    Thread hilft nicht: resvg hält während des Renderns die GIL und würde die Antwort mit der Vorschau blockieren."""
+    """Erzeugt die Karte und eine schnelle Vorschau in halber Auflösung. Die volle Auflösung (ohne
+    Beschriftung) entsteht gleichzeitig in einem eigenen Render-Prozess; die Oberfläche holt sie direkt nach der
+    Vorschau. Dasselbe Bild dient später auch der interaktiven Karte."""
     cfg = config.from_dict(raw)
     out = io.StringIO()
     t0 = time.time()
@@ -101,13 +103,17 @@ def build(raw):
         m = generate(cfg)
         svg = render_svg(m)
         base, labels = split_labels(svg)   # die Ansicht zeigt die Beschriftung als verschiebbare Ebene darüber
-        small = to_png(base, zoom=0.5)
+        small_job = png_async(base, zoom=0.5)
+        view_job = png_async(base)
+        small = small_job.result()
     rid = uuid.uuid4().hex[:12]
     while len(RESULTS) >= 4:
         RESULTS.pop(next(iter(RESULTS)))
-    RESULTS[rid] = {"svg": svg, "base": base, "png": None, "view": None, "lock": threading.Lock(), "W": m["W"],
+    RESULTS[rid] = {"svg": svg, "base": base, "png": None, "view": view_job, "lock": threading.Lock(), "W": m["W"],
                     "name": cfg["name"],
                     "stem": f"{slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
+    if (os.cpu_count() or 1) >= 4:   # genug Kerne: PNG mit Beschriftung vorsorglich schon rendern
+        start_png(RESULTS[rid])
     return {
         "id": rid,
         "W": m["W"],
@@ -115,23 +121,25 @@ def build(raw):
         "preview": "data:image/webp;base64," + base64.b64encode(webp(small, 88)).decode(),
         "hints": [ln.replace("Hinweis: ", "") for ln in out.getvalue().splitlines() if ln.strip()],
         "stats": {"gebaeude": len(m["buildings"]) + len(m["suburbs"]), "baeume": len(m["trees"]),
-                  "sekunden": round(time.time() - t0, 1)},
+                  "sekunden": round(time.time() - t0, 1), "rendern": render_mode()},
     }
 
 
-def full_png(res):
-    with res["lock"]:   # nur einmal rendern, auch wenn Ansicht und Download gleichzeitig fragen
+def start_png(res):
+    """Startet das PNG mit Beschriftung im Hintergrund (nur einmal, auch wenn mehrere gleichzeitig fragen)."""
+    with res["lock"]:
         if res["png"] is None:
-            res["png"] = to_png(res["svg"])
+            res["png"] = png_async(res["svg"])
         return res["png"]
 
 
+def full_png(res):
+    return start_png(res).result()
+
+
 def view_png(res):
-    """Volle Auflösung ohne Beschriftung für die Ansicht."""
-    with res["lock"]:
-        if res["view"] is None:
-            res["view"] = to_png(res["base"])
-        return res["view"]
+    """Volle Auflösung ohne Beschriftung für die Ansicht und die interaktive Karte."""
+    return res["view"].result()
 
 
 def set_labels(res, moved):
@@ -154,7 +162,7 @@ def file_bytes(res, fmt):
         to_pdf(full_png(res), buf)
         return buf.getvalue(), "application/pdf"
     if fmt == "html":
-        return interactive_html(res["svg"], res["name"]).encode("utf-8"), "text/html; charset=utf-8"
+        return interactive_html(res["svg"], res["name"], base_png=view_png(res)).encode("utf-8"), "text/html; charset=utf-8"
     raise ValueError(f"Unbekanntes Format: {fmt}")
 
 
@@ -232,6 +240,7 @@ class Handler(BaseHTTPRequestHandler):
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher - bitte neu erzeugen."})
                 OUTPUT.mkdir(parents=True, exist_ok=True)
+                start_png(res)   # PNG mit Beschriftung rendert schon, während SVG geschrieben wird
                 paths = []
                 for fmt in ("svg", "png", "pdf", "html"):
                     path = OUTPUT / f"{res['stem']}.{fmt}"
@@ -271,6 +280,8 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        shutdown_renderers()
 
 
 if __name__ == "__main__":

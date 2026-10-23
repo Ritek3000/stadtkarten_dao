@@ -6,7 +6,8 @@ import time
 from . import config
 from .generator import generate
 from .interaktiv import interactive_html
-from .render import render_svg, to_pdf, to_png
+from .parallel import png_async
+from .render import render_svg, split_labels, to_pdf
 
 
 def main():
@@ -31,11 +32,14 @@ def main():
     stem = out / f"{pathlib.Path(args.datei).stem}_{cfg['seed']}{suffix}"
     formats = [x.lower() for x in cfg["ausgabe"]["formate"]]
     written = []
+    # PNG (mit Beschriftung) und Bild der interaktiven Karte (ohne) entstehen gleichzeitig in Render-Prozessen
+    png_job = png_async(svg) if "png" in formats or "pdf" in formats else None
+    base_job = png_async(split_labels(svg)[0]) if "html" in formats else None
     if "svg" in formats:
         stem.with_suffix(".svg").write_text(svg, encoding="utf-8")
         written.append(stem.with_suffix(".svg"))
-    if "png" in formats or "pdf" in formats:
-        png = to_png(svg)
+    if png_job is not None:
+        png = png_job.result()
         if "png" in formats:
             stem.with_suffix(".png").write_bytes(png)
             written.append(stem.with_suffix(".png"))
@@ -43,7 +47,8 @@ def main():
             to_pdf(png, stem.with_suffix(".pdf"))
             written.append(stem.with_suffix(".pdf"))
     if "html" in formats:
-        stem.with_suffix(".html").write_text(interactive_html(svg, cfg["name"]), encoding="utf-8")
+        stem.with_suffix(".html").write_text(interactive_html(svg, cfg["name"], base_png=base_job.result()),
+                                             encoding="utf-8")
         written.append(stem.with_suffix(".html"))
     print(f"{cfg['name']}: {len(m['buildings']) + len(m['suburbs'])} Gebäude, {len(m['trees'])} Bäume "
           f"({time.time() - t0:.1f} s)")

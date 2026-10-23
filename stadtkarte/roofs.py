@@ -7,7 +7,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Polygon
 
-from .geo import axes, hip_planes, is_rect, lines, polys
+from .geo import axes, hip_planes, is_rect, lines, polys, vdot, vlen
 
 # Zeilenabstand und Fugenabstand (px bei 2000 px Bildgröße) je Material
 MATERIALS = {
@@ -71,7 +71,7 @@ def planes(poly):
     if ax is None:
         return []
     o, e1, e2 = ax
-    l1, l2 = np.linalg.norm(e1), np.linalg.norm(e2)
+    l1, l2 = vlen(e1), vlen(e2)
     if l2 < 1e-6:
         return []
     u, v = e1 / l1, e2 / l2
@@ -194,7 +194,7 @@ def _dormers(poly, pl, s, rng, base, to_light, outline, material):
     if ax is None or material == "schnee" or poly.area < 420 * s * s or not is_rect(poly):
         return ""
     o, e1, e2 = ax
-    l1, l2 = np.linalg.norm(e1), np.linalg.norm(e2)
+    l1, l2 = vlen(e1), vlen(e2)
     if l1 < 26 * s or l2 < 12 * s:
         return ""
     u = e1 / l1
@@ -210,7 +210,7 @@ def _dormers(poly, pl, s, rng, base, to_light, outline, material):
             corners = [c - u * hw - n * hd, c + u * hw - n * hd, c + u * hw + n * hd, c - u * hw + n * hd]
             if not poly.buffer(-0.5 * s).contains(Polygon(corners)):
                 continue
-            k = 1 + 0.3 * float(np.dot(n, to_light))
+            k = 1 + 0.3 * vdot(n, to_light)
             pts = " ".join(f"{_f(x)},{_f(y)}" for x, y in corners)
             ridge = (c - n * hd, c + n * hd)
             win = (c + n * hd - u * hw * 0.6, c + n * hd + u * hw * 0.6)
@@ -232,7 +232,7 @@ def detailed_roof(b, s, rng, material, to_light, outline):
     out = []
     tex_dark, tex_light = [], []
     for geom, n, rd, eave, depth in pl:
-        k = 1 + 0.3 * float(np.dot(n, to_light))
+        k = 1 + 0.3 * vdot(n, to_light)
         out.append(f'<path d="{_pd(geom)}" fill="{shade(base, k)}"/>')
         dark, light = _texture(geom, n, rd, eave, depth, s, rng, material)
         tex_dark.append(dark)
@@ -261,8 +261,8 @@ def detailed_roof(b, s, rng, material, to_light, outline):
     if b.get("ridges") and (forge or rng.random() < (0.1 if b.get("poor") else 0.35)) and poly.area > 140 * s * s:
         ax = axes(poly)
         o, e1, e2 = ax
-        u = e1 / np.linalg.norm(e1)
-        v = e2 / np.linalg.norm(e2)
+        u = e1 / vlen(e1)
+        v = e2 / vlen(e2)
         ridge = b["ridges"][0]
         c = ridge.interpolate(rng.uniform(0.2, 0.8), normalized=True)
         c = np.array([c.x, c.y]) + v * rng.choice([-1, 1]) * 2.2 * s
