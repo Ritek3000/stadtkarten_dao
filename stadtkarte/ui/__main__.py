@@ -22,6 +22,7 @@ from PIL import Image
 
 from .. import config
 from ..generator import generate
+from ..interaktiv import interactive_html
 from ..render import render_svg, to_pdf, to_png
 from ..styles import BIOMES, DISTRICT_TYPES
 
@@ -103,7 +104,7 @@ def build(raw):
     rid = uuid.uuid4().hex[:12]
     while len(RESULTS) >= 4:
         RESULTS.pop(next(iter(RESULTS)))
-    RESULTS[rid] = {"svg": svg, "png": None, "lock": threading.Lock(), "stem": f"{slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
+    RESULTS[rid] = {"svg": svg, "png": None, "lock": threading.Lock(), "name": cfg["name"], "stem": f"{slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
     return {
         "id": rid,
         "preview": "data:image/webp;base64," + base64.b64encode(webp(small, 88)).decode(),
@@ -131,6 +132,8 @@ def file_bytes(res, fmt):
         buf = io.BytesIO()
         to_pdf(full_png(res), buf)
         return buf.getvalue(), "application/pdf"
+    if fmt == "html":
+        return interactive_html(res["svg"], res["name"]).encode("utf-8"), "text/html; charset=utf-8"
     raise ValueError(f"Unbekanntes Format: {fmt}")
 
 
@@ -200,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(404, {"error": "Karte nicht mehr im Speicher - bitte neu erzeugen."})
                 OUTPUT.mkdir(parents=True, exist_ok=True)
                 paths = []
-                for fmt in ("svg", "png", "pdf"):
+                for fmt in ("svg", "png", "pdf", "html"):
                     path = OUTPUT / f"{res['stem']}.{fmt}"
                     path.write_bytes(file_bytes(res, fmt)[0])
                     paths.append(str(path))

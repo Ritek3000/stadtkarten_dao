@@ -84,7 +84,7 @@ orte:
 
 ausgabe:
   bildgroesse: 2000   # Kantenlänge in Pixeln
-  formate: [svg, png, pdf]
+  formate: [svg, png, pdf]   # dazu html: interaktive Karte zum Zoomen, Beschriftung ein-/ausblendbar
   raster: 0           # >0 zeichnet ein Quadratraster (Pixel pro Feld), z.B. für Foundry/Roll20
   legende: true
   dachdetails: true  # Dachmaterial (Ziegel, Schiefer, Reet, Schnee), Licht und Schornsteine

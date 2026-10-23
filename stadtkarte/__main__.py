@@ -5,6 +5,7 @@ import time
 
 from . import config
 from .generator import generate
+from .interaktiv import interactive_html
 from .render import render_svg, to_pdf, to_png
 
 
@@ -41,6 +42,9 @@ def main():
         if "pdf" in formats:
             to_pdf(png, stem.with_suffix(".pdf"))
             written.append(stem.with_suffix(".pdf"))
+    if "html" in formats:
+        stem.with_suffix(".html").write_text(interactive_html(svg, cfg["name"]), encoding="utf-8")
+        written.append(stem.with_suffix(".html"))
     print(f"{cfg['name']}: {len(m['buildings']) + len(m['suburbs'])} Gebäude, {len(m['trees'])} Bäume "
           f"({time.time() - t0:.1f} s)")
     for p in written:
