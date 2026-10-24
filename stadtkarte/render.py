@@ -910,19 +910,17 @@ def render_svg(m):
                                    f'ry="{f(mrng.uniform(1, 2) * s)}" transform="rotate({f(mrng.uniform(0, 180))} {f(x)} {f(y)})"/>')
             if puddles:
                 o.append(f'<g fill="#3c4a4e" fill-opacity="0.55">{"".join(puddles)}</g>')
-    if not m["pools"].is_empty and B["stilts"]:   # Pfahldorf: Gassen über Wasser werden Kanäle, Hauptwege Bohlenstege
+    if not m["pools"].is_empty and B["stilts"]:   # Pfahldorf: Gassen und Plätze über dem Sumpfwasser sind Stege
         pools = m["pools"]
-        canals = unary_union(list(m["streets"]) + list(m["paved"])).intersection(pools)
-        if not canals.is_empty:
-            o.append(f'<path d="{path_d(canals)}" fill="{B["pool"]}" stroke="{B["pool_edge"]}" stroke-width="{f(1 * s)}"/>')
-        decks = unary_union(list(m["plazas"])).intersection(pools)
-        if not decks.is_empty:
+        decks = unary_union(list(m["streets"]) + list(m["paved"]) + list(m["plazas"])).intersection(pools)
+        if not decks.is_empty:   # Stegstraßen in voller Wegbreite aus Bohlen, dunkle Kante zum Wasser
             o.append(f'<path d="{path_d(decks)}" fill="url(#planks)" stroke="#2e2010" stroke-width="{f(1.4 * s)}"/>')
-        walk = "".join(line_d(ln.intersection(pools.buffer(4 * s))) for ln, w in m["internal_roads"] if w > 10 * s)
-        if walk:
-            o.append(f'<path d="{walk}" fill="none" stroke="#2e2010" stroke-width="{f(10 * s)}"/>'
-                     f'<path d="{walk}" fill="none" stroke="#8a6d45" stroke-width="{f(8 * s)}" '
-                     f'stroke-dasharray="{f(2.4 * s)} {f(0.8 * s)}"/>')
+        # Hauptwege: Bohlen quer zur Laufrichtung, so breit wie der Weg
+        for ln, w in m["internal_roads"]:
+            walk = line_d(ln.intersection(pools))
+            if walk:
+                o.append(f'<path d="{walk}" fill="none" stroke="#8a6d45" stroke-width="{f(w - 2 * s)}" '
+                         f'stroke-dasharray="{f(2.4 * s)} {f(0.8 * s)}"/>')
     # Sonderflächen: Tempelvorplatz, Exerzierplatz, Friedhof
     for g, kind in m["grounds"]:
         d = path_d(g)
