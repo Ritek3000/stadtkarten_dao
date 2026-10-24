@@ -887,8 +887,8 @@ def render_svg(m):
         edge = line_d(unary_union([p.boundary for p in polys(g)]).difference(joins))
         return (f'<path d="{path_d(g)}" fill="{fill}"/>' +
                 (f'<path d="{edge}" fill="none" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>' if edge else ""))
-    for st in m["streets"]:
-        o.append(edged(st, B["street"]))
+    if m["streets"]:   # eine gemeinsame Fläche: Zugangswege (z.B. von der Festungsbrücke) gehen ohne Randlinie
+        o.append(edged(unary_union(m["streets"]), B["street"]))   # und ohne sichtbares rundes Ende in die Gassen über
     paved_fill = "url(#cobble)" if B["wall"] == "stein" else B["street"]
     for pv in m["paved"] + m["plazas"]:
         o.append(edged(pv, paved_fill))

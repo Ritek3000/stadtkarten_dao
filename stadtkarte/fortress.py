@@ -234,14 +234,17 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                 e = 6 * s   # Widerlager: Brückenenden liegen ein Stück auf dem Ufer
                 res["bridges"].append((LineString([(edge.x - ux * e, edge.y - uy * e),
                                                    (shore.x + ux * 2 * e, shore.y + uy * 2 * e)]), 15 * s))
-                if walled:   # Brückenkopf: füllt kleine Buchten der gewellten Küste neben Brückenende und Weg auf
+                # Brückenkopf: füllt kleine Buchten der gewellten Küste neben Brückenende und Weg auf; nicht auf dem
+                # gepflasterten Hafen (dort gibt es keine Buchten, der Brückenkopf wäre ein Grasbuckel am Pflaster)
+                if walled and (paved is None or paved.distance(shore) > 10 * s):
                     head = LineString([(shore.x - ux * 2 * s, shore.y - uy * 2 * s),
                                        (shore.x + ux * 45 * s, shore.y + uy * 45 * s)])
-                    res["land_add"] = res["land_add"].union(head.buffer(14 * s, cap_style="flat"))
+                    res["land_add"] = res["land_add"].union(head.buffer(14 * s))   # runde Enden, keine eckigen Schultern
                 if edge.distance(p) > a:
                     res["roads"].append((LineString([(p.x, p.y), (edge.x - ux * e * 0.5, edge.y - uy * e * 0.5)]), 12 * s))
                 if walled:
-                    _connect_inside(s, city, Point(shore.x + ux * 6 * s, shore.y + uy * 6 * s), (ux, uy), width=13)
+                    # Weg so breit wie die Brücke, beginnt unter dem Brückenende: kein Breitensprung am Übergang
+                    _connect_inside(s, city, Point(shore.x + ux * 2 * s, shore.y + uy * 2 * s), (ux, uy), width=15)
     if (sea is None or lage == "land") and walled:
         # Zitadelle: in die Stadtmauer eingebaut, Tor zur Stadt hin
         site = _citadel_site(s, W, city, water, a)
