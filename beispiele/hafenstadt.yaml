@@ -36,7 +36,7 @@ viertel:
     typ: bauern
     lage: suedost
 
-# typ: gasthaus | kontor | adelshaus | palast | rathaus | tempel | schmiede | muehle | wassermuehle | werft
+# typ: gasthaus | kontor | adelshaus | palast | rathaus | tempel | kathedrale | schmiede | muehle | wassermuehle | werft
 #      | kaserne | friedhof | laden | bauernhof
 #      muehle (Windmühle) und bauernhof stehen vor der Stadt an einer Landstraße, wassermuehle am Flussufer
 #      festung (bzw. bastion/burg) mit lage: insel | landzunge | land  - steht außerhalb der Stadt

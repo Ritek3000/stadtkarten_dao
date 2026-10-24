@@ -14,7 +14,7 @@ from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, min_width, p
 from .roofs import shade as shade_hex
 from .styles import BIG_LANDMARKS, BIOMES, DISTRICT_TYPES, FORT_TYPES, LANDMARK_COLORS
 
-COMPACT = {"friedhof", "kaserne", "tempel", "palast"}
+COMPACT = {"friedhof", "kaserne", "tempel", "palast", "kathedrale"}
 
 
 def ship_footprint(cx, cy, length, width, angle_deg):
@@ -571,12 +571,13 @@ class CityBuilder:
         blk["ids"] = []
         self.out["yard_trees"] = [t for t in self.out["yard_trees"] if not blk["poly"].contains(Point(t[0], t[1]))]
         special = {"tempel": self._temple, "kaserne": self._barracks, "friedhof": self._cemetery,
-                   "rathaus": self._townhall, "palast": self._palace}.get(label_src)
+                   "rathaus": self._townhall, "palast": self._palace,
+                   "kathedrale": self._cathedral}.get(label_src)
         if special:
             b = special(poly, color, blk["district"])
             if b is not None:
                 self.out["buildings"].append(b)
-                self.out["buildings"] += b.pop("annex", [])   # Anbauten (Rathausturm) über dem Hauptbau zeichnen
+                self.out["buildings"] += b.pop("annex", [])   # Anbauten (Rathaus-, Domtürme) über dem Hauptbau zeichnen
                 return b
         if label_src == "adelshaus":   # Herrenhaus mit Garten
             c = poly.centroid
@@ -674,6 +675,66 @@ class CityBuilder:
         self.out["fountains"].append((float(c[0]), float(c[1]), 7 * s))
         return {"poly": palace, "color": color, "district": district}
 
+    def _cathedral(self, area, color, district):
+        """Kathedrale: Langhaus, Querschiff und Chor mit runder Apsis, zwei Türme an der Fassade und ein
+        Vierungsturm. Das Langhaus folgt der langen Seite des Blocks, die Fassade zeigt zur Hauptstraße hin auf
+        einen gepflasterten Domplatz mit Brunnen; um den Chor stehen Bäume."""
+        s, rng = self.s, self.rng
+        o, e1, e2 = axes(area)
+        if vlen(e2) > vlen(e1):
+            e1, e2 = e2, e1
+        La, Lb = vlen(e1), vlen(e2)
+        u, v = e1 / La, e2 / Lb
+        if LineString([o + e1, o + e1 + e2]).distance(self.main_streets) < LineString([o, o + e2]).distance(self.main_streets):
+            o, u = o + e1, -u        # Fassade an das Ende des Blocks, das näher an der Hauptstraße liegt
+        R = lambda *a: self._rect(o, u, v, *a)
+        P = lambda x, y: o + u * x + v * y
+        w = min(0.4 * Lb, 0.27 * La)          # Breite des Langhauses (mit Seitenschiffen)
+        if w < 14 * s:
+            return None
+        c = Lb / 2
+        xp = max(0.2 * La, 14 * s)            # Domplatz vor der Fassade
+        t = 0.55 * w                          # Seitenlänge der Fassadentürme
+        xe = La - 0.06 * La                   # Scheitel der Apsis
+        wc = 0.86 * w                         # Breite des Chors
+        xa = xe - wc / 2                      # Mittelpunkt der Apsis
+        xq0 = xp + 0.5 * (xa - xp)            # Querschiff
+        xq1 = xq0 + 0.8 * w
+        if xq1 > xa - 0.3 * w:
+            return None
+        arm = min(0.42 * Lb, 1.25 * w)        # halbe Länge des Querschiffs
+        apse = Polygon([P(xa + math.cos(a) * wc / 2, c + math.sin(a) * wc / 2)
+                        for a in np.linspace(-math.pi / 2, math.pi / 2, 9)] + [P(xa - 1, c + wc / 2), P(xa - 1, c - wc / 2)])
+        body = unary_union([R(xp + 0.5 * t, c - w / 2, xq0 + 0.5, c + w / 2), R(xq0, c - arm, xq1, c + arm),
+                            R(xq1 - 0.5, c - wc / 2, xa, c + wc / 2), apse,
+                            R(xp, c - w / 2 - 0.12 * t, xp + t, c + w / 2 + 0.12 * t)])   # Westwerk zwischen den Türmen
+        body = body.intersection(area)
+        if body.geom_type != "Polygon":
+            return None
+        towers = [R(xp - 0.08 * t, y0, xp + 0.92 * t, y0 + t)
+                  for y0 in (c - w / 2 - 0.18 * t, c + w / 2 + 0.18 * t - t)]
+        r8 = 0.36 * w
+        cx = (xq0 + xq1) / 2
+        crossing = Polygon([P(cx + math.cos(a) * r8, c + math.sin(a) * r8)
+                            for a in np.arange(8) * math.pi / 4 + math.pi / 8])
+        plaza = R(0, 0, xp + 0.1 * t, Lb).intersection(area)
+        if not plaza.is_empty:
+            self.out["grounds"].append((plaza, "plaza"))
+            if xp > 18 * s:
+                f = P(xp * 0.45, c)
+                self.out["fountains"].append((float(f[0]), float(f[1]), min(7 * s, xp * 0.2)))
+        keep = unary_union([body, *towers]).buffer(5 * s)
+        inner = area.buffer(-5 * s)
+        for _ in range(14):                   # Bäume um Chor und Querschiff (Domfreiheit)
+            q = P(rng.uniform(xq0, La), rng.uniform(0, Lb))
+            pt = Point(float(q[0]), float(q[1]))
+            if inner.contains(pt) and not keep.contains(pt):
+                self.out["yard_trees"].append((float(q[0]), float(q[1]), rng.uniform(5, 8) * s))
+        spire = "#5e8b78"                     # Turmhelme mit grüner Kupferpatina
+        annex = [{"poly": tw, "color": spire, "district": district, "landmark": True} for tw in towers]
+        annex.append({"poly": crossing, "color": spire, "district": district, "landmark": True})
+        return {"poly": body, "color": color, "district": district, "annex": annex}
+
     def _barracks(self, area, color, district):
         """Kaserne als Ringbau um einen Exerzierplatz."""
         s = self.s
@@ -743,7 +804,7 @@ class CityBuilder:
             if typ in BIG_LANDMARKS:
                 blks = [bk for bk in self.blocks if (di is None or bk["district"] == di)
                         and {"friedhof": 2500, "kaserne": 2500, "tempel": 1500, "rathaus": 1500,
-                             "palast": 5000}.get(typ, 900) * s * s
+                             "palast": 5000, "kathedrale": 4500}.get(typ, 900) * s * s
                         < bk["poly"].area < (16000 if typ in COMPACT else 9000) * s * s
                         and min_width(bk["poly"]) > (42 if typ in COMPACT else 28) * s
                         and (typ not in COMPACT or bk["poly"].area / bk["poly"].minimum_rotated_rectangle.area > 0.7)
@@ -759,7 +820,7 @@ class CityBuilder:
                 if typ == "werft":
                     blks.sort(key=lambda bk: bk["poly"].distance(self.t["water"]))
                     blks = blks[:3]
-                elif typ == "palast":   # der größte Block an einer Hauptstraße
+                elif typ in ("palast", "kathedrale"):   # der größte Block an einer Hauptstraße
                     blks.sort(key=lambda bk: bk["poly"].distance(self.main_streets) / s - bk["poly"].area / (200 * s * s))
                     blks = blks[:2]
                 else:
@@ -1064,7 +1125,7 @@ class CityBuilder:
             for b in self.out["buildings"]:
                 d = b["district"]
                 if 0 <= d < len(self.district_list) and self.district_list[d]["typ"] == "handwerk" \
-                        and self.rng.random() < 0.15:
+                        and self.rng.random() < 0.15 and not b.get("landmark"):   # z.B. nicht auf einem Domturm
                     b["forge"] = True
         self.fill_empty_with_trees()
         for b in self.out["buildings"]:
