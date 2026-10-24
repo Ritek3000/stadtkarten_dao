@@ -58,7 +58,7 @@ else:
     HTML = pathlib.Path(__file__).with_name("index.html")
 
 PLACE_TYPES = ["gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "kontor", "werft", "adelshaus",
-               "palast", "rathaus", "tempel", "kaserne", "friedhof", "bauernhof", "festung"]
+               "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof", "festung"]
 RESULTS = {}            # Ergebnis-ID -> erzeugte Karte (die letzten paar bleiben im Speicher)
 GEN_LOCK = threading.Lock()
 

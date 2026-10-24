@@ -19,7 +19,7 @@ ROTATION = {"nord": 0, "ost": 90, "sued": 180, "west": 270, "keine": 0}
 # andere Schreibweisen für besondere Orte
 PLACE_ALIASES = {"windmuehle": "muehle", "wasserrad": "wassermuehle", "halle": "rathaus", "dorfhalle": "rathaus",
                  "stadthalle": "rathaus", "schloss": "palast", "hof": "bauernhof", "bauernhaus": "bauernhof",
-                 "gehoeft": "bauernhof"}
+                 "gehoeft": "bauernhof", "dom": "kathedrale", "muenster": "kathedrale"}
 
 DEFAULTS = {
     "name": "Namenlose Stadt",

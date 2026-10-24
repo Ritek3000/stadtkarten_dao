@@ -75,6 +75,7 @@ früher nacheinander.
 | typ | Darstellung |
 |---|---|
 | `tempel` | Tempel mit kreuzförmigem Grundriss, gepflastertem Vorplatz und Brunnen |
+| `kathedrale` (auch `dom`, `muenster`) | Kathedrale auf einem großen Block nahe der Hauptstraße: Langhaus, Querschiff und Chor mit runder Apsis, zwei Fassadentürme und ein Vierungsturm mit grünen Kupferhelmen, davor ein gepflasterter Domplatz mit Brunnen, um den Chor Bäume |
 | `kaserne` | Ringbau um einen Exerzierplatz |
 | `friedhof` | umzäuntes Feld mit Grabreihen, Bäumen und Kapelle; mit `lage: ausserhalb` (oder bei Platzmangel im Ort) an einer Landstraße vor dem Tor |
 | `festung` / `bastion` / `burg` | Sternfestung; `lage: insel` (Brücke), `landzunge` oder `land`. Mit Stadtmauer liegt der Zugang immer innerhalb: Brückenkopf bzw. Landzunge am Ufer in der Stadt, an Land als Zitadelle in der Mauer mit Tor zur Stadt |
