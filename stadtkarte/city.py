@@ -138,15 +138,20 @@ class CityBuilder:
             return
         wall = self.shape.exterior.difference(t["water"].buffer(4 * s))
         self.out["wall"] = [ln for ln in lines(wall) if ln.length > 20 * s]
-        tower_pts = [Point(x, y) for x, y in list(self.shape.exterior.coords)[:-1]]
+        # Türme zuerst an die Mauerenden (am Wasser), dann an die Ecken des Umrisses. Ein Turm braucht Abstand zu
+        # Toren und anderen Türmen: Ecken dicht an einem Mauerende ergaben sonst zwei sich überlappende Türme.
+        tower_pts = []
         for ln in self.out["wall"]:
             tower_pts += [Point(ln.coords[0]), Point(ln.coords[-1])]
+        tower_pts += [Point(x, y) for x, y in list(self.shape.exterior.coords)[:-1]]
         wall_u = unary_union(self.out["wall"])
+        placed = []
         for p in tower_pts:
             if p.distance(wall_u) > 2 * s or not box(0, 0, W, W).contains(p):
                 continue
-            if any(p.distance(g[1]) < 35 * s for g in gates):
+            if any(p.distance(g[1]) < 35 * s for g in gates) or any(p.distance(q) < 28 * s for q in placed):
                 continue
+            placed.append(p)
             self.out["towers"].append((p.x, p.y, wall_angle(self.shape, p)))
         for _, p, _ in gates:
             self.out["gates"].append((p.x, p.y, wall_angle(self.shape, p)))
