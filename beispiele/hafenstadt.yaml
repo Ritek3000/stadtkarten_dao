@@ -2,6 +2,7 @@
 # Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\hafenstadt.yaml
 
 name: Rabenfurt
+# kennung: rabenfurt   # fester Name für das Web-Paket (bleibt bei Umbenennung gleich); sonst aus dem Namen gebildet
 seed: 1234            # gleiche Zahl + gleiche Angaben = gleiche Karte
 einwohner: 6000       # bestimmt die Größe der Stadt
 
@@ -86,7 +87,8 @@ orte:
 
 ausgabe:
   bildgroesse: 2000   # Kantenlänge in Pixeln
-  formate: [svg, png, pdf]   # dazu html: interaktive Karte zum Zoomen, Beschriftung ein-/ausblendbar
+  formate: [svg, png, pdf]   # dazu html: interaktive Karte zum Zoomen, Beschriftung ein-/ausblendbar;
+                             # web: Web-Paket für die eigene Webseite (Ordner <kennung>_web)
   raster: 0           # >0 zeichnet ein Quadratraster (Pixel pro Feld), z.B. für Foundry/Roll20
   legende: true
   dachdetails: true  # Dachmaterial (Ziegel, Schiefer, Reet, Schnee), Licht und Schornsteine

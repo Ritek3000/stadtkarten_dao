@@ -1,6 +1,7 @@
 """Einlesen und Vervollständigen der Stadtbeschreibung (YAML)."""
 import copy
 import math
+import re
 
 import yaml
 
@@ -82,11 +83,31 @@ def from_dict(raw):
             v["lage"] = norm(v["lage"])
             if v["lage"] not in DIRS:
                 raise ValueError(f"Unbekannte Lage bei Viertel {v.get('name')}: {v['lage']}")
+    if cfg.get("kennung") is not None:   # feste Kennung für das Web-Paket (Ordner- und Dateiname)
+        cfg["kennung"] = str(cfg["kennung"]).strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", cfg["kennung"]):
+            raise ValueError(f"Kennung '{cfg['kennung']}': nur Kleinbuchstaben a-z, Ziffern, '-' und '_' "
+                             "(keine Umlaute oder Leerzeichen)")
     for o in cfg["orte"]:
         o["typ"] = norm(o.get("typ", "laden"))
         o["typ"] = PLACE_ALIASES.get(o["typ"], o["typ"])
     cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
     return cfg
+
+
+def slug(text):
+    """Dateiname aus einem Stadtnamen: 'Tir'as'laan' -> 'tir_as_laan'."""
+    s = str(text).lower()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        s = s.replace(a, b)
+    return re.sub(r"[^a-z0-9]+", "_", s).strip("_") or "karte"
+
+
+def place_info(spec, district=None):
+    """Angaben zu einem Ort für die Ortsliste des Web-Pakets (an der Beschriftung gespeichert). typ wie in der
+    Stadtbeschreibung, auch wenn z.B. aus der Wassermühle mangels Fluss eine Windmühle wurde."""
+    return {"name": spec["name"], "kuerzel": spec.get("kuerzel") or None, "typ": spec.get("typ_yaml", spec["typ"]),
+            "viertel": district}
 
 
 def label_offsets(moved):

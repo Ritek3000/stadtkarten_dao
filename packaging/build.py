@@ -13,6 +13,7 @@ PyInstaller baut nur für das eigene System - die Linux-Version entsteht unter L
 import os
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -22,8 +23,9 @@ import zipfile
 from PIL import Image, ImageDraw
 
 NAME = "Stadtkarten-Werkstatt"
-VERSION = "1.8.0"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+VERSION = re.search(r'__version__ = "([^"]+)"',
+                    (ROOT / "stadtkarte" / "__init__.py").read_text(encoding="utf-8")).group(1)
 PKG = ROOT / "packaging"
 BUILD = ROOT / "build"
 DIST = ROOT / "dist"

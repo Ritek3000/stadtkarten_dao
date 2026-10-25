@@ -141,6 +141,22 @@ Die Karte ohne Beschriftung ist als Bild eingebettet, die Beschriftung liegt als
 Vergrößern scharf. Auch in der SVG-Datei stehen die Beschriftungen in eigenen Gruppen (`b-viertel`, `b-orte`, `b-titel`,
 `b-legende`) und lassen sich z.B. in Inkscape ausblenden.
 
+## Web-Paket
+
+Für die eigene Webseite: Der Knopf „Web-Paket“ lädt eine ZIP-Datei herunter, die Kommandozeile schreibt mit
+`formate: [web]` den Ordner `ausgabe/<kennung>_web/`. Darin liegen:
+
+| Datei | Inhalt |
+|---|---|
+| `karte.webp` | Karte ohne Beschriftung und ohne Raster, genau so groß wie die Karte (Bildgröße × Bildgröße) |
+| `beschriftung.svg` | die Beschriftung (Stadtname, Viertel, Orte, Legende; `viewBox` wie das Bild, Verschiebungen schon angewendet). Die Schrift ist nicht eingebettet: die Webseite muss EB Garamond (`stadtkarte/fonts/`) unter dem Namen `EB Garamond` bereitstellen |
+| `orte.json` | Orte und Viertel mit Name, Kürzel, Typ, Viertel und Lage im Bild (Pixel, Ursprung oben links; bei Orten die Mitte des Gebäudes), dazu `key` = `data-key` der Beschriftung in `beschriftung.svg`. `nicht_platziert` nennt Orte, für die kein Platz war |
+| `stadt.yaml` | die Stadtbeschreibung mit Seed, Kennung und Beschriftungs-Verschiebungen, lässt sich wieder in der Werkstatt öffnen |
+
+Die **Kennung** ist der feste Name der Stadt auf der Webseite. Steht in der Stadtbeschreibung `kennung: rabenfurt`
+(nur Kleinbuchstaben a-z, Ziffern, `-` und `_`), wird sie verwendet, sonst wird sie aus dem Namen gebildet. Sie wird in
+`stadt.yaml` festgeschrieben, damit die Stadt auch nach einer Umbenennung dieselbe bleibt.
+
 ## Nachtmodus
 
 `ausgabe: nacht: true` (Oberfläche: „Nachtmodus“, Kommandozeile: `--nacht`) dunkelt die Karte bläulich ab. Es leuchten

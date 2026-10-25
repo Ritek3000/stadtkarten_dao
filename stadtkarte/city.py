@@ -7,7 +7,7 @@ import shapely.affinity
 from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
 from shapely.ops import nearest_points, polylabel, unary_union
 
-from .config import to_canonical
+from .config import place_info, to_canonical
 from .shapes import cross_in_rect, house_shape
 from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, min_width, points, polys, roof, subdivide,
                   unit, vlen)
@@ -792,7 +792,7 @@ class CityBuilder:
                 print(f"Hinweis: In der Klamm ist keine Wassermühle möglich - '{o['name']}' wird eine Windmühle.")
                 typ = "muehle"
             if typ in ("muehle", "bauernhof"):   # Windmühle und Bauernhof stehen vor der Stadt an einer Landstraße
-                self.out["deferred"].append(dict(o, typ=typ))
+                self.out["deferred"].append(dict(o, typ=typ, typ_yaml=o["typ"]))
                 continue
             di = names.get(str(o.get("viertel", "")).lower())
             if di is not None and not any(b["district"] == di for b in self.out["buildings"]):
@@ -857,7 +857,12 @@ class CityBuilder:
                 self.out["legend"].append((o["kuerzel"], o["name"]))
             c = target["poly"].centroid
             self.out["labels"].append({"x": c.x, "y": c.y, "text": text, "kind": "ort",
-                                       "lift": math.sqrt(target["poly"].area) * 0.5 + 6 * s})
+                                       "lift": math.sqrt(target["poly"].area) * 0.5 + 6 * s,
+                                       "ort": place_info(o, self.district_name(target["district"]))})
+
+    def district_name(self, i):
+        """Name des Viertels mit dem Index i (None außerhalb der Viertel oder bei namenlosen Vierteln)."""
+        return (self.district_list[i]["name"] or None) if 0 <= i < len(self.district_list) else None
 
     def _mill_house(self, alive, river):
         """Mühlhaus der Wassermühle: ein Haus direkt am Wasser, ohne Straße zwischen Haus und Fluss. Gibt es keins,
@@ -920,7 +925,8 @@ class CityBuilder:
                 continue
             p = max(ps, key=lambda q: q.area)
             c = polylabel(p, tolerance=4)
-            self.out["labels"].append({"x": c.x, "y": c.y, "text": d["name"], "kind": "viertel"})
+            self.out["labels"].append({"x": c.x, "y": c.y, "text": d["name"], "kind": "viertel",
+                                       "viertel": {"name": d["name"], "typ": d["typ"]}})
 
     # ---------------------------------------------------------------- Hafen
     def harbor(self):

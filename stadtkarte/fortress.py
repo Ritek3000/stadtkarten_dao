@@ -7,6 +7,7 @@ from shapely.affinity import rotate
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points, unary_union
 
+from .config import place_info
 from .geo import blob, lines, roof, unit
 from .styles import LANDMARK_COLORS
 
@@ -287,5 +288,5 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
     res.update(fort=fort, towers=towers, buildings=_inner_buildings(center.x, center.y, a, ang, s),
                area=fort.buffer(15 * s) if res["land_add"] is None else res["land_add"].union(fort),
                label={"x": center.x, "y": center.y, "text": spec.get("kuerzel") or spec["name"],
-                      "kind": "festung", "lift": a * 0.75})
+                      "kind": "festung", "lift": a * 0.75, "ort": place_info(spec)})
     return res
