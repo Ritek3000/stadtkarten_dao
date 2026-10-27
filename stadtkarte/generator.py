@@ -111,6 +111,8 @@ def generate(cfg):
         ext_roads = ext_roads + [(g, w) for ln, w in fort["roads"] for g in lines(ln.difference(fort["fort"].buffer(w / 2)))
                                  if g.length > 2 * s]
         fort_bridges += [(g, w) for ln, w in fort["bridges"] for g in lines(ln.difference(fort["fort"])) if g.length > 2 * s]
+        # Hütten vor der Mauer weichen einer Festung an Land
+        city["buildings"] = [b for b in city["buildings"] if not b.get("poor") or not b["poly"].intersects(fort["area"])]
         city["buildings"] += fort["buildings"]
         city["towers"] += fort["towers"]
         city["labels"].append(fort["label"])
@@ -122,6 +124,8 @@ def generate(cfg):
     forts_u = unary_union([f["area"] for f in forts]) if forts else Polygon()
     if not city["faubourg"].is_empty:   # Großstadt: Vorstädte halten Felder, Wald und Einzelhäuser fern
         forts_u = forts_u.union(city["faubourg"])
+    if not city["slum_outside"].is_empty:   # ebenso Hüttensiedlungen vor der Mauer
+        forts_u = forts_u.union(city["slum_outside"].buffer(10 * s))
     # Altstadtmauer und ihre Tore zeichnen sich wie die äußere Mauer (die Festung nutzt nur die äußere)
     city["wall"] = city["wall"] + city.pop("old_wall")
     city["gates"] = city["gates"] + city.pop("old_gates")

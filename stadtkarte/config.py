@@ -94,6 +94,13 @@ def from_dict(raw):
                 raise ValueError(f"Unbekannte Richtung bei gelaende.{key}: {v}")
     for v in cfg["viertel"]:
         v["typ"] = norm(v.get("typ", "wohn"))
+        if v.get("lage") and norm(v["lage"]) in ("ausserhalb", "aussen", "draussen", "vorderstadt", "vordermauer"):
+            v["ausserhalb"] = True   # Armenviertel vor der Stadtmauer
+            del v["lage"]
+        if v.get("ausserhalb"):
+            v["ausserhalb"] = True
+        else:
+            v.pop("ausserhalb", None)
         if v.get("lage"):
             v["lage"] = norm(v["lage"])
             if v["lage"] not in DIRS:

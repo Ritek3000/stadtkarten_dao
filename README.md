@@ -82,7 +82,8 @@ früher nacheinander.
 | `kaserne` | Ringbau um einen Exerzierplatz |
 | `friedhof` | umzäuntes Feld mit Grabreihen, Bäumen und Kapelle; mit `lage: ausserhalb` (oder bei Platzmangel im Ort) an einer Landstraße vor dem Tor |
 | `festung` / `bastion` / `burg` | Sternfestung; `lage: insel` (Brücke), `landzunge` oder `land`. Mit Stadtmauer liegt der Zugang immer innerhalb: Brückenkopf bzw. Landzunge am Ufer in der Stadt, an Land als Zitadelle in der Mauer mit Tor zur Stadt |
-| `kontor`, `werft`, `adelshaus` | ganzer Block als ein großes Gebäude (Adelshaus mit Garten) |
+| `kontor`, `adelshaus` | ganzer Block als ein großes Gebäude (Adelshaus mit Garten) |
+| `werft` | lange Halle direkt am Ufer, quer zum Wasser; im Helling liegt ein Schiff im Bau, dessen Bug aufs Wasser zeigt (im Fluss höchstens 35 % der Breite, die Fahrrinne bleibt frei); ohne `viertel` bevorzugt im Hafen |
 | `gasthaus`, `schmiede`, `laden` | einzelnes, passend gelegenes Haus |
 | `wassermuehle` | Mühlhaus am Flussufer mit Wasserrad (Schaufeln, Gischt) im Fluss; ohne Fluss und in der Klamm (Gebirge) wird es eine Windmühle |
 | `muehle` (auch `windmuehle`) | Windmühle vor der Stadt an einer Landstraße: runder Turm mit Kegeldach und vier Flügeln |
@@ -97,10 +98,15 @@ stehende Hütten dicht an dicht, auch in den Hinterhöfen, enge ungepflasterte G
 geflickte Bretterdächer in trüben Farben mit viel Moos, kaum Schornsteine und keine Gauben. Nachts brennt dort
 nur selten Licht. Im Sumpf und im Nordland behalten die Hütten Reet- bzw. Schneedächer, in der Wüste Flachdächer.
 
+Armenviertel liegen immer im äußeren Ring der Stadt, nie im Kern (in Großstädten nie in der Altstadt). Mit
+`ausserhalb: true` (Oberfläche: Haken „Vor der Stadtmauer“) liegt das Viertel vor der Mauer: die Hütten verteilen
+sich in mehreren Siedlungen rund um die Stadt, mit etwas Abstand zur Mauer, nie auf Landstraßen oder im Wasser.
+
 ```yaml
 viertel:
   - name: Elendsgasse
     typ: armen
+    ausserhalb: true    # optional: vor der Stadtmauer, rund um die Stadt
 ```
 
 ## Stadtform

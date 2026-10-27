@@ -17,6 +17,7 @@ from shapely.ops import unary_union
 from .geo import axes, lines, polys, vlen
 from . import noise
 from .roofs import detailed_roof, material_for
+from .city import ship_footprint
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
 
 
@@ -929,7 +930,7 @@ def render_svg(m):
         o.append(edged(pv, paved_fill))
     slums = [d["poly"] for d in m.get("districts", []) if DISTRICT_TYPES.get(d["typ"], {}).get("poor")]
     if slums and m["streets"]:   # Armenviertel: festgetretener Boden, schlammige Gassen mit Pfützen
-        slum = unary_union(slums).buffer(6 * s).intersection(m["city_land"])
+        slum = unary_union(slums).buffer(6 * s).intersection(m["city_land"].union(m["slum_outside"]))
         o.append(f'<path d="{path_d(slum)}" fill="#5a4630" fill-opacity="0.35" filter="url(#softblur)"/>')
         mud = slum.intersection(unary_union(m["streets"]))
         if not mud.is_empty:
@@ -1173,6 +1174,11 @@ def render_svg(m):
     x0, y0 = 40 * s, W - 40 * s - bh
     if rows:
         taken.append((x0, y0, x0 + bw, y0 + bh))
+    for sh in m["ships"]:   # das Schiff im Helling der Werft bleibt frei (der Name steht neben der Halle)
+        if sh.get("slip"):
+            hull = ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"])
+            xs, ys = zip(*(rot_xy(m, x, y) for x, y in hull.exterior.coords))
+            taken.append((min(xs), min(ys), max(xs), max(ys)))
     # jede Art von Beschriftung in einer eigenen Gruppe: lässt sich in der interaktiven Karte (und z.B. in Inkscape)
     # einzeln ausblenden; split_labels() trennt sie von der übrigen Karte
     # jede einzelne Beschriftung trägt einen Schlüssel (data-key), über den sie von Hand verschoben werden kann

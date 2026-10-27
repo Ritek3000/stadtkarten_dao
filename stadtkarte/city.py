@@ -172,7 +172,7 @@ class CityBuilder:
             "great_gate": None, "terrace_walls": [], "stairs": [], "wells": [], "stalls": [],
             "towers": [], "gates": [], "wall": [], "yard_trees": [], "labels": [], "piers": [],
             "ships": [], "legend": [], "districts": [], "wheels": [], "windmills": [], "haystacks": [],
-            "old_wall": [], "old_gates": [], "faubourg": Polygon(),
+            "old_wall": [], "old_gates": [], "faubourg": Polygon(), "slum_outside": Polygon(),
         }
 
     def roof_color(self, st):
@@ -375,6 +375,7 @@ class CityBuilder:
         # Altstadt: der alte Mauerring, um den die Stadt hinausgewachsen ist
         k = min(0.65, max(0.35, 1.6 * math.sqrt(11000 / self.cfg["einwohner"])))
         old = make_shape(rng, self.center, self.r * k)
+        self.old_shape = old
         water = self.t["water"]
         for ring in lines(old.buffer(10 * s).exterior.intersection(self.city_land.buffer(-1 * s))):
             if ring.length > 40 * s:
@@ -435,8 +436,8 @@ class CityBuilder:
         for spec in specs:
             typ, lage = spec["typ"], spec.get("lage")
             p = None
-            if lage:
-                p = c + np.array(to_canonical(lage, self.rot)) * r * 0.6
+            if lage:   # Armenviertel liegen immer im äußeren Ring, also weiter draußen
+                p = c + np.array(to_canonical(lage, self.rot)) * r * (0.85 if typ == "armen" else 0.6)
             elif typ == "hafen" and t["sea"] is not None:
                 if t["river_line"] is not None:
                     inside = [q for q in t["river_line"].coords if self.shape.contains(Point(q))]
@@ -450,6 +451,19 @@ class CityBuilder:
                 p = np.array([x, t["coast_y"](x) + 60 * s])
             elif typ == "bauern":
                 p = c + np.array([self.rng.uniform(-0.3, 0.3), 0.65]) * r
+            elif typ == "armen":   # am Stadtrand, möglichst weit vom Zentrum und von den anderen Vierteln
+                inner = self.city_land.buffer(-25 * s)
+                inner = inner if not inner.is_empty else self.city_land
+                minx, miny, maxx, maxy = inner.bounds
+                best, bd = None, -1
+                for _ in range(60):
+                    q = (self.rng.uniform(minx, maxx), self.rng.uniform(miny, maxy))
+                    if not inner.contains(Point(q)):
+                        continue
+                    dd = math.dist(q, self.center) + 0.5 * min([math.dist(q, sd) for sd in seeds] or [0])
+                    if dd > bd:
+                        best, bd = q, dd
+                p = np.array(best) if best else None
             if p is None:
                 best, bd = None, -1
                 minx, miny, maxx, maxy = self.city_land.bounds
@@ -504,6 +518,9 @@ class CityBuilder:
         has_water = not self.t["water"].is_empty
         for sp in specs:
             sp.setdefault("typ", "wohn")
+            if sp.get("ausserhalb") and sp["typ"] != "armen":
+                print(f"Hinweis: Nur Armenviertel können vor der Mauer liegen - '{sp.get('name')}' liegt in der Stadt.")
+                sp["ausserhalb"] = False
             if self.t.get("mountain") and sp["typ"] in ("hafen", "fischer"):
                 new = "markt" if sp["typ"] == "hafen" else "handwerk"
                 print(f"Hinweis: '{sp.get('name')}' ({sp['typ']}) passt nicht ins Gebirge - wird als {new} gebaut.")
@@ -511,10 +528,13 @@ class CityBuilder:
             if sp["typ"] == "hafen" and not has_water:
                 print(f"Hinweis: '{sp.get('name')}' ist ein Hafen, aber es gibt kein Wasser - wird als Markt gebaut.")
                 sp["typ"] = "markt"
+        if all(sp.get("ausserhalb") for sp in specs):   # alle Viertel vor der Mauer: drinnen einfache Wohnbebauung
+            specs = list(specs) + [dict(UNNAMED_DISTRICT)]
         seeds = self.district_seeds(specs)
         self.seeds = seeds
-        self.district_list = [{"name": sp.get("name", ""), "typ": sp["typ"], "poly": Polygon()} for sp in specs]
-        idx = list(range(len(specs)))
+        self.district_list = [{"name": sp.get("name", ""), "typ": sp["typ"], "poly": Polygon(),
+                               "outside": bool(sp.get("ausserhalb"))} for sp in specs]
+        idx = [i for i, sp in enumerate(specs) if not sp.get("ausserhalb")]
         area = self.city_land
         harbor = self.carve_harbor()
         if harbor is not None:
@@ -537,10 +557,31 @@ class CityBuilder:
                         seeds[i] = (q.x, q.y)
         for i, ps in self._voronoi(seeds, idx, area).items():
             self.district_list[i]["poly"] = unary_union(ps) if ps else Polygon()
+        self._poor_to_outer_ring(idx)
         for d in self.district_list:
-            if d["poly"].is_empty:
+            if d["poly"].is_empty and not d["outside"]:
                 print(f"Hinweis: Viertel '{d['name']}' hat keinen Platz gefunden.")
         self.out["districts"] = self.district_list
+
+    def _poor_to_outer_ring(self, idx):
+        """Armenviertel liegen nie im inneren Ring (Großstadt: Altstadt; sonst die inneren 60 % der Stadt).
+        Was davon im Kern lag, bekommt das nächstgelegene andere Viertel."""
+        dl, s = self.district_list, self.s
+        poor = [i for i in idx if DISTRICT_TYPES.get(dl[i]["typ"], {}).get("poor") and not dl[i]["poly"].is_empty]
+        others = [i for i in idx if i not in poor and not dl[i]["poly"].is_empty]
+        if not poor or not others:
+            return
+        old = getattr(self, "old_shape", None)
+        core = old if old is not None else shapely.affinity.scale(self.shape, 0.6, 0.6, origin=self.center)
+        core = core.intersection(self.city_land)
+        for i in poor:
+            cut = dl[i]["poly"].intersection(core)
+            if cut.area < 50 * s * s:
+                continue
+            dl[i]["poly"] = dl[i]["poly"].difference(core)
+            for piece in polys(cut):
+                j = min(others, key=lambda k: dl[k]["poly"].distance(piece))
+                dl[j]["poly"] = dl[j]["poly"].union(piece)
 
     def carve_harbor(self):
         """Der Hafen wird ein breiter Kai-Streifen entlang Fluss und Küste auf einer Uferseite."""
@@ -772,6 +813,67 @@ class CityBuilder:
         return {"poly": ring, "form": "block", "segments": segs, "block_ridge": ridge, "color": segs[0][2], "court": court,
                 "district": di, "poor": poor, "ridges": None, "shade": None}
 
+    def outside_slums(self, ext):
+        """Armenviertel vor der Mauer: Hüttensiedlungen in mehreren Gruppen rund um die Stadt, mit etwas Abstand zur
+        Mauer, nicht auf Landstraßen und nicht im Wasser. Schiefe Hütten dicht an dicht, schlammige Pfade dazwischen."""
+        dl = self.district_list
+        outs = [i for i, d in enumerate(dl) if d["outside"]]
+        if not outs:
+            return
+        s, rng, W = self.s, self.rng, self.W
+        s2 = s * s
+        st = DISTRICT_TYPES["armen"]
+        lot = st["lot"] * s2
+        water, pools = self.t["water"], self.t.get("pools")
+        blocked = unary_union([self.shape.buffer(16 * s), water.buffer(6 * s)]
+                              + [ln.buffer(w / 2 + 3 * s) for ln, w in ext]
+                              + ([pools] if pools is not None and not pools.is_empty and not self.t["biome"]["stilts"] else []))
+        frame = box(0, 0, W, W).buffer(-15 * s)
+        depth = (40 + 30 * min(1.0, self.cfg["einwohner"] / 20000)) * s   # Breite des Hüttengürtels
+        n = rng.randint(4, 6) * len(outs) if len(outs) < 3 else 2 * len(outs)
+        a0 = rng.uniform(0, 2 * math.pi)
+        c = np.array(self.center)
+        far = W * 2
+        clusters = {i: [] for i in outs}
+        used = Polygon()
+        for k in range(n):
+            a = a0 + 2 * math.pi * k / n + rng.uniform(-0.08, 0.08)
+            half = (math.pi / n) * rng.uniform(0.35, 0.7)
+            wedge = Polygon([c] + [c + np.array([math.cos(b), math.sin(b)]) * far
+                                   for b in np.linspace(a - half, a + half, 8)])
+            belt = self.shape.buffer(16 * s + depth * rng.uniform(0.6, 1.25)).difference(blocked)
+            for piece in clean(belt.intersection(wedge).intersection(frame).difference(used), 900 * s2):
+                clusters[outs[k % len(outs)]].append(piece)
+                used = used.union(piece.buffer(8 * s))
+        streets, all_area = [], []
+        for di, pieces in clusters.items():
+            for piece in pieces:
+                blocks = subdivide(piece, st["block"] * s2 * 0.6, st["alley"] * s, rng, min_area=lot * 0.5)
+                if not blocks:
+                    continue
+                bu = unary_union(blocks)
+                streets.append(piece.difference(bu))
+                all_area.append(piece)
+                for blk in blocks:
+                    for lp in subdivide(blk, lot, 0, rng, min_area=lot * 0.12, var=0.25, jitter=0.1):
+                        if rng.random() > 0.85:
+                            continue
+                        for part in clean(lp.buffer(-1.0 * s, join_style="mitre"), lot * 0.12):
+                            bp, form = house_shape(part, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO, special_chance=0.0)
+                            if bp is None:
+                                continue
+                            tilt = shapely.affinity.rotate(bp, rng.uniform(-8, 8), origin="centroid")
+                            if part.buffer(0.6 * s).contains(tilt):
+                                bp = tilt
+                            self.out["buildings"].append({"poly": bp, "form": form, "color": self.roof_color(st),
+                                                          "district": di, "poor": True})
+            dl[di]["poly"] = unary_union(pieces) if pieces else Polygon()
+            if not pieces:
+                print(f"Hinweis: Für das Armenviertel '{dl[di]['name']}' ist vor der Mauer kein Platz.")
+        if streets:
+            self.out["streets"].append(unary_union(streets))
+            self.out["slum_outside"] = unary_union(all_area)
+
     def faubourgs(self, ext):
         """Großstadt: Vorstädte entlang der Landstraßen vor den Toren, am Tor dicht, nach außen ausdünnend."""
         if not self.grand:
@@ -782,7 +884,7 @@ class CityBuilder:
         block_area, alley = st["block"] * 0.5 / g ** 0.5 * s * s, max(2.2, st["alley"] * 0.5 / g ** 0.5) * s
         reach = self.r * min(0.55, 0.2 + 0.1 * g)
         pools = self.t.get("pools")
-        taken = unary_union([self.shape.buffer(28 * s), self.t["water"].buffer(8 * s)]
+        taken = unary_union([self.shape.buffer(28 * s), self.t["water"].buffer(8 * s), self.out["slum_outside"].buffer(10 * s)]
                             + ([pools.buffer(4 * s)] if pools is not None and not pools.is_empty else []))
         roads_u = unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in ext]) if ext else Polygon()
         frame = box(0, 0, W, W).buffer(-12 * s)
@@ -1088,7 +1190,11 @@ class CityBuilder:
             alive = [b for b in self.out["buildings"] if not b.get("removed") and id(b) not in used
                      and (di is None or b["district"] == di)]
             target = None
-            if typ in BIG_LANDMARKS:
+            if typ == "werft" and not self.t["water"].is_empty:
+                target = self._shipyard(di)
+                if target is None:
+                    print(f"Hinweis: Kein Uferplatz für die Werft '{o['name']}' - sie steht etwas abseits vom Wasser.")
+            if target is None and typ in BIG_LANDMARKS:
                 blks = [bk for bk in self.blocks if (di is None or bk["district"] == di)
                         and {"friedhof": 2500, "kaserne": 2500, "tempel": 1500, "rathaus": 1500,
                              "palast": 5000, "kathedrale": 4500}.get(typ, 900) * s * s
@@ -1158,6 +1264,86 @@ class CityBuilder:
             self.out["labels"].append({"x": c.x, "y": c.y, "text": text, "kind": "ort",
                                        "lift": math.sqrt(where.area) * 0.5 + 6 * s,
                                        "ort": place_info(o, self.district_name(target["district"]))})
+
+    def _shipyard(self, di):
+        """Werft direkt am Ufer: lange Halle quer zum Ufer, zum Wasser hin offen. Im Helling liegt ein Schiff im Bau;
+        sein Heck steckt in der Halle, der Bug zeigt aufs Wasser hinaus. Im Fluss bleibt die Fahrrinne frei
+        (der Bug ragt höchstens 35 % der Flussbreite hinein). Liefert die Halle (als Gebäude) oder None."""
+        s, rng = self.s, self.rng
+        water, river, sea = self.t["water"], self.t["river"], self.t["sea"]
+        hw, sw = 19 * s, 11 * s                       # Hallenbreite am Ufer (schmaler als tief), Schiffsbreite
+        dl = self.district_list
+        if di is None:                                # ohne Angabe bevorzugt im Hafen
+            di = next((i for i, d in enumerate(dl) if d["typ"] == "hafen" and not d["poly"].is_empty), None)
+        area = dl[di]["poly"] if di is not None else self.city_land
+        alive = [b for b in self.out["buildings"] if not b.get("removed")]
+        net = unary_union(self.out["streets"] + self.out["plazas"] + self.out["paved"])
+        crossings = unary_union([ln.buffer(w / 2 + 34 * s) for ln, w in self.out["internal_roads"] if ln.intersects(water)])
+        keep_clear = unary_union([self.main_streets.buffer(1 * s), unary_union(self.out["plazas"]).buffer(2 * s), crossings]
+                                 + [b["poly"].buffer(2 * s) for b in alive if b.get("landmark")]
+                                 + [g.buffer(2 * s) for g, _ in self.out["grounds"]]
+                                 + ([self.shape.exterior.buffer(12 * s)] if self.walled else []))
+        shapely.prepare(keep_clear)
+        cands = []
+        for ln in lines(water.boundary.intersection(area.buffer(2 * s))):
+            k = hw / 2 + 4 * s
+            while k < ln.length - hw / 2 - 4 * s:
+                q, q2 = ln.interpolate(k), ln.interpolate(k + 2)
+                k += 7 * s
+                tx, ty = unit((q2.x - q.x, q2.y - q.y))
+                nx, ny = -ty, tx                       # Normale zeigt ins Land
+                if water.contains(Point(q.x + nx * 6 * s, q.y + ny * 6 * s)):
+                    nx, ny = -nx, -ny
+                t_, n_ = np.array([tx, ty]), np.array([nx, ny])
+                # Tiefe ins Land: so tief wie möglich, aber vor der Ringstraße (die läuft am Kai entlang);
+                # am gebogenen Ufer ragen die Hallenecken sonst ins Wasser: notfalls etwas zurück (Helling davor)
+                hall = None
+                for hd in (50 * s, 40 * s, 32 * s, 26 * s):
+                    for back in (1.5, 3, 4.5, 6, 8):
+                        f0 = np.array([q.x, q.y]) + n_ * back * s
+                        h = Polygon([f0 - t_ * hw / 2, f0 + t_ * hw / 2, f0 + t_ * hw / 2 + n_ * hd,
+                                     f0 - t_ * hw / 2 + n_ * hd])
+                        if not h.intersects(water):
+                            break
+                    if (not h.intersects(water) and self.city_land.contains(h) and not keep_clear.intersects(h)
+                            and h.buffer(3 * s).intersects(net)):
+                        hall = h
+                        break
+                if hall is None:
+                    continue
+                hl = min(48 * s, (hd + back * s - 3 * s) / 0.55)   # das Heck endet vor der Rückwand der Halle
+                probe = Point(q.x - nx * 10 * s, q.y - ny * 10 * s)
+                in_river = river is not None and river.contains(probe) and (sea is None or not sea.contains(probe))
+                out_len = 0.45 * hl
+                if in_river:                           # örtliche Flussbreite quer übers Wasser
+                    ray = LineString([(q.x - nx * 1 * s, q.y - ny * 1 * s), (q.x - nx * 600 * s, q.y - ny * 600 * s)])
+                    seg = [g for g in lines(ray.intersection(water)) if g.distance(q) < 3 * s]
+                    out_len = min(out_len, 0.35 * (seg[0].length if seg else 0) - 2 * s)
+                    if out_len < 0.25 * hl:
+                        continue
+                c = np.array([q.x, q.y]) + n_ * (hl / 2 - out_len)
+                hull = ship_footprint(c[0], c[1], hl, sw, math.degrees(math.atan2(-ny, -nx)))
+                bow = hull.difference(hall.buffer(0.5 * s))   # über dem Helling darf ein schmaler Landstreifen liegen
+                if bow.difference(water.buffer(1 * s)).area > 0.25 * bow.area or crossings.intersects(hull):
+                    continue
+                score = (0 if not in_river else 40) + hall.centroid.distance(Point(self.center)) / (40 * s)
+                cands.append((score, hall, hull, c, (-nx, -ny)))
+        if not cands:
+            return None
+        cands.sort(key=lambda cd: cd[0])
+        _, hall, hull, c, (bx, by) = rng.choice(cands[:5])
+        for b in alive:                                # Häuser auf dem Bauplatz weichen der Werft
+            if b["poly"].intersects(hall.buffer(2 * s)) and not b.get("landmark"):
+                b["removed"] = True
+        self.out["yard_trees"] = [t for t in self.out["yard_trees"] if not hall.buffer(4 * s).contains(Point(t[0], t[1]))]
+        self.out["ships"].append({"x": float(c[0]), "y": float(c[1]), "len": hl, "wid": sw,
+                                  "angle": math.degrees(math.atan2(by, bx)), "big": False, "slip": True})
+        self.shipyard_zones = getattr(self, "shipyard_zones", []) + [hall, hull]
+        rp = hall.representative_point()
+        dd = next((i for i, d in enumerate(dl) if d["poly"].buffer(10 * s).contains(rp)), -1)
+        b = {"poly": hall, "form": "rechteck", "color": LANDMARK_COLORS["werft"], "district": dd}
+        self.out["buildings"].append(b)
+        return b
 
     def _merged_block(self, typ, di):
         """Großstadt: benachbarte kleine Blöcke (samt Gassen dazwischen) zu einem Bauplatz für ein großes Gebäude
@@ -1275,6 +1461,7 @@ class CityBuilder:
         # Brückenbereiche (Straßen über Wasser) und schon belegte Flächen
         occupied = [ln.buffer(w / 2 + 14 * s).intersection(water.buffer(10 * s))
                     for ln, w in self.out["internal_roads"] if ln.intersects(water)]
+        occupied += [z.buffer(6 * s) for z in getattr(self, "shipyard_zones", [])]   # Werft mit Schiff im Helling
         for d in self.district_list:
             if d["typ"] not in ("hafen", "fischer"):
                 continue
@@ -1458,6 +1645,7 @@ class CityBuilder:
         self.out["internal_roads"] = internal
         self.districts()
         self.buildings(internal)
+        self.outside_slums(ext)
         self.landmarks()
         self.connect_to_streets(landmarks=True)
         self.squares_and_wells()

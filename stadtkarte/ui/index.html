@@ -379,12 +379,17 @@ function renderForm() {
     el("div", {class: "row"}, txt(v, "name", {placeholder: "Name des Viertels"}, true),
       iconBtn("x", "Viertel entfernen", () => { cfg.viertel.splice(i, 1); renderForm(); }, "del")),
     el("div", {class: "row"},
-      select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => v.typ = x),
-      select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
+      select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => { v.typ = x; if (x !== "armen") delete v.ausserhalb; renderForm(); }),
+      v.ausserhalb ? null
+        : select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
+    v.typ === "armen" ? el("label", {class: "row hint"},
+      el("input", {type: "checkbox", checked: !!v.ausserhalb,
+        on: {change: e => { if (e.target.checked) { v.ausserhalb = true; delete v.lage; } else delete v.ausserhalb; renderForm(); }}}),
+      "Vor der Stadtmauer: Hütten rund um die Stadt verteilt") : null,
   )));
   f.append(section("Viertel", true, cfg.viertel.length,
     vList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "Viertel hinzufügen")),
-    el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
+    el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Armenviertel liegen immer am Stadtrand, nie im Kern. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
   ));
 
   // Orte
