@@ -1,0 +1,8 @@
+Schriften der Oberfläche (aus dem Design System „Die Alte Ordnung“):
+
+- IM Fell English – Igino Marini, SIL Open Font License 1.1
+- Spectral – Production Type, SIL Open Font License 1.1
+
+Lizenztext: https://openfontlicense.org/open-font-license-official-text/
+
+sor-symbol.png und favicon-32.png: Symbol des Sor, Marke von „Die Alte Ordnung“.

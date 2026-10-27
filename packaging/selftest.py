@@ -69,6 +69,9 @@ def main():
         _, _, raw = get("/api/options")
         opts = json.loads(raw)
         assert len(opts["biomes"]) >= 6 and "hafenstadt" in opts["examples"], opts
+        for name, ctype in (("spectral-latin-400-normal.woff2", "font/woff2"), ("sor-symbol.png", "image/png")):
+            status, got, _ = get(f"/static/{name}")
+            assert status == 200 and got == ctype, (name, status, got)
         for night in (False, True):
             _, _, raw = get("/api/example?name=hafenstadt")
             cfg = json.loads(raw)

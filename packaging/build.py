@@ -22,7 +22,7 @@ import zipfile
 from PIL import Image, ImageDraw
 
 NAME = "Stadtkarten-Werkstatt"
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PKG = ROOT / "packaging"
 BUILD = ROOT / "build"
@@ -32,15 +32,14 @@ IS_WIN = sys.platform == "win32"
 
 
 def make_icon(path):
-    """Einfaches Programmsymbol: Turm mit Tor auf dunkelgrünem Grund."""
+    """Programmsymbol nach dem Design System: Symbol des Sor auf Staubschwarz mit goldener Haarlinie."""
     img = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((8, 8, 248, 248), radius=48, fill=(37, 48, 31, 255), outline=(217, 162, 74, 255), width=10)
-    d.rectangle((78, 92, 178, 214), fill=(212, 139, 58, 255), outline=(35, 30, 26, 255), width=6)
-    for x in (78, 118, 158):
-        d.rectangle((x, 62, x + 20, 96), fill=(212, 139, 58, 255), outline=(35, 30, 26, 255), width=6)
-    d.pieslice((106, 138, 150, 182), 180, 360, fill=(35, 30, 26, 255))
-    d.rectangle((106, 160, 150, 214), fill=(35, 30, 26, 255))
+    d.rectangle((6, 6, 250, 250), fill=(18, 16, 14, 255), outline=(204, 180, 84, 255), width=4)
+    sor = Image.open(ROOT / "stadtkarte" / "ui" / "static" / "sor-symbol.png").convert("RGBA")
+    h = 206
+    sor = sor.resize((round(sor.width * h / sor.height), h), Image.LANCZOS)
+    img.alpha_composite(sor, ((256 - sor.width) // 2, (256 - h) // 2))
     img.save(path, sizes=[(256, 256), (64, 64), (48, 48), (32, 32), (16, 16)])
 
 
@@ -58,6 +57,7 @@ def build_app():
          "--name", NAME, *(["--icon", str(icon)] if IS_WIN else []),
          "--distpath", str(DIST), "--workpath", str(BUILD / "pyinstaller"), "--specpath", str(BUILD),
          "--add-data", f"{ROOT / 'stadtkarte' / 'ui' / 'index.html'}{sep}stadtkarte/ui",
+         "--add-data", f"{ROOT / 'stadtkarte' / 'ui' / 'static'}{sep}stadtkarte/ui/static",
          "--add-data", f"{ROOT / 'beispiele'}{sep}beispiele",
          "--add-data", f"{ROOT / 'stadtkarte' / 'fonts'}{sep}stadtkarte/fonts",
          "--collect-binaries", "resvg_py", "--collect-all", "shapely",

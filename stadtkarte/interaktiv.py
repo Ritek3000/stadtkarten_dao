@@ -24,7 +24,8 @@ PAGE = """<!doctype html>
 <style>
 {font}
 * {{ box-sizing: border-box; }}
-html, body {{ margin: 0; height: 100%; overflow: hidden; background: #1b1d18; color: #eee6cf;
+/* Leiste in den Farben des Design Systems „Die Alte Ordnung“ (Finsternis): Staubschwarz, Gold, Haarlinien */
+html, body {{ margin: 0; height: 100%; overflow: hidden; background: #12100e; color: #ece3cf;
   font-family: 'EB Garamond', Georgia, serif; }}
 #ansicht {{ position: fixed; inset: 0; cursor: grab; touch-action: none; }}
 #ansicht.ziehen {{ cursor: grabbing; }}
@@ -32,16 +33,22 @@ html, body {{ margin: 0; height: 100%; overflow: hidden; background: #1b1d18; co
 #karte img, #karte svg {{ position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }}
 #karte svg {{ pointer-events: none; }}
 #leiste {{ position: fixed; top: 12px; left: 12px; max-width: calc(100% - 24px); padding: 10px 14px;
-  background: rgba(29, 33, 24, 0.88); border: 1px solid #c9b98f; border-radius: 6px; font-size: 17px; }}
-#leiste h1 {{ margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: 0.04em; }}
-#leiste label {{ display: block; padding: 2px 0; cursor: pointer; }}
-#leiste label.alle {{ font-weight: 600; border-bottom: 1px solid rgba(201, 185, 143, 0.4); margin-bottom: 3px; }}
-#leiste input {{ accent-color: #c9b98f; margin-right: 6px; }}
+  background: rgba(18, 16, 14, 0.86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid rgba(204, 180, 84, 0.24); border-radius: 0; font-size: 17px; }}
+#leiste::before, #leiste::after {{ content: ""; position: absolute; width: 18px; height: 18px; border: 1px solid #ccb454; }}
+#leiste::before {{ top: -1px; left: -1px; border-right: 0; border-bottom: 0; }}
+#leiste::after {{ bottom: -1px; right: -1px; border-left: 0; border-top: 0; }}
+#leiste h1 {{ margin: 0 0 6px; font-size: 22px; font-weight: 400; letter-spacing: 0.04em; }}
+#leiste label {{ display: block; padding: 2px 0; cursor: pointer; color: #b6aa93; }}
+#leiste label:hover {{ color: #ece3cf; }}
+#leiste label.alle {{ color: #ece3cf; border-bottom: 1px solid rgba(204, 180, 84, 0.24); margin-bottom: 3px; }}
+#leiste input {{ accent-color: #ccb454; margin-right: 6px; }}
 #leiste .knoepfe {{ display: flex; gap: 6px; margin-top: 8px; }}
-#leiste button {{ font: inherit; font-size: 15px; color: inherit; background: #2c3125; border: 1px solid #8f8466;
-  border-radius: 4px; padding: 2px 10px; cursor: pointer; }}
-#leiste button:hover {{ background: #3a4030; }}
-#leiste .tipp {{ margin-top: 6px; font-size: 13px; opacity: 0.7; }}
+#leiste button {{ font: inherit; font-size: 15px; color: inherit; background: none; border: 1px solid #ccb454;
+  border-radius: 2px; padding: 2px 10px; cursor: pointer; transition: background-color .24s ease, color .24s ease; }}
+#leiste button:hover, #leiste button:focus-visible {{ background: #ccb454; color: #191210; }}
+#leiste :focus-visible {{ outline: 1px solid #ccb454; outline-offset: 4px; }}
+#leiste .tipp {{ margin-top: 6px; font-size: 13px; color: #b6aa93; }}
 #leiste.zu .inhalt {{ display: none; }}
 #leiste.zu h1 {{ margin: 0; }}
 #leiste h1 {{ cursor: pointer; }}

@@ -56,6 +56,8 @@ else:
     EXAMPLES = ROOT / "beispiele"
     OUTPUT = ROOT / "ausgabe"
     HTML = pathlib.Path(__file__).with_name("index.html")
+STATIC = HTML.with_name("static")
+STATIC_TYPES = {".woff2": "font/woff2", ".png": "image/png"}
 
 PLACE_TYPES = ["gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "kontor", "werft", "adelshaus",
                "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof", "festung"]
@@ -194,6 +196,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if url.path == "/":
                 self.send(200, HTML.read_text(encoding="utf-8"), "text/html; charset=utf-8")
+            elif url.path.startswith("/static/"):   # Schriften und Sor-Symbol des Design Systems
+                path = STATIC / pathlib.Path(url.path).name
+                if path.suffix not in STATIC_TYPES or not path.is_file():
+                    return self.send(404, {"error": "Nicht gefunden."})
+                self.send(200, path.read_bytes(), STATIC_TYPES[path.suffix], {"Cache-Control": "max-age=86400"})
             elif url.path == "/api/options":
                 self.send(200, options())
             elif url.path == "/api/example":

@@ -3,70 +3,163 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#12100e">
 <title>Stadtkarten-Werkstatt</title>
+<link rel="icon" type="image/png" href="/static/favicon-32.png">
 <link rel="stylesheet" href="/api/font.css">
+<script>
+// Design vor dem ersten Zeichnen setzen (gespeicherte Wahl, sonst Systemeinstellung)
+try { const t = localStorage.getItem("dao-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 <style>
+/* Schriften und Farben nach dem Design System „Die Alte Ordnung“ */
+@font-face { font-family: "IM Fell English"; font-weight: 400; font-style: normal; font-display: swap; src: url(/static/im-fell-english-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "IM Fell English"; font-weight: 400; font-style: italic; font-display: swap; src: url(/static/im-fell-english-latin-400-italic.woff2) format("woff2"); }
+@font-face { font-family: "Spectral"; font-weight: 400; font-style: normal; font-display: swap; src: url(/static/spectral-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Spectral"; font-weight: 400; font-style: italic; font-display: swap; src: url(/static/spectral-latin-400-italic.woff2) format("woff2"); }
+@font-face { font-family: "Spectral"; font-weight: 700; font-style: normal; font-display: swap; src: url(/static/spectral-latin-700-normal.woff2) format("woff2"); }
+
 :root {
-  --bg: #1b1e17; --panel: #252a1f; --panel2: #2e3427; --line: #454d3a;
-  --text: #ece6d6; --muted: #a9a58f; --accent: #d9a24a; --accent2: #f0c06a;
-  --danger: #d0705e; --ok: #8fb26a; --field: #1f2319;
-  --font: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --bg: #fbf8f1; --surface: #f1eadb; --ink: #191210; --ink-soft: #57493e;
+  --gold: #8a7426; --gold-hi: #ccb454; --on-gold: #191210; --oxblood: #7a1f1f; --err: #8a2323;
+  --line: rgba(120,98,40,.28); --veil: rgba(251,248,241,.8);
+  --font-display: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --font-body: "Spectral", Georgia, "Times New Roman", serif;
+  --ease-staub: cubic-bezier(.16,.84,.24,1); --ease-glut: cubic-bezier(.55,.05,.35,1); --ease-klinge: cubic-bezier(.7,0,.2,1);
+  --t-kurz: .24s;
+  color-scheme: light;
 }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12100e; --surface: #191210; --ink: #ece3cf; --ink-soft: #b6aa93;
+    --gold: #ccb454; --oxblood: #a3302b; --err: #e48a7e;
+    --line: rgba(204,180,84,.24); --veil: rgba(18,16,14,.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12100e; --surface: #191210; --ink: #ece3cf; --ink-soft: #b6aa93;
+  --gold: #ccb454; --oxblood: #a3302b; --err: #e48a7e;
+  --line: rgba(204,180,84,.24); --veil: rgba(18,16,14,.8);
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--text); font: 15px/1.4 var(--font); display: flex; flex-direction: column; }
-header { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
-header h1 { margin: 0; font-size: 22px; font-weight: normal; letter-spacing: .06em; font-variant: small-caps; color: var(--accent2); }
+body { background: var(--bg); color: var(--ink); font: 1rem/1.5 var(--font-body); -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column; transition: background-color .4s ease, color .4s ease; }
+:focus-visible { outline: 1px solid var(--gold); outline-offset: 4px; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; line-height: 1.1; margin: 0; }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+/* Kopfzeile */
+header.bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: .7rem clamp(1rem, 3vw, 1.8rem); border-bottom: 1px solid var(--line); }
+.brand { display: flex; gap: .7rem; align-items: center; }
+.brand .mark { width: 20px; height: 26px; background: url(/static/sor-symbol.png) center/contain no-repeat; flex: none; }
+.brand h1 { font-size: 1.45rem; }
+.brand .eyebrow { display: block; font-family: var(--font-display); font-style: italic; color: var(--gold); font-size: .95rem; line-height: 1.2; }
 header .sp { flex: 1; }
+header .tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+header .tools label { display: flex; align-items: center; gap: .5rem; color: var(--ink-soft); font-size: .95rem; }
+
+.round { width: 38px; height: 38px; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 50%;
+  color: var(--ink-soft); cursor: pointer; padding: 0; transition: color var(--t-kurz) ease, border-color var(--t-kurz) ease; }
+.round:hover, .round:focus-visible { color: var(--ink); border-color: var(--line); }
+.round svg { width: 20px; height: 20px; grid-area: 1/1; transition: transform .5s var(--ease-staub), opacity .3s ease; }
+.theme .sonne circle, .theme .mond { fill: currentColor; stroke: none; }
+:root[data-theme="dark"] .theme .sonne { opacity: 0; transform: rotate(-90deg) scale(.6); }
+:root:not([data-theme="dark"]) .theme .mond { opacity: 0; transform: rotate(90deg) scale(.6); }
+
 main { flex: 1; display: flex; min-height: 0; }
-aside { width: 420px; min-width: 340px; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 12px 14px 90px; }
+aside { width: 440px; min-width: 340px; overflow-y: auto; border-right: 1px solid var(--line); padding: .4rem 1.4rem 6rem; }
 section.viewer { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-details { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; background: var(--panel2); }
-summary { cursor: pointer; padding: 8px 12px; font-variant: small-caps; letter-spacing: .05em; font-size: 16px; color: var(--accent2); list-style: none; }
-summary::before { content: "▸ "; color: var(--muted); }
-details[open] > summary::before { content: "▾ "; }
-.box { padding: 4px 12px 12px; display: grid; gap: 9px; }
-label.f { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 8px; }
-label.f > span, .lbl { color: var(--muted); font-size: 14px; }
-input, select, button, textarea { font: inherit; color: var(--text); }
+/* Abschnitte des Formulars */
+details { border-bottom: 1px solid var(--line); }
+summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .7rem; padding: 1rem 0 .9rem;
+  font-family: var(--font-display); font-size: 1.45rem; line-height: 1.1; color: var(--ink); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: ""; width: .45rem; height: .45rem; border-right: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold);
+  transform: rotate(-45deg); transition: transform .3s var(--ease-klinge); flex: none; margin-left: .1rem; }
+details[open] > summary::before { transform: rotate(45deg); }
+summary .count { font-family: var(--font-body); font-size: .95rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.box { padding: 0 0 1.4rem; display: grid; gap: .9rem; }
+
+label.f { display: grid; grid-template-columns: 7.5rem 1fr; align-items: center; gap: .8rem; }
+label.f > span, .lbl { font-weight: 700; font-size: .95rem; }
+.lbl { margin-bottom: .4rem; }
+.hint { color: var(--ink-soft); font-size: .9rem; line-height: 1.45; }
+label.f .hint { margin-top: .3rem; }
+.row { display: flex; gap: .6rem; align-items: center; }
+
+/* Felder: Fläche surface, goldene Unterkante, beim Fokus mit Glut-Gold durchgezogen */
+input, select, button, textarea { font: inherit; color: var(--ink); }
 input[type=text], input[type=number], select {
-  width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0;
+  width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line);
+  border-bottom-color: color-mix(in srgb, var(--gold) 60%, transparent); border-radius: 2px;
+  padding: .45rem .7rem; -webkit-appearance: none; appearance: none; transition: border-color .2s ease, box-shadow .3s var(--ease-staub);
 }
-input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; }
-input[type=range] { width: 100%; accent-color: var(--accent); }
-input[type=checkbox] { accent-color: var(--accent); width: 17px; height: 17px; }
-.row { display: flex; gap: 6px; align-items: center; }
-.hint { color: var(--muted); font-size: 13px; }
+input[type=text]:focus, input[type=number]:focus, select:focus { outline: none; border-color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold-hi); }
+select { padding-right: 2.2rem; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%, var(--gold) calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+                    linear-gradient(-45deg, transparent 50%, var(--gold) 50%, var(--gold) calc(50% + 1.5px), transparent calc(50% + 1.5px));
+  background-size: .4rem .4rem; background-repeat: no-repeat; background-position: right 1.05rem center, right .7rem center; }
+select option { color: #191210; background: #fbf8f1; }
+input[type=number] { font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--gold-hi); margin: .3rem 0 .1rem; }
+input[type=checkbox] { -webkit-appearance: none; appearance: none; flex: none; width: 1.25rem; height: 1.25rem; margin: 0; border: 1px solid var(--gold);
+  border-radius: 2px; background: var(--surface); display: grid; place-content: center; cursor: pointer; transition: background-color .25s ease, border-color .25s ease; }
+input[type=checkbox]::before { content: ""; width: .62rem; height: .32rem; margin-top: -.15rem; border-left: 2px solid var(--on-gold); border-bottom: 2px solid var(--on-gold);
+  transform: rotate(-45deg) scale(0); transition: transform .25s var(--ease-klinge); }
+input[type=checkbox]:checked { background: var(--gold-hi); border-color: var(--gold-hi); }
+input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 
-button { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); color: #241a08; border-color: var(--accent); font-weight: bold; }
-button.primary:hover { background: var(--accent2); }
-button.icon { padding: 4px 9px; }
-button:disabled { opacity: .45; cursor: default; }
+/* Schaltflächen: Goldrahmen, Glut-Gold steigt beim Hover von unten in die Fläche */
+.btn { position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  padding: .45rem 1rem; border: 1px solid var(--gold); border-radius: 2px; background: none; color: var(--ink);
+  font-size: .95rem; line-height: 1.3; cursor: pointer; white-space: nowrap; transition: color .3s ease; }
+.btn::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--gold-hi); transform: translateY(101%); transition: transform .45s var(--ease-staub); }
+.btn:hover:not(:disabled), .btn:focus-visible { color: var(--on-gold); }
+.btn:hover:not(:disabled)::before, .btn:focus-visible::before { transform: translateY(0); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.ghost { border-color: transparent; color: var(--ink-soft); padding-left: .3rem; padding-right: .3rem; }
+.btn.ghost::before { background: transparent; border-bottom: 1px solid var(--gold); transform: scaleX(0); transform-origin: left; transition: transform .35s var(--ease-klinge); }
+.btn.ghost:hover:not(:disabled), .btn.ghost:focus-visible { color: var(--ink); }
+.btn.ghost:hover:not(:disabled)::before, .btn.ghost:focus-visible::before { transform: scaleX(1); }
+.btn.big { width: 100%; padding: .8rem 1.6rem; font-size: 1.1rem; background: var(--bg); }
+.iconbtn { width: 2.1rem; height: 2.1rem; flex: none; display: grid; place-items: center; padding: 0; background: none; border: 1px solid transparent;
+  border-radius: 50%; color: var(--ink-soft); cursor: pointer; transition: color var(--t-kurz) ease, border-color var(--t-kurz) ease; }
+.iconbtn:hover, .iconbtn:focus-visible { color: var(--ink); border-color: var(--line); }
+.iconbtn.del:hover { color: var(--err); }
 
-.compass { display: grid; grid-template-columns: repeat(3, 38px); gap: 3px; }
-.compass button { padding: 4px 0; font-size: 12px; }
-.compass button.on { background: var(--accent); color: #241a08; border-color: var(--accent); }
-.compass .mid { display: grid; place-items: center; color: var(--muted); font-size: 18px; }
+/* Windrose für Wald und Felder */
+.compass { display: grid; grid-template-columns: repeat(3, 2.5rem); gap: 3px; }
+.compass button { height: 2.1rem; padding: 0; font-size: .85rem; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; color: var(--ink-soft);
+  cursor: pointer; transition: background-color .25s ease, color .25s ease, border-color .25s ease; }
+.compass button:hover { border-color: var(--gold); color: var(--ink); }
+.compass button.on { background: var(--gold-hi); border-color: var(--gold-hi); color: var(--on-gold); }
+.compass .mid { display: grid; place-items: center; }
+.compass .mid::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--gold); }
 
-.list { display: grid; gap: 6px; }
-.item { display: grid; gap: 5px; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
+/* Viertel und Orte: eckige Karten mit Haarlinie */
+.list { display: grid; gap: .7rem; }
+.item { display: grid; gap: .5rem; padding: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 45%, transparent); }
 .item .row > * { flex: 1; }
-.item .row > button { flex: 0 0 auto; }
+.item .row > .iconbtn { flex: 0 0 auto; }
 
-.generate { position: sticky; bottom: -90px; padding: 10px 0; background: linear-gradient(transparent, var(--panel) 30%); }
-.generate button { width: 100%; padding: 11px; font-size: 17px; }
+.generate { position: sticky; bottom: -6rem; padding: 1.2rem 0 1.4rem; background: linear-gradient(transparent, var(--bg) 35%); }
 
-.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+/* Ansicht */
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
 .toolbar .sp { flex: 1; }
-#status { font-size: 14px; color: var(--muted); }
-#status.err { color: var(--danger); }
-#hints { padding: 0 12px; }
-#hints div { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--panel2); font-size: 14px; }
-#stage { flex: 1; overflow: auto; position: relative; cursor: grab; background:
-  repeating-conic-gradient(#20241b 0 25%, #1b1e17 0 50%) 0 0/24px 24px; }
+#zoomLbl { min-width: 3.4rem; text-align: center; font-variant-numeric: tabular-nums; }
+#status { font-size: .95rem; color: var(--ink-soft); }
+#status.err { color: var(--err); }
+#hints:empty { display: none; }
+#hints { padding: .6rem 1rem 0; display: grid; gap: .4rem; }
+#hints div { padding: .55rem 1rem; border-left: 2px solid var(--gold); background: color-mix(in srgb, var(--gold-hi) 8%, transparent); color: var(--ink-soft); font-size: .95rem; }
+#stage { flex: 1; overflow: auto; position: relative; cursor: grab; background: var(--surface); }
 #stage.drag { cursor: grabbing; }
 #mapWrap[hidden], #empty[hidden] { display: none; }
 #mapWrap { position: relative; margin: 0 auto; }
@@ -74,58 +167,87 @@ button:disabled { opacity: .45; cursor: default; }
 #labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;
   user-select: none; -webkit-user-select: none; }
 #labels.edit [data-key] { pointer-events: all; cursor: move; }
-#labels.edit [data-key]:hover, #labels [data-key].moving { filter: drop-shadow(0 0 4px var(--accent2)); }
-button.on { background: var(--accent); color: #241a08; border-color: var(--accent); }
-#empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 30px; }
-#empty b { color: var(--accent2); font-weight: normal; font-size: 22px; font-variant: small-caps; }
-#busy { position: absolute; inset: 0; display: none; place-items: center; background: rgba(15,17,12,.72); z-index: 5; }
-#busy.on { display: grid; }
-.spinner { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--line); border-top-color: var(--accent); animation: spin 1s linear infinite; margin: 0 auto 12px; }
-@keyframes spin { to { transform: rotate(360deg); } }
+#labels.edit [data-key]:hover, #labels [data-key].moving { filter: drop-shadow(0 0 4px var(--gold-hi)); }
+.btn.on { color: var(--on-gold); }
+.btn.on::before { transform: translateY(0); }
+
+#empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 2rem; }
+#empty .sun { width: 96px; aspect-ratio: 800/1035; margin: 0 auto 1.6rem; background: url(/static/sor-symbol.png) center/contain no-repeat; opacity: .5;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent 98%); mask-image: linear-gradient(#000 55%, transparent 98%); }
+#empty .eyebrow { display: block; font-family: var(--font-display); font-style: italic; color: var(--gold); font-size: 1.15rem; }
+#empty h2 { font-size: clamp(2rem, 4vw, 3rem); margin: .3rem 0 .9rem; }
+#empty p { margin: 0 auto; max-width: 36ch; color: var(--ink-soft); font-size: 1.05rem; }
+
+#busy { position: absolute; inset: 0; display: none; place-items: center; background: var(--veil); z-index: 5; }
+#busy.on { display: grid; animation: fade-from .4s ease; }
+#stage:has(#busy.on) #empty { visibility: hidden; }
+#busy .sun { width: 64px; aspect-ratio: 800/1035; margin: 0 auto 1.2rem; background: url(/static/sor-symbol.png) center/contain no-repeat;
+  animation: glimmen 2.2s var(--ease-glut) infinite alternate; }
+#busy .msg { font-family: var(--font-display); font-size: 1.5rem; }
+#busy .hint { font-variant-numeric: tabular-nums; margin-top: .3rem; }
+@keyframes glimmen { from { opacity: .35; filter: brightness(.5); transform: translateY(6px); } to { opacity: 1; filter: none; transform: none; } }
+@keyframes fade-from { from { opacity: 0; } }
 
 @media (max-width: 900px) {
+  html, body { height: auto; }
   main { flex-direction: column; }
-  aside { width: auto; min-width: 0; max-height: 55vh; border-right: 0; border-bottom: 1px solid var(--line); }
-  #stage { min-height: 50vh; }
+  aside { width: auto; min-width: 0; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 0; }
+  #stage { flex: none; height: 75vh; }
+  .generate { bottom: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 </style>
 </head>
 <body>
-<header>
-  <h1>Stadtkarten-Werkstatt</h1>
-  <span class="hint">Die Alte Ordnung</span>
+<header class="bar">
+  <div class="brand">
+    <span class="mark" role="img" aria-label="Symbol des Sor"></span>
+    <div><span class="eyebrow">Die Alte Ordnung</span><h1>Stadtkarten-Werkstatt</h1></div>
+  </div>
   <span class="sp"></span>
-  <label class="row"><span class="hint">Beispiel:</span>
-    <select id="exampleSel" style="width:auto"></select></label>
-  <button id="btnLoadYaml" title="Stadtbeschreibung (.yaml) öffnen">Öffnen…</button>
-  <button id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern">Speichern</button>
-  <input type="file" id="fileYaml" accept=".yaml,.yml" hidden>
+  <div class="tools">
+    <label>Beispiel <select id="exampleSel" style="width:auto"></select></label>
+    <button class="btn ghost" id="btnLoadYaml" title="Stadtbeschreibung (.yaml) öffnen">Öffnen …</button>
+    <button class="btn ghost" id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern">Speichern</button>
+    <input type="file" id="fileYaml" accept=".yaml,.yml" hidden>
+    <button class="round theme" id="btnTheme" type="button" aria-label="Design wechseln" title="Hell / Dunkel">
+      <svg class="i sonne" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg>
+      <svg class="i mond" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4a8.3 8.3 0 1 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
 </header>
 <main>
   <aside id="form"></aside>
   <section class="viewer">
     <div class="toolbar">
-      <button class="icon" id="zoomOut" title="Verkleinern">−</button>
-      <button class="icon" id="zoomFit" title="Ganze Karte">Ganz</button>
-      <button class="icon" id="zoomIn" title="Vergrößern">+</button>
-      <span id="zoomLbl" class="hint">–</span>
-      <button id="btnMove" disabled title="Beschriftungen mit der Maus verschieben; Doppelklick setzt eine Beschriftung zurück">✥ Beschriftung verschieben</button>
-      <button id="btnResetLabels" disabled title="Alle Beschriftungen wieder an ihren automatischen Platz setzen">Zurücksetzen</button>
+      <button class="iconbtn" id="zoomOut" title="Verkleinern" aria-label="Verkleinern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button class="btn ghost" id="zoomFit" title="Ganze Karte">Ganz</button>
+      <button class="iconbtn" id="zoomIn" title="Vergrößern" aria-label="Vergrößern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
+      <span id="zoomLbl" class="hint"></span>
+      <button class="btn" id="btnMove" disabled title="Beschriftungen mit der Maus verschieben; Doppelklick setzt eine Beschriftung zurück"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9.5 5.5L12 3l2.5 2.5M9.5 18.5L12 21l2.5-2.5M5.5 9.5L3 12l2.5 2.5M18.5 9.5L21 12l-2.5 2.5"/></svg>Beschriftung verschieben</button>
+      <button class="btn ghost" id="btnResetLabels" disabled title="Alle Beschriftungen wieder an ihren automatischen Platz setzen">Zurücksetzen</button>
       <span class="sp"></span>
       <span id="status"></span>
       <span class="sp"></span>
-      <button data-fmt="png" disabled>PNG</button>
-      <button data-fmt="webp" disabled title="kleiner, gut für Foundry/Roll20">WebP</button>
-      <button data-fmt="pdf" disabled>PDF</button>
-      <button data-fmt="svg" disabled>SVG</button>
-      <button data-fmt="html" disabled title="interaktive Karte für den Browser: zoomen, Beschriftung ein-/ausblenden">Interaktiv</button>
-      <button id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) in den Kartenordner schreiben">Alle Formate speichern</button>
+      <button class="btn" data-fmt="png" disabled>PNG</button>
+      <button class="btn" data-fmt="webp" disabled title="kleiner, gut für Foundry/Roll20">WebP</button>
+      <button class="btn" data-fmt="pdf" disabled>PDF</button>
+      <button class="btn" data-fmt="svg" disabled>SVG</button>
+      <button class="btn" data-fmt="html" disabled title="interaktive Karte für den Browser: zoomen, Beschriftung ein-/ausblenden">Interaktiv</button>
+      <button class="btn ghost" id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) in den Kartenordner schreiben">Alle Formate speichern</button>
     </div>
     <div id="hints"></div>
     <div id="stage">
-      <div id="empty"><div><b>Noch keine Karte</b><br>Stelle links die Stadt zusammen und klicke auf „Karte erzeugen“.</div></div>
+      <div id="empty"><div>
+        <div class="sun" aria-hidden="true"></div>
+        <span class="eyebrow">Der Tisch ist leer</span>
+        <h2>Noch keine Karte</h2>
+        <p>Stelle links die Stadt zusammen und klicke auf „Karte erzeugen“.</p>
+      </div></div>
       <div id="mapWrap" hidden><img id="map" alt="Erzeugte Stadtkarte"><svg id="labels" xmlns="http://www.w3.org/2000/svg"></svg></div>
-      <div id="busy"><div style="text-align:center"><div class="spinner"></div><div>Die Karte wird gezeichnet…</div><div class="hint" id="busyTime"></div></div></div>
+      <div id="busy"><div style="text-align:center"><div class="sun" aria-hidden="true"></div><div class="msg">Die Karte wird gezeichnet …</div><div class="hint" id="busyTime"></div></div></div>
     </div>
   </section>
 </main>
@@ -148,17 +270,26 @@ function el(tag, attrs = {}, ...kids) {
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
     else if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
     else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? "" : v);
   }
   for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k));
   return e;
 }
+// Linien-Icons im Stil des Design Systems (24er-Raster, Strich 1.5)
+const ICON = {
+  x: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  wuerfel: '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="8.5" cy="8.5" r=".9" fill="currentColor"/><circle cx="15.5" cy="15.5" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="15.5" cy="8.5" r=".9" fill="currentColor"/><circle cx="8.5" cy="15.5" r=".9" fill="currentColor"/></svg>',
+};
+const iconBtn = (icon, title, onclick, cls = "") => el("button", {type: "button", class: "iconbtn " + cls, title, "aria-label": title, html: ICON[icon], on: {click: onclick}});
 function select(options, value, onchange) {
   const s = el("select", {on: {change: e => onchange(e.target.value)}});
   for (const [v, t] of options) s.append(el("option", {value: v, selected: String(v) === String(value ?? "")}, t));
   return s;
 }
 const field = (label, input, hint) => el("label", {class: "f"}, el("span", {}, label), hint ? el("div", {}, input, el("div", {class: "hint"}, hint)) : input);
+const section = (title, open, count, ...content) =>
+  el("details", {open}, el("summary", {}, title, count != null ? el("span", {class: "count"}, `(${count})`) : null), el("div", {class: "box"}, ...content));
 function norm(c) {
   c.gelaende ??= {}; c.mauer ??= {}; c.ausgabe ??= {}; c.viertel ??= []; c.orte ??= [];
   const g = c.gelaende;
@@ -176,9 +307,9 @@ function norm(c) {
 function compass(list, onchange) {
   const box = el("div", {class: "compass"});
   for (const d of DIRS) {
-    if (!d) { box.append(el("div", {class: "mid"}, "✦")); continue; }
-    const b = el("button", {type: "button", class: list.includes(d[0]) ? "on" : "", title: DIR_NAMES[d[0]]}, d[1]);
-    b.onclick = () => { const i = list.indexOf(d[0]); i >= 0 ? list.splice(i, 1) : list.push(d[0]); b.classList.toggle("on"); onchange?.(); };
+    if (!d) { box.append(el("div", {class: "mid"})); continue; }
+    const b = el("button", {type: "button", class: list.includes(d[0]) ? "on" : "", title: DIR_NAMES[d[0]], "aria-pressed": String(list.includes(d[0]))}, d[1]);
+    b.onclick = () => { const i = list.indexOf(d[0]); i >= 0 ? list.splice(i, 1) : list.push(d[0]); b.classList.toggle("on"); b.setAttribute("aria-pressed", String(i < 0)); onchange?.(); };
     box.append(b);
   }
   return box;
@@ -195,56 +326,55 @@ function renderForm() {
   const chk = (obj, key, after) => el("input", {type: "checkbox", checked: !!obj[key], on: {change: e => { obj[key] = e.target.checked; after?.(); }}});
 
   // Allgemein
-  const popOut = el("span", {class: "hint"}, `${cfg.einwohner} Einwohner`);
+  const popOut = el("div", {class: "hint"}, `${cfg.einwohner} Einwohner` + (cfg.einwohner < 2500 ? " (Dorf)" : ""));
   const pop = el("input", {type: "range", min: 300, max: 20000, step: 100, value: cfg.einwohner,
     on: {input: e => { cfg.einwohner = Number(e.target.value); popOut.textContent = `${cfg.einwohner} Einwohner` + (cfg.einwohner < 2500 ? " (Dorf)" : ""); }}});
   const seedIn = num(cfg, "seed", {min: 0});
-  f.append(el("details", {open: true}, el("summary", {}, "Allgemein"), el("div", {class: "box"},
+  f.append(section("Allgemein", true, null,
     field("Name", txt(cfg, "name")),
     field("Größe", el("div", {}, pop, popOut)),
     field("Seed", el("div", {class: "row"}, seedIn,
-      el("button", {type: "button", class: "icon", title: "Zufälliger Seed",
-        on: {click: () => { cfg.seed = Math.floor(Math.random() * 99999) + 1; seedIn.value = cfg.seed; }}}, "🎲")),
-      "Gleicher Seed + gleiche Angaben = gleiche Karte"),
-  )));
+      iconBtn("wuerfel", "Zufälliger Seed", () => { cfg.seed = Math.floor(Math.random() * 99999) + 1; seedIn.value = cfg.seed; })),
+      "Gleicher Seed und gleiche Angaben ergeben dieselbe Karte."),
+  ));
 
   // Gelände
   const mtn = g.biotop === "gebirge";
   const riverW = el("input", {type: "range", min: 20, max: 110, step: 2, value: g.flussbreite, disabled: !g.fluss,
     on: {input: e => g.flussbreite = Number(e.target.value)}});
-  f.append(el("details", {open: true}, el("summary", {}, "Gelände"), el("div", {class: "box"},
+  f.append(section("Gelände", true, null,
     field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
       g.biotop = v; if (v === "gebirge" && g.kueste === "keine") g.kueste = "nord"; renderForm(); })),
     mtn ? field("Berg", select(Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]),
-                               g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt")
+                               g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt.")
         : field("Küste", select(Object.entries(COAST), g.kueste, v => { g.kueste = v; renderForm(); })),
     !mtn && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
     field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
-    el("div", {class: "row", style: "align-items:flex-start; gap:22px"},
+    el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
       el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
       el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
     el("div", {class: "hint"}, "Himmelsrichtungen um die Stadt, in denen Wald bzw. Felder liegen."),
-  )));
+  ));
 
   // Mauer
-  f.append(el("details", {}, el("summary", {}, "Befestigung"), el("div", {class: "box"},
+  f.append(section("Befestigung", false, null,
     field("Stadtmauer", el("div", {class: "row"}, chk(cfg.mauer, "vorhanden"), el("span", {class: "hint"}, "Stein; Sumpf, Nordland, Steppe: Palisade; Wüste: Lehm"))),
     field("Tore", num(cfg.mauer, "tore", {min: 1, max: 8})),
-  )));
+  ));
 
   // Viertel
   const vList = el("div", {class: "list"});
   cfg.viertel.forEach((v, i) => vList.append(el("div", {class: "item"},
     el("div", {class: "row"}, txt(v, "name", {placeholder: "Name des Viertels"}, true),
-      el("button", {type: "button", class: "icon", title: "Entfernen", on: {click: () => { cfg.viertel.splice(i, 1); renderForm(); }}}, "✕")),
+      iconBtn("x", "Viertel entfernen", () => { cfg.viertel.splice(i, 1); renderForm(); }, "del")),
     el("div", {class: "row"},
       select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => v.typ = x),
       select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
   )));
-  f.append(el("details", {open: true}, el("summary", {}, `Viertel (${cfg.viertel.length})`), el("div", {class: "box"},
-    vList, el("button", {type: "button", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "+ Viertel hinzufügen"),
+  f.append(section("Viertel", true, cfg.viertel.length,
+    vList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "Viertel hinzufügen")),
     el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
-  )));
+  ));
 
   // Orte
   const names = cfg.viertel.map(v => v.name).filter(Boolean);
@@ -253,10 +383,10 @@ function renderForm() {
     const lage = PLAGE[o.typ];
     oList.append(el("div", {class: "item"},
       el("div", {class: "row"}, txt(o, "name", {placeholder: "Name des Ortes"}),
-        el("input", {type: "text", value: o.kuerzel ?? "", placeholder: "Kürzel", style: "flex:0 0 70px",
+        el("input", {type: "text", value: o.kuerzel ?? "", placeholder: "Kürzel", style: "flex:0 0 5rem",
           title: "Optional: steht statt des Namens auf der Karte, der Name kommt in die Legende",
           on: {input: e => { if (e.target.value) o.kuerzel = e.target.value; else delete o.kuerzel; }}}),
-        el("button", {type: "button", class: "icon", title: "Entfernen", on: {click: () => { cfg.orte.splice(i, 1); renderForm(); }}}, "✕")),
+        iconBtn("x", "Ort entfernen", () => { cfg.orte.splice(i, 1); renderForm(); }, "del")),
       el("div", {class: "row"},
         select(OPT.place_types.map(t => [t, PTYPE[t] ?? t]), o.typ, x => { o.typ = x; delete o.lage; renderForm(); }),
         lage ? select(lage, o.lage ?? lage[0][0], x => { if (x) o.lage = x; else delete o.lage; })
@@ -265,23 +395,23 @@ function renderForm() {
         ? select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; }) : null,
     ));
   });
-  f.append(el("details", {open: true}, el("summary", {}, `Besondere Orte (${cfg.orte.length})`), el("div", {class: "box"},
-    oList, el("button", {type: "button", on: {click: () => { cfg.orte.push({name: "Neuer Ort", typ: "gasthaus"}); renderForm(); }}}, "+ Ort hinzufügen"),
-  )));
+  f.append(section("Besondere Orte", true, cfg.orte.length,
+    oList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.orte.push({name: "Neuer Ort", typ: "gasthaus"}); renderForm(); }}}, "Ort hinzufügen")),
+  ));
 
   // Ausgabe
-  f.append(el("details", {}, el("summary", {}, "Ausgabe"), el("div", {class: "box"},
+  f.append(section("Ausgabe", false, null,
     field("Bildgröße", select([[1500, "1500 px (schnell)"], [2000, "2000 px"], [3000, "3000 px"], [4000, "4000 px (Druck, langsam)"]],
       cfg.ausgabe.bildgroesse, v => cfg.ausgabe.bildgroesse = Number(v))),
     field("Raster", num(cfg.ausgabe, "raster", {min: 0, step: 10}), "Pixel pro Feld, 0 = kein Raster"),
-    field("Legende", chk(cfg.ausgabe, "legende")),
+    field("Legende", el("div", {class: "row"}, chk(cfg.ausgabe, "legende"))),
     field("Nachtmodus", el("div", {class: "row"}, chk(cfg.ausgabe, "nacht"),
       el("span", {class: "hint"}, "Dunkle Karte mit Laternen und hellen Fenstern; Dörfer haben weniger Licht"))),
     field("Dachdetails", el("div", {class: "row"}, chk(cfg.ausgabe, "dachdetails"),
       el("span", {class: "hint"}, "Ziegel, Schiefer, Reet, Schornsteine (SVG wird etwas größer)"))),
-  )));
+  ));
 
-  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "primary", id: "btnGen", on: {click: generateMap}}, "Karte erzeugen")));
+  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: generateMap}}, "Karte erzeugen")));
 }
 
 async function api(path, opts = {}) {
@@ -308,7 +438,7 @@ async function generateMap() {
     document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = false);
     updateResetButton();
     const info = `${cfg.name}: ${res.stats.gebaeude} Gebäude, ${res.stats.baeume} Bäume – ${res.stats.sekunden} s`;
-    status(info + " · volle Auflösung wird berechnet…");
+    status(info + " · volle Auflösung wird berechnet …");
     // Vorschau ist halb so groß; die volle Auflösung im Hintergrund holen und still austauschen
     fetch(`/api/full?id=${res.id}`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => {
       if (resultId !== res.id) return;
@@ -438,6 +568,15 @@ $("#btnSaveOut").onclick = async () => {
     const res = await api("/api/save", {method: "POST", body: JSON.stringify({id: resultId})});
     status("Gespeichert in " + res.folder + ": " + res.paths.map(p => p.split(/[\\/]/).pop()).join(", "));
   } catch (e) { status("Fehler: " + e.message, true); }
+};
+
+// Design wechseln (hell/dunkel), Wahl wird im Browser gemerkt
+$("#btnTheme").onclick = () => {
+  const dark = document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = dark ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("dao-theme", next); } catch (e) {}
 };
 
 // YAML öffnen/speichern, Beispiele

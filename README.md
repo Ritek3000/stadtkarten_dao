@@ -10,7 +10,9 @@ Stadtkarten-Werkstatt im Browser:
 - links alle Angaben (Gelände, Biotop, Mauer, Viertel, besondere Orte, Ausgabe), Himmelsrichtungen per Kompass
 - „Karte erzeugen“ zeigt rechts die Vorschau (Mausrad zoomt, Ziehen verschiebt)
 - Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF, SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`
-- „Öffnen…“/„Speichern“ lädt bzw. speichert die Stadtbeschreibung als `.yaml`; oben rechts lassen sich die Beispiele laden
+- „Öffnen …“/„Speichern“ lädt bzw. speichert die Stadtbeschreibung als `.yaml`; oben rechts lassen sich die Beispiele laden
+- Gestaltung nach dem Design System „Die Alte Ordnung“ (wie Webseite, Heldenmaschine und IniTracker): Pergament (hell)
+  und Finsternis (dunkel), umschaltbar oben rechts mit Sonne/Mond
 
 Alternativ: `.venv\Scripts\python -m stadtkarte.ui` (Optionen: `--port 8765`, `--kein-browser`).
 
@@ -69,6 +71,7 @@ früher nacheinander.
 | `stadtkarte/noise.py` | vorberechnete Bodentexturen und Details (Körnung, Gras, Sandrippel, Schneeverwehungen, Felsrisse) |
 | `stadtkarte/fonts/` | Schrift EB Garamond mit Lizenz (OFL) – in PNG/PDF verwendet und in SVG eingebettet |
 | `stadtkarte/ui/` | Oberfläche: lokaler Webserver (`__main__.py`) und Seite (`index.html`) |
+| `stadtkarte/ui/static/` | Schriften (IM Fell English, Spectral; OFL) und Sor-Symbol aus dem Design System „Die Alte Ordnung“ |
 
 ## Besondere Orte
 
