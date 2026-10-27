@@ -26,6 +26,7 @@ DEFAULTS = {
     "name": "Namenlose Stadt",
     "seed": 1,
     "einwohner": 5000,
+    "stadtform": "zufall",   # zufall (je Seed) | rund | oval | unregelmaessig | vieleck | gewachsen
     "gelaende": {
         "biotop": "gemaessigt", "kueste": "nord", "fluss": True, "flussbreite": 60, "inseln": 2,
         "wald": ["west"], "felder": ["ost", "sued"],
@@ -77,6 +78,14 @@ def from_dict(raw):
         raise ValueError(f"einwohner muss eine Zahl sein, nicht '{cfg['einwohner']}'")
     if not 100 <= cfg["einwohner"] <= 250000:
         raise ValueError(f"einwohner: {cfg['einwohner']} - möglich sind 100 bis 250000")
+    form = norm(cfg["stadtform"] or "zufall")
+    form = {"zufaellig": "zufall", "auto": "zufall", "kreis": "rund", "elliptisch": "oval", "langgestreckt": "oval",
+            "lang": "oval", "unregelmassig": "unregelmaessig", "eckig": "vieleck", "polygon": "vieleck",
+            "ausgebuchtet": "gewachsen"}.get(form, form)
+    if form not in ("zufall", "rund", "oval", "unregelmaessig", "vieleck", "gewachsen"):
+        raise ValueError(f"Unbekannte Stadtform: {cfg['stadtform']} "
+                         "(möglich: zufall, rund, oval, unregelmaessig, vieleck, gewachsen)")
+    cfg["stadtform"] = form
     for key in ("wald", "felder"):
         vals = g.get(key) or []
         g[key] = [norm(v) for v in (vals if isinstance(vals, list) else [vals])]

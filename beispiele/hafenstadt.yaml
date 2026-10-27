@@ -5,6 +5,7 @@ name: Rabenfurt
 # kennung: rabenfurt   # fester Name für das Web-Paket (bleibt bei Umbenennung gleich); sonst aus dem Namen gebildet
 seed: 1234            # gleiche Zahl + gleiche Angaben = gleiche Karte
 einwohner: 6000       # bestimmt die Größe der Stadt (100 bis 250000; ab 20000 Großstadt mit Häuserblöcken)
+# stadtform: zufall    # Umriss: zufall (je Seed) | rund | oval | unregelmaessig | vieleck | gewachsen
 
 gelaende:
   kueste: nord        # nord | ost | sued | west | keine

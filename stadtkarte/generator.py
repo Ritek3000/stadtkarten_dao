@@ -8,7 +8,7 @@ import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, unary_union
 
-from .city import CityBuilder, city_radius, make_shape, ship_footprint
+from .city import CityBuilder, city_radius, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
 from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
@@ -35,15 +35,24 @@ def generate(cfg):
     cx = W / 2 + rng.uniform(-0.04, 0.04) * W
     cy = coast_y(cx) + r * 1.0 if has_coast else W / 2
     city_shape = None
+    form = pick_shape(cfg["seed"], cfg["stadtform"])
     if biome["mountain"] and has_coast:
         # Felskessel: Stadt rückt tief ins Massiv, Felsflanken links und rechts, unten offen
         # Der Kessel folgt exakt dem Stadtumriss, damit der Fels oben und seitlich direkt an die Stadt grenzt.
         cy = coast_y(cx) + r * 0.45
-        city_shape = make_shape(rng, (cx, cy), r)
+        if form == "rund":
+            city_shape = make_shape(rng, (cx, cy), r)
+        else:
+            city_shape = varied_shape(rng, (cx, cy), r, form, W, s, True)
+            city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s, top=coast_y(cx) - r * 0.65)
         spurs = [blob(rng, cx + side * r * 1.2, cy - r * 0.1, r * 0.65, rough=0.3, stretch=(1.0, 1.3))
                  for side in (-1, 1)]
         sea = unary_union([sea] + spurs).difference(city_shape)
         sea = max(polys(sea), key=lambda q: q.area) if polys(sea) else sea
+    elif form != "rund":   # andere Stadtform: Umriss vor dem Fluss festlegen, an der Küste mit der Oberkante am Ufer
+        city_shape = varied_shape(rng, (cx, cy), r, form, W, s, has_coast)
+        city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s,
+                                            top=coast_y(cx) - 0.2 * r if has_coast else None)
     islands = []
     if has_coast:
         islands = make_islands(rng, W, s, sea, coast_y, int(g.get("inseln", 0)))
@@ -53,7 +62,7 @@ def generate(cfg):
     if g.get("fluss"):
         river, river_line = make_river(rng, W, s, (cx, cy), r, coast_y, float(g.get("flussbreite", 60)),
                                        estuary=not biome["mountain"],
-                                       end_y=cy - 1.35 * r - 80 * s if city_shape is not None else None)
+                                       end_y=cy - 1.35 * r - 80 * s if biome["mountain"] and has_coast else None)
     water = unary_union([w for w in (sea, river) if w is not None]) if (sea or river) else Polygon()
     land = box(0, 0, W, W).difference(water)
     terrain = dict(sea=sea, river=river, river_line=river_line, water=water, coast_y=coast_y, land=land,

@@ -260,6 +260,8 @@ const COAST = {nord:"Norden", ost:"Osten", sued:"Süden", west:"Westen", keine:"
 const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf / Moor", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)"};
 const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel"};
 const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion"};
+const FORM = {zufall: "Zufall (je Seed)", rund: "Rund", oval: "Oval (langgestreckt)", unregelmaessig: "Unregelmäßig",
+              vieleck: "Vieleckig (gerade Mauern)", gewachsen: "Gewachsen (mit Ausbuchtungen)"};
 const PLAGE = {festung: [["insel","auf einer Insel"],["landzunge","auf einer Landzunge"],["land","an Land vor der Stadt"]],
                friedhof: [["","im Ort (wenn Platz)"],["ausserhalb","vor der Stadt"]]};
 
@@ -300,7 +302,7 @@ function norm(c) {
   c.ausgabe.bildgroesse ??= 2000; c.ausgabe.raster ??= 0; c.ausgabe.legende ??= true; c.ausgabe.dachdetails ??= true; c.ausgabe.nacht ??= false;
   c.ausgabe.formate ??= ["svg", "png"];
   if (!c.beschriftung || typeof c.beschriftung !== "object") c.beschriftung = {};
-  c.name ??= "Neue Stadt"; c.seed ??= 1; c.einwohner ??= 5000;
+  c.name ??= "Neue Stadt"; c.seed ??= 1; c.einwohner ??= 5000; c.stadtform ??= "zufall";
   for (const o of c.orte) if (o.typ === "bastion" || o.typ === "burg") o.typ = "festung";
   return c;
 }
@@ -340,6 +342,8 @@ function renderForm() {
   f.append(section("Allgemein", true, null,
     field("Name", txt(cfg, "name")),
     field("Größe", el("div", {}, pop, popOut)),
+    field("Stadtform", select(Object.entries(FORM), cfg.stadtform, v => cfg.stadtform = v),
+          "Umriss der Stadt; „Zufall“ wählt je Seed eine Form."),
     field("Seed", el("div", {class: "row"}, seedIn,
       iconBtn("wuerfel", "Zufälliger Seed", () => { cfg.seed = Math.floor(Math.random() * 99999) + 1; seedIn.value = cfg.seed; })),
       "Gleicher Seed und gleiche Angaben ergeben dieselbe Karte."),

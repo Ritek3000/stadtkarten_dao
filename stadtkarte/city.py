@@ -1,5 +1,6 @@
 """Stadtgrundriss: Mauer, Tore, Straßen, Viertel, Gebäude und besondere Orte."""
 import math
+import random
 
 import numpy as np
 import shapely
@@ -55,6 +56,86 @@ def make_shape(rng, center, r):
         rad = r * rng.uniform(0.9, 1.08)
         pts.append((cx + math.cos(a) * rad * 0.9, cy + math.sin(a) * rad * 1.12))
     return Polygon(pts).buffer(0)
+
+
+# Stadtformen: rund ist der bisherige Umriss; "zufall" wählt je Seed eine Form
+SHAPES = ("rund", "oval", "unregelmaessig", "vieleck", "gewachsen")
+
+
+def pick_shape(seed, wanted):
+    """Stadtform aus der Einstellung; bei "zufall" fest an den Seed gebunden (eigener Zufallsgenerator, damit
+    Karten mit Form "rund" genau wie früher aussehen)."""
+    if wanted in SHAPES:
+        return wanted
+    return random.Random(f"stadtform-{seed}").choice(SHAPES)
+
+
+def varied_shape(rng, center, r, kind, W, s, coastal):
+    """Andere Stadtumrisse mit etwa derselben Fläche wie der runde (die Einwohnerzahl bestimmt die Größe):
+    oval     - langgestreckt, an Küste oder Fluss entlang (intern: Küste im Norden, Fluss von Süd nach Nord)
+    unregelmaessig - ausgebeulter Umriss mit Ein- und Ausbuchtungen
+    vieleck  - wenige lange, gerade Mauerseiten (planmäßig angelegte Stadt)
+    gewachsen - runder Kern mit einer oder zwei eingemeindeten Ausbuchtungen
+    """
+    cx, cy = center
+    unit_pts = []
+    if kind == "oval":
+        a = rng.uniform(1.35, 1.7)
+        ang = rng.choice([0.0, math.pi / 2]) + rng.uniform(-0.2, 0.2) if coastal else rng.uniform(0, math.pi)
+        n = rng.randint(14, 18)
+        for i in range(n):
+            t = 2 * math.pi * i / n + rng.uniform(-0.1, 0.1)
+            x, y = math.cos(t) * a * rng.uniform(0.95, 1.05), math.sin(t) / a * rng.uniform(0.95, 1.05)
+            unit_pts.append((x * math.cos(ang) - y * math.sin(ang), x * math.sin(ang) + y * math.cos(ang)))
+    elif kind == "unregelmaessig":
+        n = rng.randint(18, 24)
+        waves = [(k, rng.uniform(0.07, 0.16), rng.uniform(0, 2 * math.pi)) for k in rng.sample([2, 3, 4, 5], 3)]
+        for i in range(n):
+            t = 2 * math.pi * i / n + rng.uniform(-0.06, 0.06)
+            rad = (1 + sum(amp * math.sin(k * t + ph) for k, amp, ph in waves)) * rng.uniform(0.96, 1.04)
+            unit_pts.append((math.cos(t) * rad, math.sin(t) * rad))
+    elif kind == "vieleck":
+        n = rng.randint(5, 7)
+        a0 = rng.uniform(0, 2 * math.pi)
+        for i in range(n):
+            t = a0 + 2 * math.pi * i / n + rng.uniform(-0.12, 0.12)
+            rad = rng.uniform(0.95, 1.06)
+            unit_pts.append((math.cos(t) * rad, math.sin(t) * rad))
+    if kind == "gewachsen":
+        core = make_shape(rng, center, r * 0.9)
+        parts = [core]
+        for _ in range(rng.randint(1, 2)):
+            # Ausbuchtungen nicht ins Meer (intern liegt die Küste oben, y klein)
+            t = rng.uniform(0.15 * math.pi, 0.85 * math.pi) if coastal else rng.uniform(0, 2 * math.pi)
+            if coastal and rng.random() < 0.5:
+                t = rng.choice([0.0, math.pi]) + rng.uniform(-0.3, 0.3)
+            d = r * rng.uniform(0.75, 0.9)
+            parts.append(make_shape(rng, (cx + math.cos(t) * d, cy + math.sin(t) * d), r * rng.uniform(0.45, 0.6)))
+        shape = unary_union(parts).buffer(30 * s).buffer(-30 * s)
+        shape = max(polys(shape), key=lambda p: p.area)
+        shape = Polygon(shape.exterior)
+    else:
+        shape = Polygon([(cx + x * r, cy + y * r) for x, y in unit_pts]).buffer(0)
+    # gleiche Fläche wie der runde Umriss (Ellipse 0.9 x 1.12)
+    target = math.pi * 0.9 * 1.12 * r * r
+    shape = shapely.affinity.scale(shape, *(2 * [math.sqrt(target / shape.area)]), origin=(cx, cy))
+    return shape
+
+
+def fit_into_map(shape, center, W, s, top=None):
+    """Verschiebt (Küste: Oberkante auf 'top') und verkleinert den Umriss, bis er mit Rand auf die Karte passt."""
+    cx, cy = center
+    if top is not None:
+        dy = top - shape.bounds[1]
+        shape = shapely.affinity.translate(shape, 0, dy)
+        cy += dy
+    m = 70 * s
+    minx, miny, maxx, maxy = shape.bounds
+    k = min(1.0, (cx - m) / max(cx - minx, 1), (W - m - cx) / max(maxx - cx, 1),
+            (W - m - cy) / max(maxy - cy, 1), *([] if top is not None else [(cy - m) / max(cy - miny, 1)]))
+    if k < 1.0:
+        shape = shapely.affinity.scale(shape, k, k, origin=(cx, cy))
+    return shape, (cx, cy)
 
 
 def bezier(p0, p1, rng, bend=0.2, n=30):
@@ -735,6 +816,7 @@ class CityBuilder:
         alive = [b for b in self.out["buildings"] if not b.get("removed")]
         tree = shapely.STRtree([b["poly"] for b in alive])
         moved = dropped = 0
+        shifted = set()
         for i, b in enumerate(alive):
             if landmarks != bool(b.get("landmark")) or b.get("courtyard") or b.get("poor"):
                 # erst normale Häuser, nach dem Platzieren die Sondergebäude; Kapellen/Festung über Hof erschlossen;
@@ -748,11 +830,13 @@ class CityBuilder:
             dx, dy = p_net.x - p_house.x, p_net.y - p_house.y
             k = (d - 0.8 * s) / d
             cand = shapely.affinity.translate(poly, dx * k, dy * k)
-            near = [j for j in tree.query(cand.buffer(0.8 * s)) if j != i]
+            # der Suchbaum kennt nur die alten Lagen: schon verschobene Häuser zusätzlich prüfen
+            near = [j for j in set(tree.query(cand.buffer(0.8 * s))) | shifted if j != i]
             ok = (self.city_land.contains(cand) and cand.intersection(net).area < 0.5 * s * s
                   and not any(cand.buffer(0.8 * s).intersects(alive[j]["poly"]) for j in near))
             if ok:
                 b["poly"] = cand
+                shifted.add(i)
                 moved += 1
             elif landmarks:
                 continue   # Sondergebäude nie streichen

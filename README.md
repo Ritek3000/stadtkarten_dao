@@ -103,6 +103,22 @@ viertel:
     typ: armen
 ```
 
+## Stadtform
+
+Der Umriss der Stadt (`stadtform`, in der Werkstatt unter „Allgemein“):
+
+| stadtform | Umriss |
+|---|---|
+| `zufall` (Standard) | eine der folgenden Formen, fest an den Seed gebunden |
+| `rund` | der bisherige rundliche Umriss |
+| `oval` | langgestreckt, an der Küste entlang oder dem Fluss folgend |
+| `unregelmaessig` | ausgebeult, mit Ein- und Ausbuchtungen |
+| `vieleck` | wenige lange, gerade Mauerseiten wie bei einer planmäßig angelegten Stadt |
+| `gewachsen` | runder Kern mit ein bis zwei eingemeindeten Ausbuchtungen |
+
+Alle Formen haben etwa dieselbe Fläche, die Einwohnerzahl bestimmt weiter die Größe. Ältere Stadtbeschreibungen
+ohne `stadtform` bekommen jetzt je nach Seed eine andere Form; mit `stadtform: rund` sehen sie wieder aus wie früher.
+
 ## Großstädte (20.000 bis 250.000 Einwohner)
 
 Ab 20.000 Einwohnern wird die Stadt anders gezeichnet, damit sie auf die Karte passt und lesbar bleibt
