@@ -1321,19 +1321,31 @@ class CityBuilder:
                     probe = Point(q.x - nx * 10 * s, q.y - ny * 10 * s)
                     in_river = river is not None and river.contains(probe) and (sea is None or not sea.contains(probe))
                     out_len = 0.45 * hl
+                    # Ausfahrt: auf See gut zwei Schiffslängen offenes Wasser vor dem Bug, im Fluss Wasser bis
+                    # über die Flussmitte (dort dreht das Schiff in die Strömung)
+                    lane_len = 2.2 * hl
                     if in_river:                       # örtliche Flussbreite quer übers Wasser
                         ray = LineString([(q.x - nx * 1 * s, q.y - ny * 1 * s), (q.x - nx * 600 * s, q.y - ny * 600 * s)])
                         seg = [g for g in lines(ray.intersection(water)) if g.distance(q) < 3 * s]
-                        out_len = min(out_len, 0.35 * (seg[0].length if seg else 0) - 2 * s)
+                        width = seg[0].length if seg else 0
+                        out_len = min(out_len, 0.35 * width - 2 * s)
                         if out_len < 0.25 * hl:
                             continue
+                        lane_len = 0.6 * width
                     c = np.array([q.x, q.y]) + n_ * (hl / 2 - out_len)
                     hull = ship_footprint(c[0], c[1], hl, sw, math.degrees(math.atan2(-ny, -nx)))
                     bow = hull.difference(hall.buffer(0.5 * s))   # über dem Helling darf ein schmaler Landstreifen liegen
                     if bow.difference(water.buffer(1 * s)).area > 0.25 * bow.area or crossings.intersects(hull):
                         continue
-                    score = (0 if not in_river else 40) - hall.area / (100 * s * s)                         + hall.centroid.distance(Point(self.center)) / (40 * s)
-                    cands.append((score, hall, hull, c, (-nx, -ny), hl, sw))
+                    q0, bd = np.array([q.x, q.y]), -n_
+                    lw = sw / 2 + 6 * s
+                    lane = Polygon([q0 - t_ * lw, q0 + t_ * lw, q0 + t_ * lw + bd * lane_len, q0 - t_ * lw + bd * lane_len])
+                    ahead = lane.difference(hall.buffer(1 * s))
+                    if ahead.difference(water).area > 0.04 * ahead.area or crossings.intersects(lane):
+                        continue
+                    score = (0 if not in_river else 40) - hall.area / (100 * s * s) \
+                        + hall.centroid.distance(Point(self.center)) / (40 * s)
+                    cands.append((score, hall, hull, c, (-nx, -ny), hl, sw, lane))
             return cands
 
         # erst im gewünschten Viertel, dann am ganzen Stadtufer; erst die große Halle, notfalls etwas schmaler
@@ -1349,14 +1361,15 @@ class CityBuilder:
         if not cands:
             return None
         cands.sort(key=lambda cd: cd[0])
-        _, hall, hull, c, (bx, by), hl, sw = rng.choice(cands[:5])
+        _, hall, hull, c, (bx, by), hl, sw, lane = rng.choice(cands[:5])
         for b in alive:                                # Häuser auf dem Bauplatz weichen der Werft
             if b["poly"].intersects(hall.buffer(2 * s)) and not b.get("landmark"):
                 b["removed"] = True
         self.out["yard_trees"] = [t for t in self.out["yard_trees"] if not hall.buffer(4 * s).contains(Point(t[0], t[1]))]
         self.out["ships"].append({"x": float(c[0]), "y": float(c[1]), "len": hl, "wid": sw,
-                                  "angle": math.degrees(math.atan2(by, bx)), "big": False, "slip": True, "hall": hall})
-        self.shipyard_zones = getattr(self, "shipyard_zones", []) + [hall, hull]
+                                  "angle": math.degrees(math.atan2(by, bx)), "big": False, "slip": True, "hall": hall,
+                                  "lane": lane})
+        self.shipyard_zones = getattr(self, "shipyard_zones", []) + [hall, hull, lane]   # Stege halten die Ausfahrt frei
         rp = hall.representative_point()
         dd = next((i for i, d in enumerate(dl) if d["poly"].buffer(10 * s).contains(rp)), -1)
         b = {"poly": hall, "form": "rechteck", "color": LANDMARK_COLORS["werft"], "district": dd}

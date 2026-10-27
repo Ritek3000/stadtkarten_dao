@@ -44,7 +44,7 @@ def _inner_buildings(cx, cy, a, ang, s):
     return blds
 
 
-def _sea_site(s, sea, river, city_land, anchor, islands):
+def _sea_site(s, sea, river, city_land, anchor, islands, avoid=None):
     """Sucht einen Inselplatz 120-230 px vor der Stadt, möglichst nah am Anker (Hafen)."""
     minx, miny, maxx, maxy = sea.bounds
     inner = sea.buffer(-14 * s)
@@ -62,6 +62,8 @@ def _sea_site(s, sea, river, city_land, anchor, islands):
                 continue
             if any(disk.buffer(30 * s).intersects(i) for i in islands):
                 continue
+            if avoid is not None and disk.buffer(20 * s).intersects(avoid):
+                continue
             score = p.distance(anchor)
             if score < bd:
                 best, bd = p, score
@@ -78,8 +80,9 @@ def _inner_shore(s, city, water):
 
 
 def _slip_zone(s, city):
-    """Werft mit dem Schiff im Helling: dort landet keine Festungsbrücke (der Bug bleibt frei)."""
-    return unary_union([ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).union(sh["hall"])
+    """Werft mit dem Schiff im Helling und seiner Ausfahrt: dort landet keine Festungsbrücke, und dort liegt weder
+    Festungsinsel noch Landzunge (das Schiff muss hinausfahren können)."""
+    return unary_union([ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).union(sh["hall"]).union(sh["lane"])
                         for sh in city["ships"] if sh.get("slip")]).buffer(30 * s)   # mit Widerlager und Brückenkopf
 
 
@@ -173,7 +176,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
 
     if terrain.get("mountain") and sea is not None and lage != "land":
         # Gebirge: Festung auf einem Felssporn, Bergpfad hinunter zur Stadt
-        p = _sea_site(s, sea, river, city_land, anchor, islands)
+        p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
         if p is None:
             print("Hinweis: Kein Felssporn für die Festung gefunden - sie wird an Land gebaut.")
             lage = "land"
@@ -196,6 +199,9 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                 coast = [Point(c) for c in sea.exterior.coords if 0 < c[0] < W and c[1] > 0]
                 cands = [p for p in coast if 90 * s < shape.distance(p) < 260 * s
                          and (river is None or p.distance(river) > 120 * s)]
+            slips = _slip_zone(s, city)        # Landzunge nicht vor die Werft (Ausfahrt bleibt frei)
+            cands = [p for p in cands if not unary_union([LineString([(p.x, p.y), (p.x, p.y - 90 * s)]).buffer(32 * s),
+                                                          Point(p.x, p.y - 90 * s).buffer(72 * s)]).intersects(slips)]
             if cands:
                 q = min(cands, key=lambda p: p.distance(anchor))
                 tip = Point(q.x, q.y - 90 * s)
@@ -213,7 +219,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
             else:
                 lage = "insel"
         if lage != "landzunge":
-            p = _sea_site(s, sea, river, city_land, anchor, islands)
+            p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
             if p is None:
                 print("Hinweis: Kein Platz für eine Inselfestung gefunden - sie wird an Land gebaut.")
                 lage = "land"

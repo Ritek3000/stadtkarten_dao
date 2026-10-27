@@ -220,12 +220,14 @@ def generate(cfg):
     city["buildings"] = [b for b in city["buildings"]
                          if b.get("landmark") or b.get("district") == -1 or not b["poly"].intersects(keep)]
     houses = [h for h in houses if not h["poly"].intersects(keep)]
-    # Werft: über dem Bug des Schiffs im Helling liegt nichts (Stege, andere Schiffe, Häuser weichen);
+    # Werft: über dem Bug des Schiffs im Helling und in der Ausfahrt davor liegt nichts (Stege, andere Schiffe,
+    # Häuser weichen);
     # ein Schiff ohne Halle (z.B. von einer Festung verdrängt) entfällt
     halls = [b["poly"] for b in city["buildings"]]
     city["ships"] = [x for x in city["ships"] if not x.get("slip") or any(h is x["hall"] for h in halls)]
     for sh in [x for x in city["ships"] if x.get("slip")]:
         bow = ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).difference(sh["hall"]).buffer(3 * s)
+        bow = bow.union(sh["lane"].difference(sh["hall"]))   # samt Ausfahrt vor dem Bug
         city["piers"] = [p for p in city["piers"] if not p.intersects(bow)]
         city["ships"] = [o for o in city["ships"] if o is sh
                          or not ship_footprint(o["x"], o["y"], o["len"], o["wid"], o["angle"]).intersects(bow)]
