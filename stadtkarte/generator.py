@@ -111,6 +111,11 @@ def generate(cfg):
     if len(fort_specs) > 1:
         print("Hinweis: Es wird nur eine Festung gebaut.")
     forts_u = unary_union([f["area"] for f in forts]) if forts else Polygon()
+    if not city["faubourg"].is_empty:   # Großstadt: Vorstädte halten Felder, Wald und Einzelhäuser fern
+        forts_u = forts_u.union(city["faubourg"])
+    # Altstadtmauer und ihre Tore zeichnen sich wie die äußere Mauer (die Festung nutzt nur die äußere)
+    city["wall"] = city["wall"] + city.pop("old_wall")
+    city["gates"] = city["gates"] + city.pop("old_gates")
 
     # Friedhöfe ohne Platz im Ort (oder lage: ausserhalb), Windmühlen und Bauernhöfe an eine Landstraße vor die Mauer
     for spec in city["deferred"]:

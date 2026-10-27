@@ -132,6 +132,28 @@ def building_svg(b, s, flat=False):
     return "".join(out)
 
 
+def block_svg(b, s, to_light, flat):
+    """Großstadt: Häuserzeile um einen Hof. Jedes Haus ist eine Dachfläche in eigener Farbe, zum Licht hin heller;
+    dazwischen Brandmauern, rundum der First in halber Haustiefe mit hellem Glanz zur Lichtseite."""
+    out = []
+    if b.get("court") is not None:   # Innenhof: festgetretener Boden statt Wiese, an der Hauswand verschattet
+        out.append(f'<path d="{path_d(b["court"])}" fill="#7d7562" fill-opacity="0.75" stroke="#000" '
+                   f'stroke-opacity="0.25" stroke-width="{f(2 * s)}"/>')
+    for seg, n, col in b["segments"]:
+        k = 1.0 if flat else 1 + 0.28 * (n[0] * to_light[0] + n[1] * to_light[1])
+        out.append(f'<path d="{path_d(seg)}" fill="{shade(col, k)}"/>')
+    walls = "".join(path_d(seg) for seg, _, _ in b["segments"])
+    out.append(f'<path d="{walls}" fill="none" stroke="#000" stroke-opacity="0.45" stroke-width="{f(0.5 * s)}"/>')
+    if b["block_ridge"] and not flat:
+        rd = "".join(line_d(r) for r in b["block_ridge"])
+        dx, dy = to_light[0] * 0.5 * s, to_light[1] * 0.5 * s
+        out.append(f'<path d="{rd}" fill="none" stroke="#000" stroke-opacity="0.5" stroke-width="{f(0.8 * s)}"/>'
+                   f'<path d="{rd}" fill="none" stroke="#fff" stroke-opacity="0.22" stroke-width="{f(0.5 * s)}" '
+                   f'transform="translate({f(dx)},{f(dy)})"/>')
+    out.append(f'<path d="{path_d(b["poly"])}" fill="none" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>')
+    return "".join(out)
+
+
 def shade(hex_color, k):
     """Farbe aufhellen (k>1) oder abdunkeln (k<1)."""
     r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
@@ -531,13 +553,26 @@ def night_svg(o, m, lamps, forge_glow):
     m["lanterns"] = [(x, y) for x, y, *_ in dots]    # für Prüfungen
     # erleuchtete Fenster: nur ein Teil der Häuser, 1-2 Fenster an der Außenwand
     windows = []
+    # Großstadt-Blöcke: jedes Haus der Häuserzeile zählt einzeln (Fenster an seiner Fassade zur Gasse)
+    units = []
     for b in m["buildings"] + m["suburbs"]:
+        if b.get("form") == "block":
+            units += [{"poly": seg, "poor": b.get("poor"), "front": n} for seg, n, _ in b["segments"]]
+        else:
+            units.append(b)
+    for b in units:
         if rng.random() > win_share * (0.35 if b.get("poor") else 1):   # Arme sparen Licht
             continue
         ring = b["poly"].exterior
         for _ in range(1 if rng.random() < 0.6 else 2):
             d = rng.uniform(0, ring.length)
             p, q = ring.interpolate(d), ring.interpolate((d + 1.5) % ring.length)
+            if b.get("front"):   # an der Fassade zur Gasse: der Randpunkt in Richtung der Außennormale
+                nx_, ny_ = b["front"]
+                c0 = b["poly"].centroid
+                tw = rng.uniform(-2.5, 2.5) * s
+                p = ring.interpolate(ring.project(Point(c0.x + nx_ * 40 * s - ny_ * tw, c0.y + ny_ * 40 * s + nx_ * tw)))
+                q = Point(p.x - ny_, p.y + nx_)
             tx, ty = q.x - p.x, q.y - p.y
             n = math.hypot(tx, ty) or 1
             tx, ty = tx / n, ty / n
@@ -1059,7 +1094,9 @@ def render_svg(m):
     for b in m["suburbs"] + m["buildings"]:
         flat = B["flat_roofs"] and not b.get("landmark")
         svg = None
-        if detail and not flat and b.get("shade") is not None:
+        if b.get("form") == "block":
+            svg = block_svg(b, s, to_light, B["flat_roofs"])
+        elif detail and not flat and b.get("shade") is not None:
             material = material_for(b["color"], biome_name, B["thatch"])
             if b.get("poor") and material not in ("schnee", "reet"):
                 material = "flicken"

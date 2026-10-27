@@ -115,7 +115,7 @@ def build(raw):
         "labels": labels,
         "preview": "data:image/webp;base64," + base64.b64encode(webp(small, 88)).decode(),
         "hints": [ln.replace("Hinweis: ", "") for ln in out.getvalue().splitlines() if ln.strip()],
-        "stats": {"gebaeude": len(m["buildings"]) + len(m["suburbs"]), "baeume": len(m["trees"]),
+        "stats": {"gebaeude": sum(len(b["segments"]) if b.get("form") == "block" else 1 for b in m["buildings"] + m["suburbs"]), "baeume": len(m["trees"]),
                   "sekunden": round(time.time() - t0, 1), "rendern": render_mode()},
     }
 

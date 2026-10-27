@@ -1,0 +1,80 @@
+# Beispiel-Großstadt für "Die Alte Ordnung": ab 20000 Einwohnern wird die Stadt in Häuserblöcken gezeichnet,
+# mit Altstadtmauer, Ringstraße, Torplätzen, zusätzlichen Hauptachsen und Vorstädten vor den Toren.
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\hauptstadt.yaml
+
+name: Aurenhall
+seed: 2024
+einwohner: 180000     # 100 bis 250000
+
+gelaende:
+  kueste: sued
+  fluss: true
+  flussbreite: 80
+  inseln: 2
+  wald: [nordwest, nord]
+  felder: [ost, nordost, west]
+
+mauer:
+  vorhanden: true
+  tore: 6
+
+viertel:
+  - name: Hafen
+    typ: hafen
+  - name: Altmarkt
+    typ: markt
+    lage: mitte
+  - name: Domfreiheit
+    typ: tempel
+    lage: nord
+  - name: Herrenviertel
+    typ: adel
+    lage: nordwest
+  - name: Gerbergassen
+    typ: handwerk
+    lage: west
+  - name: Weberviertel
+    typ: arbeiter
+    lage: ost
+  - name: Fischerstade
+    typ: fischer
+    lage: suedost
+  - name: Am Graben
+    typ: armen
+    lage: nordost
+
+orte:
+  - name: Dom des Sor
+    typ: kathedrale
+    viertel: Domfreiheit
+  - name: Palast der Erhabenheit
+    typ: palast
+    viertel: Herrenviertel
+  - name: Rathaus
+    typ: rathaus
+    viertel: Altmarkt
+  - name: Kontor der Gilden
+    typ: kontor
+    viertel: Hafen
+  - name: Werft
+    typ: werft
+    viertel: Hafen
+  - name: Stadtwache
+    typ: kaserne
+    viertel: Weberviertel
+  - name: Zum Goldenen Kelch
+    kuerzel: G1
+    typ: gasthaus
+    viertel: Altmarkt
+  - name: Armenfriedhof
+    typ: friedhof
+    lage: ausserhalb
+  - name: Hafenfeste
+    typ: festung
+    lage: landzunge
+
+ausgabe:
+  bildgroesse: 3000   # Großstädte lohnen eine größere Karte (3000 oder 4000 px)
+  formate: [svg, png]
+  raster: 0
+  legende: true

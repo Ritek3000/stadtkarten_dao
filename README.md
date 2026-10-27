@@ -103,6 +103,24 @@ viertel:
     typ: armen
 ```
 
+## Großstädte (20.000 bis 250.000 Einwohner)
+
+Ab 20.000 Einwohnern wird die Stadt anders gezeichnet, damit sie auf die Karte passt und lesbar bleibt
+(Beispiel: [hauptstadt.yaml](beispiele/hauptstadt.yaml), 180.000 Einwohner):
+
+- **Häuserblöcke statt Einzelhäuser:** geschlossene Häuserzeilen um Innenhöfe; jedes Haus ist eine eigene Dachfläche
+  mit eigener Farbe, dazwischen Brandmauern, rundum der First. Jedes Haus liegt an einer Gasse.
+- **Altstadt:** die alte Mauer mit Türmen und Toren steht noch mitten in der Stadt, davor eine Ringstraße und an jedem
+  alten Tor ein kleiner Torplatz.
+- **Mehr Hauptachsen:** zusätzlich zu den Torstraßen laufen breite Straßen vom Marktplatz bis an die äußere Mauer.
+- **Vorstädte:** vor den Toren wachsen Häuserblöcke an den Landstraßen entlang, am Tor dicht, nach außen lichter.
+- **Große Bauten** (Dom, Palast, Rathaus, Kaserne, Friedhof, Tempel) bekommen mehrere zusammengelegte Blöcke;
+  Gasthäuser, Läden und Schmieden sind ein Haus in einer Häuserzeile (in Ortsfarbe, zur Hauptstraße hin).
+- Je mehr Einwohner, desto kleiner die Blöcke und schmaler die Gassen; die Stadt füllt bis zu zwei Drittel der Karte.
+- Für den Druck lohnt sich `bildgroesse: 3000` oder `4000`. Unter 20.000 Einwohnern bleibt alles wie bisher.
+
+Im Nachtmodus leuchten Fenster einzelner Häuser der Häuserzeilen.
+
 ## Stadtbild
 
 - jedes Haus grenzt an eine Straße oder einen Platz (sonst wird es verschoben oder entfällt); Ausnahme sind die

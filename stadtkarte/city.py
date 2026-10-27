@@ -5,7 +5,8 @@ import numpy as np
 import shapely
 import shapely.affinity
 from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
-from shapely.ops import nearest_points, polylabel, unary_union
+from shapely.geometry.polygon import orient
+from shapely.ops import nearest_points, polylabel, substring, unary_union
 
 from .config import place_info, to_canonical
 from .shapes import cross_in_rect, house_shape
@@ -32,8 +33,16 @@ MAX_HOUSE_RATIO = 3.2
 UNNAMED_DISTRICT = {"name": "", "typ": "wohn"}
 
 
+# Großstadt: ab dieser Einwohnerzahl Häuserblöcke statt Einzelhäuser, Altstadtmauer und Vorstädte
+GROSS = 20000
+MAX_EINWOHNER = 250000
+
+
 def city_radius(W, population):
-    """Fläche wächst mit der Einwohnerzahl; 6000 Einwohner ~ 0.22 der Kartenbreite."""
+    """Fläche wächst mit der Einwohnerzahl; 6000 Einwohner ~ 0.22 der Kartenbreite. Großstädte wachsen auf der
+    Karte nur noch wenig (bis 0.33), stattdessen wird der Maßstab kleiner und die Bebauung feiner."""
+    if population > GROSS:
+        return W * (0.3 + 0.03 * min(1.0, math.log(population / GROSS) / math.log(MAX_EINWOHNER / GROSS)))
     return W * max(0.06, min(0.3, 0.222 * math.sqrt(max(population, 100) / 6000)))
 
 
@@ -73,12 +82,16 @@ class CityBuilder:
         self.cfg, self.rng, self.W, self.s = cfg, rng, W, s
         self.t = terrain
         self.center, self.r, self.rot = center, r, rot
+        pop = cfg["einwohner"]
+        self.grand = pop >= GROSS
+        self.g = max(1.0, math.sqrt(pop / GROSS))   # 1 bei 20.000, 3.5 bei 250.000 Einwohnern: wie viel feiner
         self.out = {
             "buildings": [], "streets": [], "paved": [], "internal_roads": [], "plazas": [],
             "grounds": [], "graves": [], "fountains": [], "deferred": [],
             "great_gate": None, "terrace_walls": [], "stairs": [], "wells": [], "stalls": [],
             "towers": [], "gates": [], "wall": [], "yard_trees": [], "labels": [], "piers": [],
             "ships": [], "legend": [], "districts": [], "wheels": [], "windmills": [], "haystacks": [],
+            "old_wall": [], "old_gates": [], "faubourg": Polygon(),
         }
 
     def roof_color(self, st):
@@ -234,6 +247,8 @@ class CityBuilder:
                 for ring in lines(side.buffer(-32 * s).boundary):
                     if ring.length > 60 * s:
                         roads.append((ring, 9 * s))
+        if self.grand:
+            self._grand_roads(roads, plazas)
         # Gebirge: Hauptstraße vom Marktplatz hinauf zum großen Tor in der Felswand
         if self.t.get("mountain"):
             gate = self.great_gate()
@@ -245,6 +260,72 @@ class CityBuilder:
                     roads.append((piece, 16 * s))
         self.out["plazas"] = [p for p in plazas if not p.is_empty]
         return roads
+
+    def _grand_roads(self, roads, plazas):
+        """Großstadt: zusätzliche Hauptachsen zwischen weit auseinanderliegenden Toren, dazu die Altstadt mit
+        alter Mauer, Ringstraße davor, Torplätzen und Tortürmen an den Durchgängen."""
+        s, rng, W = self.s, self.rng, self.W
+        c = np.array(self.center)
+        inner = self.city_land.buffer(-40 * s)
+        angs = sorted(a % (2 * math.pi) for a, _, _ in self.gates)
+        targets = []
+        for i, a in enumerate(angs):
+            gap = (angs[(i + 1) % len(angs)] - a) % (2 * math.pi) or 2 * math.pi
+            n = int(gap / 1.3)                        # etwa alle 75 Grad eine Achse
+            targets += [a + gap * k / (n + 1) for k in range(1, n + 1)]
+        if not angs:
+            a0 = rng.uniform(0, 2 * math.pi)
+            targets = [a0 + k * math.pi / 3 for k in range(6)]
+        for a in targets:
+            ray = LineString([c, c + np.array([math.cos(a), math.sin(a)]) * W * 2])
+            segs = sorted(lines(ray.intersection(inner)), key=lambda ln: ln.distance(Point(c)))
+            if not segs:
+                continue
+            end = max((Point(q) for q in (segs[0].coords[0], segs[0].coords[-1])), key=lambda q: q.distance(Point(c)))
+            side = self.side_of(end)
+            start = self.plaza_centers.get(side) or self.sides[side].representative_point().coords[0]
+            if math.dist(start, (end.x, end.y)) < 120 * s:
+                continue
+            ln = bezier(start, (end.x, end.y), rng, bend=0.1)
+            for piece in lines(ln.intersection(self.sides[side].buffer(2 * s))):
+                roads.append((piece, 11 * s))
+        if not self.walled:
+            return
+        # Altstadt: der alte Mauerring, um den die Stadt hinausgewachsen ist
+        k = min(0.65, max(0.35, 1.6 * math.sqrt(11000 / self.cfg["einwohner"])))
+        old = make_shape(rng, self.center, self.r * k)
+        water = self.t["water"]
+        for ring in lines(old.buffer(10 * s).exterior.intersection(self.city_land.buffer(-1 * s))):
+            if ring.length > 40 * s:
+                roads.append((ring, 8 * s))
+        cross = [(ln, w) for ln, w in roads if w >= 11 * s]
+        main_pc = list(self.plaza_centers.values())
+        gates = []
+        for ln, w in cross:
+            for p in points(ln.intersection(old.exterior)):
+                if not self.city_land.buffer(-4 * s).contains(p) or p.distance(water) < 20 * s:
+                    continue
+                if any(p.distance(q) < 25 * s for q in gates):
+                    continue
+                gates.append(p)
+                self.out["old_gates"].append((p.x, p.y, wall_angle(old, p)))
+                o = unit((p.x - c[0], p.y - c[1]))
+                q = (p.x + o[0] * 24 * s, p.y + o[1] * 24 * s)   # Torplatz vor dem alten Tor
+                if all(math.dist(q, m) > 90 * s for m in main_pc):
+                    pl = blob(rng, q[0], q[1], 21 * s, rough=0.2).intersection(self.city_land).difference(water.buffer(6 * s))
+                    if pl.area > 600 * s * s:
+                        plazas.append(pl)
+        gaps = unary_union([ln.buffer(w / 2 + 5 * s) for ln, w in cross] + [water.buffer(4 * s)])
+        wall = old.exterior.intersection(self.city_land).difference(gaps)
+        self.out["old_wall"] = [ln for ln in lines(wall) if ln.length > 20 * s]
+        for ln in self.out["old_wall"]:
+            d = 30 * s
+            while d < ln.length - 20 * s:
+                p = ln.interpolate(d)
+                if all(p.distance(g) > 30 * s for g in gates):
+                    self.out["towers"].append((p.x, p.y, wall_angle(old, p)))
+                d += rng.uniform(75, 95) * s
+        self.old_wall = unary_union(self.out["old_wall"]) if self.out["old_wall"] else None
 
     def great_gate(self):
         """Zwergentor: am obersten Punkt der Felswand (intern liegt der Berg im Norden)."""
@@ -432,6 +513,8 @@ class CityBuilder:
         blockers = [main, unary_union(self.out["plazas"]), self.t["water"].buffer(3 * s)]
         if self.walled:
             blockers.append(self.shape.exterior.buffer(30 * s))
+        if getattr(self, "old_wall", None) is not None:
+            blockers.append(self.old_wall.buffer(8 * s))
         if self.t["biome"]["terraces"]:
             blockers.append(self.terraces(main).buffer(4 * s))
         blocker = unary_union(blockers)
@@ -456,8 +539,12 @@ class CityBuilder:
         # damit Viertelgrenzen auf Gassen statt quer durch Häuserblöcke laufen.
         rest = self.city_land.difference(blocker).difference(unary_union([dl[i]["poly"] for i in paved]))
         cands = [i for i in range(len(dl)) if i not in paved and not dl[i]["poly"].is_empty]
+        g = self.g
         for piece in clean(rest, 300 * s2):
-            qs = subdivide(piece, 16000 * s2, 8 * s, rng, min_area=250 * s2, var=0.25)
+            if self.grand:   # Großstadt: kleinere Quartiere, schmalere Quartiersstraßen
+                qs = subdivide(piece, 11000 * s2, 6 * s, rng, min_area=250 * s2, var=0.25)
+            else:
+                qs = subdivide(piece, 16000 * s2, 8 * s, rng, min_area=250 * s2, var=0.25)
             streets.append(piece.difference(unary_union(qs)) if qs else piece)
             for q in qs:
                 rp = q.representative_point()
@@ -486,12 +573,24 @@ class CityBuilder:
             st = DISTRICT_TYPES.get(d["typ"], DISTRICT_TYPES["wohn"])
             poor = st.get("poor", False)
             lot = st["lot"] * s2
+            grand = self.grand and not st.get("paved")   # der Hafen behält seine einzelnen Lagerhäuser
+            if grand:
+                block_area, alley = st["block"] * 0.5 / g ** 0.5 * s2, max(2.2, st["alley"] * 0.5 / g ** 0.5) * s
+            else:
+                block_area, alley = st["block"] * s2, st["alley"] * s
             for piece in clean(quarter, lot * 0.5):
-                blocks = subdivide(piece, st["block"] * s2, st["alley"] * s, rng, min_area=lot * 0.5)
+                blocks = subdivide(piece, block_area, alley, rng, min_area=min(lot, block_area) * 0.5)
                 streets.append(piece.difference(unary_union(blocks)) if blocks else piece)
                 for blk in blocks:
                     entry = {"poly": blk, "district": di, "ids": []}
                     self.blocks.append(entry)
+                    if grand:   # ganzer Block als geschlossene Häuserzeile, selten ein Garten
+                        if rng.random() < max(0.9, st["density"]):
+                            b = self.block_mass(blk, st, di, poor)
+                            if b is not None:
+                                entry["ids"].append(len(self.out["buildings"]))
+                                self.out["buildings"].append(b)
+                        continue
                     # Armenviertel: gleichmäßigere Parzellen, sonst entstehen zu viele zu schmale Restflächen
                     lots = subdivide(blk, lot, 0, rng, min_area=lot * 0.12, var=0.25 if poor else 0.5, jitter=0.1)
                     edge = blk.exterior.buffer(0.8 * s)
@@ -521,6 +620,110 @@ class CityBuilder:
                             self.out["yard_trees"].append((c.x, c.y, rad))
         self.out["streets"] = [unary_union(streets).intersection(self.city_land)]
         self.connect_to_streets()
+
+    def block_mass(self, blk, st, di, poor):
+        """Großstadt: ein Häuserblock als geschlossene Zeile schmaler Häuser um einen Innenhof. Jedes Haus ist eine
+        Dachfläche entlang der Fassade (Voronoi-Zellen aus Punkten auf der Außenkante), mit eigener Dachfarbe;
+        der First läuft in halber Haustiefe rund um den Block."""
+        s, rng = self.s, self.rng
+        parts = clean(blk.buffer(-0.5 * s, join_style="mitre"), 30 * s * s)
+        if not parts:
+            return None
+        mass = orient(max(parts, key=lambda p: p.area), 1.0)
+        if min_width(mass) < MIN_HOUSE * s:
+            return None
+        depth = rng.uniform(10, 13) * s * (0.85 if poor else 1.0)
+        court = None
+        inner = mass.buffer(-depth, join_style="mitre")
+        if not inner.is_empty:
+            ip = max(polys(inner), key=lambda p: p.area)
+            if ip.area > 70 * s * s and min_width(ip) > 5 * s:
+                court = ip
+        ring = mass.difference(court) if court is not None else mass
+        if ring.geom_type != "Polygon":
+            return None
+        ring = orient(ring, 1.0)
+        ext = mass.exterior                          # gegen den Uhrzeigersinn: Normale (ty, -tx) zeigt nach außen
+        # Hausbreiten gleichmäßig um den Block verteilt (mit etwas Spiel), damit an der Nahtstelle kein Splitter bleibt
+        pts, normals = [], []
+        L = ext.length
+        n_h = max(3, round(L / (rng.uniform(9.5, 11.5) * s)))
+        k0 = rng.uniform(0, L / n_h)
+        for i in range(n_h):
+            k = (k0 + (i + rng.uniform(-0.18, 0.18)) * L / n_h) % L
+            p, q = ext.interpolate(k), ext.interpolate(min(L, k + 1.0))
+            if q.distance(p) < 0.5:
+                q, p = p, ext.interpolate(k - 1.0)
+            tx, ty = unit((q.x - p.x, q.y - p.y))
+            pts.append((p.x, p.y))
+            normals.append((ty, -tx))
+        segs = []
+        cells = shapely.voronoi_polygons(MultiPoint(pts), ordered=True, extend_to=mass.buffer(depth * 3))
+        for n, cell in zip(normals, cells.geoms):
+            for piece in clean(cell.intersection(ring), 1 * s * s):
+                # zu schmale Reste (an Ecken) gehören zum Nachbarhaus
+                if segs and min_width(piece) < 0.8 * MIN_HOUSE * s:
+                    joined = segs[-1][0].union(piece)
+                    if joined.geom_type == "Polygon":
+                        segs[-1] = (joined, segs[-1][1], segs[-1][2])
+                        continue
+                segs.append((piece, n, self.roof_color(st)))
+        # übrige Splitter (Anfang der Runde, Ecken) dem Nachbarn mit der längsten gemeinsamen Kante zuschlagen
+        i = 0
+        while i < len(segs) and len(segs) > 1:
+            piece = segs[i][0]
+            if min_width(piece) >= 0.8 * MIN_HOUSE * s:
+                i += 1
+                continue
+            grow = piece.buffer(0.2 * s)
+            best = max((j for j in range(len(segs)) if j != i), key=lambda j: grow.intersection(segs[j][0]).area)
+            joined = segs[best][0].union(piece).buffer(0.01).buffer(-0.01)
+            if joined.geom_type != "Polygon" or grow.intersection(segs[best][0]).area <= 0:
+                i += 1
+                continue
+            segs[best] = (joined, segs[best][1], segs[best][2])
+            segs.pop(i)
+            i = 0
+        if not segs:
+            segs = [(ring, (0.0, -1.0), self.roof_color(st))]
+        mid = mass.buffer(-depth / 2, join_style="mitre")
+        ridge = [ln for ln in lines(mid.boundary)] if not mid.is_empty else []
+        return {"poly": ring, "form": "block", "segments": segs, "block_ridge": ridge, "color": segs[0][2], "court": court,
+                "district": di, "poor": poor, "ridges": None, "shade": None}
+
+    def faubourgs(self, ext):
+        """Großstadt: Vorstädte entlang der Landstraßen vor den Toren, am Tor dicht, nach außen ausdünnend."""
+        if not self.grand:
+            return
+        s, rng, W = self.s, self.rng, self.W
+        st = DISTRICT_TYPES["wohn"]
+        g = self.g
+        block_area, alley = st["block"] * 0.5 / g ** 0.5 * s * s, max(2.2, st["alley"] * 0.5 / g ** 0.5) * s
+        reach = self.r * min(0.55, 0.2 + 0.1 * g)
+        pools = self.t.get("pools")
+        taken = unary_union([self.shape.buffer(28 * s), self.t["water"].buffer(8 * s)]
+                            + ([pools.buffer(4 * s)] if pools is not None and not pools.is_empty else []))
+        roads_u = unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in ext]) if ext else Polygon()
+        frame = box(0, 0, W, W).buffer(-12 * s)
+        kept = []
+        for ln, w in ext:
+            L = min(ln.length, reach)
+            seg = substring(ln, 0, L)
+            band = seg.buffer((36 + 8 * g) * s, cap_style="flat").difference(roads_u).difference(taken).intersection(frame)
+            taken = taken.union(band)
+            for piece in clean(band, 400 * s * s):
+                for blk in subdivide(piece, block_area, alley, rng, min_area=block_area * 0.35):
+                    t = seg.project(blk.centroid) / max(L, 1)
+                    if rng.random() > 1.0 - 0.8 * t:
+                        continue
+                    b = self.block_mass(blk, st, -1, False)
+                    if b is not None:
+                        self.out["buildings"].append(b)
+                        kept.append(blk)
+        if kept:
+            ku = unary_union(kept)
+            self.out["streets"].append(ku.buffer(alley * 0.9, join_style="mitre").difference(ku).difference(roads_u))
+            self.out["faubourg"] = ku.buffer(6 * s)
 
     def connect_to_streets(self, landmarks=False):
         """Jedes Haus muss an eine Straße oder einen Platz grenzen. Häuser ohne Anschluss werden zur nächsten
@@ -812,6 +1015,10 @@ class CityBuilder:
                         # Wassermühle nur das Rad samt Beschriftung übrig)
                         and not any(self.out["buildings"][i].get("landmark") for i in bk["ids"])]
                 outside = str(o.get("lage", "")).lower() in ("ausserhalb", "aussen", "draussen", "vor der stadt")
+                merged = None
+                if self.grand and not blks and not outside and typ != "werft":
+                    merged = self._merged_block(typ, di)   # Großstadt: mehrere kleine Blöcke zusammenlegen
+                    blks = [merged] if merged is not None else []
                 if typ == "friedhof" and (outside or not blks):
                     self.out["deferred"].append(o)   # wird vom Generator vor der Mauer angelegt
                     continue
@@ -828,7 +1035,8 @@ class CityBuilder:
                     blks = blks[:6]
                 if blks:
                     bk = rng.choice(blks)
-                    self.blocks.remove(bk)
+                    if bk is not merged:
+                        self.blocks.remove(bk)
                     color = LANDMARK_COLORS.get(typ) or "#8a6a4a"
                     target = self._replace_block(bk, color, typ, 1.5 * s)
             if target is None and alive:
@@ -844,7 +1052,7 @@ class CityBuilder:
                     target = rng.choice(alive[:12])
                 else:
                     target = rng.choice(alive)
-                if LANDMARK_COLORS.get(typ):
+                if LANDMARK_COLORS.get(typ) and target.get("form") != "block":
                     target["color"] = LANDMARK_COLORS[typ]
             if target is None:
                 continue
@@ -855,10 +1063,55 @@ class CityBuilder:
             text = o.get("kuerzel") or o["name"]
             if o.get("kuerzel"):
                 self.out["legend"].append((o["kuerzel"], o["name"]))
-            c = target["poly"].centroid
+            where = target["poly"]
+            if target.get("form") == "block":   # Großstadt: der Ort ist ein Haus der Häuserzeile, zur Hauptstraße hin
+                k = min(range(len(target["segments"])),
+                        key=lambda j: target["segments"][j][0].distance(self.main_streets))
+                seg, n, col = target["segments"][k]
+                target["segments"][k] = (seg, n, LANDMARK_COLORS.get(typ) or col)
+                where = seg
+            c = where.centroid
             self.out["labels"].append({"x": c.x, "y": c.y, "text": text, "kind": "ort",
-                                       "lift": math.sqrt(target["poly"].area) * 0.5 + 6 * s,
+                                       "lift": math.sqrt(where.area) * 0.5 + 6 * s,
                                        "ort": place_info(o, self.district_name(target["district"]))})
+
+    def _merged_block(self, typ, di):
+        """Großstadt: benachbarte kleine Blöcke (samt Gassen dazwischen) zu einem Bauplatz für ein großes Gebäude
+        zusammenlegen, möglichst nah an einer Hauptstraße. Liefert einen Pseudo-Block oder None."""
+        s = self.s
+        need = {"friedhof": 5000, "kaserne": 4500, "tempel": 3500, "rathaus": 3500,
+                "palast": 11000, "kathedrale": 10000}.get(typ, 2500) * s * s
+        free = [bk for bk in self.blocks if not any(self.out["buildings"][i].get("landmark") for i in bk["ids"])]
+        pool = [bk for bk in free if di is None or bk["district"] == di]
+        if not pool:
+            return None
+        pool.sort(key=lambda bk: bk["poly"].distance(self.main_streets))
+        tree = shapely.STRtree([bk["poly"] for bk in free])
+        rad = math.sqrt(need) * 1.05
+        gap = 3.6 * s                                 # überbrückt Gassen und Quartiersstraßen, nicht die Hauptstraßen
+        best = None
+        for bk in pool[:40]:
+            c = bk["poly"].centroid
+            near = [free[j] for j in tree.query(c.buffer(rad)) if free[j]["poly"].centroid.distance(c) < rad]
+            area = unary_union([b["poly"].buffer(gap, join_style="mitre") for b in near]).buffer(-gap, join_style="mitre")
+            area = area.difference(self.main_streets.buffer(1 * s))
+            parts = polys(area)
+            if not parts:
+                continue
+            area = max(parts, key=lambda p: p.area)
+            rect = fit_rect(area, 2 * MIN_HOUSE * s)
+            if rect is None or rect.area < need * 0.6:
+                continue
+            members = [b for b in near if b["poly"].intersects(area)]
+            if best is None or rect.area > best[0]:
+                best = (rect.area, area, members)
+        if best is None:
+            return None
+        _, area, members = best
+        for b in members:
+            self.blocks.remove(b)
+        return {"poly": area, "district": di if di is not None else members[0]["district"],
+                "ids": [i for b in members for i in b["ids"]]}
 
     def district_name(self, i):
         """Name des Viertels mit dem Index i (None außerhalb der Viertel oder bei namenlosen Vierteln)."""
@@ -1133,6 +1386,7 @@ class CityBuilder:
                 if 0 <= d < len(self.district_list) and self.district_list[d]["typ"] == "handwerk" \
                         and self.rng.random() < 0.15 and not b.get("landmark"):   # z.B. nicht auf einem Domturm
                     b["forge"] = True
+        self.faubourgs(ext)
         self.fill_empty_with_trees()
         for b in self.out["buildings"]:
             if not b.get("removed") and "ridges" not in b:

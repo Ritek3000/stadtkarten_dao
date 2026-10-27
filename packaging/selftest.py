@@ -153,6 +153,16 @@ def main():
                 assert b'<g data-key="titel" transform="translate(-100.0,0.0)">' in svg, "Verschiebung fehlt in der Karte"
             print(f"ok {'Nacht' if night else 'Tag'}: {res['stats']['gebaeude']} Gebäude, "
                   f"{len(png) // 1024} KB PNG, {time.time() - t:.1f} s")
+        # Großstadt: Häuserblöcke statt Einzelhäuser (zählt die Häuser in den Blöcken)
+        _, _, raw = get("/api/example?name=hauptstadt")
+        cfg = json.loads(raw)
+        cfg["ausgabe"]["bildgroesse"] = 1000
+        t = time.time()
+        res = post("/api/generate", cfg)
+        assert res["stats"]["gebaeude"] > 2000, f"Großstadt zu klein: {res['stats']['gebaeude']} Gebäude"
+        status, _, png = get(f"/api/download?id={res['id']}&format=png")
+        assert status == 200 and png[:8] == b"\x89PNG\r\n\x1a\n", status
+        print(f"ok Großstadt: {cfg['einwohner']} Einwohner, {res['stats']['gebaeude']} Gebäude, {time.time() - t:.1f} s")
         print("Selbsttest bestanden.")
     finally:
         proc.terminate()

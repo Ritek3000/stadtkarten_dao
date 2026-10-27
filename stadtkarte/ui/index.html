@@ -327,9 +327,15 @@ function renderForm() {
   const chk = (obj, key, after) => el("input", {type: "checkbox", checked: !!obj[key], on: {change: e => { obj[key] = e.target.checked; after?.(); }}});
 
   // Allgemein
-  const popOut = el("div", {class: "hint"}, `${cfg.einwohner} Einwohner` + (cfg.einwohner < 2500 ? " (Dorf)" : ""));
-  const pop = el("input", {type: "range", min: 300, max: 20000, step: 100, value: cfg.einwohner,
-    on: {input: e => { cfg.einwohner = Number(e.target.value); popOut.textContent = `${cfg.einwohner} Einwohner` + (cfg.einwohner < 2500 ? " (Dorf)" : ""); }}});
+  // Regler logarithmisch von 300 bis 250.000 Einwohnern; ab 20.000 wird die Stadt in Häuserblöcken gezeichnet
+  const POP_MIN = 300, POP_MAX = 250000;
+  const popLabel = n => `${n.toLocaleString("de-DE")} Einwohner` + (n < 2500 ? " (Dorf)" : n >= 20000 ? " (Großstadt: Häuserblöcke, Altstadt, Vorstädte)" : "");
+  const toPop = v => { const n = POP_MIN * (POP_MAX / POP_MIN) ** (v / 1000);
+    const step = n < 2000 ? 50 : n < 20000 ? 100 : 1000; return Math.min(POP_MAX, Math.round(n / step) * step); };
+  const toPos = n => Math.round(Math.log(Math.max(POP_MIN, Math.min(POP_MAX, n)) / POP_MIN) / Math.log(POP_MAX / POP_MIN) * 1000);
+  const popOut = el("div", {class: "hint"}, popLabel(cfg.einwohner));
+  const pop = el("input", {type: "range", min: 0, max: 1000, step: 1, value: toPos(cfg.einwohner),
+    on: {input: e => { cfg.einwohner = toPop(Number(e.target.value)); popOut.textContent = popLabel(cfg.einwohner); }}});
   const seedIn = num(cfg, "seed", {min: 0});
   f.append(section("Allgemein", true, null,
     field("Name", txt(cfg, "name")),

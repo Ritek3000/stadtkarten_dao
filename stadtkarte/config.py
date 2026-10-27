@@ -71,6 +71,12 @@ def from_dict(raw):
         g["kueste"] = "nord"   # im Gebirge gibt "kueste" die Bergseite an
     if g["kueste"] not in ROTATION:
         raise ValueError(f"Unbekannte Küstenlage: {g['kueste']}")
+    try:
+        cfg["einwohner"] = int(cfg["einwohner"])
+    except (TypeError, ValueError):
+        raise ValueError(f"einwohner muss eine Zahl sein, nicht '{cfg['einwohner']}'")
+    if not 100 <= cfg["einwohner"] <= 250000:
+        raise ValueError(f"einwohner: {cfg['einwohner']} - möglich sind 100 bis 250000")
     for key in ("wald", "felder"):
         vals = g.get(key) or []
         g[key] = [norm(v) for v in (vals if isinstance(vals, list) else [vals])]
