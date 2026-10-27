@@ -7,6 +7,7 @@ from shapely.affinity import rotate
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points, unary_union
 
+from .city import ship_footprint
 from .config import place_info
 from .geo import blob, lines, roof, unit
 from .styles import LANDMARK_COLORS
@@ -76,9 +77,16 @@ def _inner_shore(s, city, water):
     return [ln for ln in lines(shore) if ln.length > 10 * s]
 
 
+def _slip_zone(s, city):
+    """Werft mit dem Schiff im Helling: dort landet keine Festungsbrücke (der Bug bleibt frei)."""
+    return unary_union([ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).union(sh["hall"])
+                        for sh in city["ships"] if sh.get("slip")]).buffer(30 * s)   # mit Widerlager und Brückenkopf
+
+
 def _landing_inside(s, city, water, p, avoid=None):
     """Uferpunkt innerhalb der Mauer, den eine gerade Brücke von p aus erreicht, ohne Mauer oder Land zu kreuzen."""
     walls = unary_union(city["wall"]).buffer(6 * s) if city["wall"] else Polygon()
+    slips = _slip_zone(s, city)   # keine Brücke über den Bug und kein Brückenkopf neben der Werft
     best = None
     for ln in _inner_shore(s, city, water):
         k = 0.0
@@ -88,7 +96,7 @@ def _landing_inside(s, city, water, p, avoid=None):
             if avoid is not None and avoid.buffer(30 * s).contains(q):
                 continue
             seg = LineString([(p.x, p.y), (q.x, q.y)])
-            if seg.intersects(walls) or seg.intersection(city["city_land"]).length > 3 * s:
+            if seg.intersects(walls) or seg.intersection(city["city_land"]).length > 3 * s or seg.intersects(slips):
                 continue
             if best is None or seg.length < best[0]:
                 best = (seg.length, q)
@@ -217,7 +225,8 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                     if walled:
                         print("Hinweis: Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer.")
                     target = paved if paved is not None and not paved.is_empty else city_land
-                    shore = nearest_points(target, p)[0]
+                    free = target.difference(_slip_zone(s, city))
+                    shore = nearest_points(free if not free.is_empty else target, p)[0]
                 ux, uy = unit((shore.x - p.x, shore.y - p.y))
                 ang = math.degrees(math.atan2(uy, ux))
                 # der berechnete Uferpunkt kann vor der gezeichneten (gewellten) Küste im Wasser liegen:

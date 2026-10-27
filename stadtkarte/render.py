@@ -259,7 +259,12 @@ def ship_svg(sh, s):
             f"Q{f(L * 0.45)},{f(-B / 2)} {f(L / 2)},0 Q{f(L * 0.45)},{f(B / 2)} {f(L * 0.25)},{f(B / 2)} "
             f"L{f(-L * 0.2)},{f(B / 2)} Q{f(-L / 2 + L * 0.15)},{f(B / 2)} {f(-L / 2)},0Z")
     out = [f'<g transform="translate({f(sh["x"])},{f(sh["y"])}) rotate({f(sh["angle"])})">',
-           f'<path d="{hull}" fill="#8a6440" stroke="{C["outline"]}" stroke-width="{f(1.1 * s)}"/>']
+           f'<path d="{hull}" fill="{"#b48c5c" if sh.get("slip") else "#8a6440"}" stroke="{C["outline"]}" '
+           f'stroke-width="{f(1.1 * s)}"/>']
+    if sh.get("slip"):   # Schiff im Bau: Kiel und Spanten, noch ohne Deck und Mast
+        ribs = "".join(f"M{f(x)},{f(-B * 0.4)}L{f(x)},{f(B * 0.4)}" for x in np.linspace(-L * 0.36, L * 0.38, 9))
+        out.append(f'<path d="M{f(-L * 0.42)},0L{f(L * 0.46)},0" stroke="#4a3220" stroke-width="{f(1.4 * s)}"/>'
+                   f'<path d="{ribs}" stroke="#5a3f28" stroke-width="{f(0.9 * s)}"/>')
     if sh["big"]:
         out.append(f'<path d="M{f(-L * 0.35)},0 L{f(L * 0.35)},0" stroke="#5a3f28" stroke-width="{f(1 * s)}"/>')
         for mx in (-L * 0.18, L * 0.12):
@@ -1160,6 +1165,12 @@ def render_svg(m):
         parts.append(tree_svg(x, y, r, c, s, rng, kind))
     o.append(shadow_layer("".join(shadows), 3 * s, 3.5 * s, 0.45, s))
     o.append("<g>" + "".join(parts) + "</g>")
+    # Werft: der Bug des Schiffs im Helling liegt über allem (Schatten, Lichtschein, Bäume); nur das Heck bleibt in
+    # der Halle verborgen (Zuschnitt: ganze Karte ohne die Halle)
+    for i, sh in enumerate(x for x in m["ships"] if x.get("slip")):
+        frame = f"M{f(-W)},{f(-W)}H{f(2 * W)}V{f(2 * W)}H{f(-W)}Z"
+        o.append(f'<clipPath id="slipBow{i}"><path clip-rule="evenodd" d="{frame}{path_d(sh["hall"])}"/></clipPath>'
+                 f'<g clip-path="url(#slipBow{i})">{ship_svg(sh, s)}</g>')
     if m["cfg"]["ausgabe"].get("nacht"):
         night_svg(o, m, lamps, forge_glow)
     o.append("</g>")  # Ende Drehung

@@ -1271,73 +1271,91 @@ class CityBuilder:
         (der Bug ragt höchstens 35 % der Flussbreite hinein). Liefert die Halle (als Gebäude) oder None."""
         s, rng = self.s, self.rng
         water, river, sea = self.t["water"], self.t["river"], self.t["sea"]
-        hw, sw = 19 * s, 11 * s                       # Hallenbreite am Ufer (schmaler als tief), Schiffsbreite
         dl = self.district_list
         if di is None:                                # ohne Angabe bevorzugt im Hafen
             di = next((i for i, d in enumerate(dl) if d["typ"] == "hafen" and not d["poly"].is_empty), None)
-        area = dl[di]["poly"] if di is not None else self.city_land
         alive = [b for b in self.out["buildings"] if not b.get("removed")]
         net = unary_union(self.out["streets"] + self.out["plazas"] + self.out["paved"])
         crossings = unary_union([ln.buffer(w / 2 + 34 * s) for ln, w in self.out["internal_roads"] if ln.intersects(water)])
-        keep_clear = unary_union([self.main_streets.buffer(1 * s), unary_union(self.out["plazas"]).buffer(2 * s), crossings]
+        # Durchgangsstraßen (Tor-, Brücken-, Hauptachsen) bleiben frei; schmale Ringstraßen nur außerhalb des Kais:
+        # auf dem gepflasterten Hafen sind sie ohnehin unter dem Pflaster verschwunden
+        paved = unary_union(self.out["paved"]) if self.out["paved"] else Polygon()
+        through = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w > 9.5 * s])
+        rings = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w <= 9.5 * s])
+        keep_clear = unary_union([through, rings.difference(paved), unary_union(self.out["plazas"]).buffer(2 * s), crossings]
                                  + [b["poly"].buffer(2 * s) for b in alive if b.get("landmark")]
                                  + [g.buffer(2 * s) for g, _ in self.out["grounds"]]
                                  + ([self.shape.exterior.buffer(12 * s)] if self.walled else []))
         shapely.prepare(keep_clear)
-        cands = []
-        for ln in lines(water.boundary.intersection(area.buffer(2 * s))):
-            k = hw / 2 + 4 * s
-            while k < ln.length - hw / 2 - 4 * s:
-                q, q2 = ln.interpolate(k), ln.interpolate(k + 2)
-                k += 7 * s
-                tx, ty = unit((q2.x - q.x, q2.y - q.y))
-                nx, ny = -ty, tx                       # Normale zeigt ins Land
-                if water.contains(Point(q.x + nx * 6 * s, q.y + ny * 6 * s)):
-                    nx, ny = -nx, -ny
-                t_, n_ = np.array([tx, ty]), np.array([nx, ny])
-                # Tiefe ins Land: so tief wie möglich, aber vor der Ringstraße (die läuft am Kai entlang);
-                # am gebogenen Ufer ragen die Hallenecken sonst ins Wasser: notfalls etwas zurück (Helling davor)
-                hall = None
-                for hd in (50 * s, 40 * s, 32 * s, 26 * s):
-                    for back in (1.5, 3, 4.5, 6, 8):
-                        f0 = np.array([q.x, q.y]) + n_ * back * s
-                        h = Polygon([f0 - t_ * hw / 2, f0 + t_ * hw / 2, f0 + t_ * hw / 2 + n_ * hd,
-                                     f0 - t_ * hw / 2 + n_ * hd])
-                        if not h.intersects(water):
+
+        def search(area, hw):
+            sw = hw / 2                               # Schiffsbreite
+            cands = []
+            for ln in lines(water.boundary.intersection(area.buffer(2 * s))):
+                k = hw / 2 + 4 * s
+                while k < ln.length - hw / 2 - 4 * s:
+                    q, q2 = ln.interpolate(k), ln.interpolate(k + 2)
+                    k += 7 * s
+                    tx, ty = unit((q2.x - q.x, q2.y - q.y))
+                    nx, ny = -ty, tx                   # Normale zeigt ins Land
+                    if water.contains(Point(q.x + nx * 6 * s, q.y + ny * 6 * s)):
+                        nx, ny = -nx, -ny
+                    t_, n_ = np.array([tx, ty]), np.array([nx, ny])
+                    # so tief ins Land wie möglich; am gebogenen Ufer ragen die Hallenecken sonst ins Wasser:
+                    # notfalls etwas zurück (Helling davor)
+                    hall = None
+                    for hd in (64 * s, 52 * s, 42 * s, 34 * s, 28 * s):
+                        for back in (1.5, 3, 4.5, 6, 8):
+                            f0 = np.array([q.x, q.y]) + n_ * back * s
+                            h = Polygon([f0 - t_ * hw / 2, f0 + t_ * hw / 2, f0 + t_ * hw / 2 + n_ * hd,
+                                         f0 - t_ * hw / 2 + n_ * hd])
+                            if not h.intersects(water):
+                                break
+                        if (not h.intersects(water) and self.city_land.contains(h) and not keep_clear.intersects(h)
+                                and h.buffer(3 * s).intersects(net)):
+                            hall = h
                             break
-                    if (not h.intersects(water) and self.city_land.contains(h) and not keep_clear.intersects(h)
-                            and h.buffer(3 * s).intersects(net)):
-                        hall = h
-                        break
-                if hall is None:
-                    continue
-                hl = min(48 * s, (hd + back * s - 3 * s) / 0.55)   # das Heck endet vor der Rückwand der Halle
-                probe = Point(q.x - nx * 10 * s, q.y - ny * 10 * s)
-                in_river = river is not None and river.contains(probe) and (sea is None or not sea.contains(probe))
-                out_len = 0.45 * hl
-                if in_river:                           # örtliche Flussbreite quer übers Wasser
-                    ray = LineString([(q.x - nx * 1 * s, q.y - ny * 1 * s), (q.x - nx * 600 * s, q.y - ny * 600 * s)])
-                    seg = [g for g in lines(ray.intersection(water)) if g.distance(q) < 3 * s]
-                    out_len = min(out_len, 0.35 * (seg[0].length if seg else 0) - 2 * s)
-                    if out_len < 0.25 * hl:
+                    if hall is None:
                         continue
-                c = np.array([q.x, q.y]) + n_ * (hl / 2 - out_len)
-                hull = ship_footprint(c[0], c[1], hl, sw, math.degrees(math.atan2(-ny, -nx)))
-                bow = hull.difference(hall.buffer(0.5 * s))   # über dem Helling darf ein schmaler Landstreifen liegen
-                if bow.difference(water.buffer(1 * s)).area > 0.25 * bow.area or crossings.intersects(hull):
-                    continue
-                score = (0 if not in_river else 40) + hall.centroid.distance(Point(self.center)) / (40 * s)
-                cands.append((score, hall, hull, c, (-nx, -ny)))
+                    hl = min(62 * s, (hd + back * s - 3 * s) / 0.55)   # das Heck endet vor der Rückwand der Halle
+                    probe = Point(q.x - nx * 10 * s, q.y - ny * 10 * s)
+                    in_river = river is not None and river.contains(probe) and (sea is None or not sea.contains(probe))
+                    out_len = 0.45 * hl
+                    if in_river:                       # örtliche Flussbreite quer übers Wasser
+                        ray = LineString([(q.x - nx * 1 * s, q.y - ny * 1 * s), (q.x - nx * 600 * s, q.y - ny * 600 * s)])
+                        seg = [g for g in lines(ray.intersection(water)) if g.distance(q) < 3 * s]
+                        out_len = min(out_len, 0.35 * (seg[0].length if seg else 0) - 2 * s)
+                        if out_len < 0.25 * hl:
+                            continue
+                    c = np.array([q.x, q.y]) + n_ * (hl / 2 - out_len)
+                    hull = ship_footprint(c[0], c[1], hl, sw, math.degrees(math.atan2(-ny, -nx)))
+                    bow = hull.difference(hall.buffer(0.5 * s))   # über dem Helling darf ein schmaler Landstreifen liegen
+                    if bow.difference(water.buffer(1 * s)).area > 0.25 * bow.area or crossings.intersects(hull):
+                        continue
+                    score = (0 if not in_river else 40) - hall.area / (100 * s * s)                         + hall.centroid.distance(Point(self.center)) / (40 * s)
+                    cands.append((score, hall, hull, c, (-nx, -ny), hl, sw))
+            return cands
+
+        # erst im gewünschten Viertel, dann am ganzen Stadtufer; erst die große Halle, notfalls etwas schmaler
+        areas = ([dl[di]["poly"]] if di is not None else []) + [self.city_land]
+        cands = []
+        for area in areas:
+            for hw in (30 * s, 26 * s, 22 * s):
+                cands = search(area, hw)
+                if cands:
+                    break
+            if cands:
+                break
         if not cands:
             return None
         cands.sort(key=lambda cd: cd[0])
-        _, hall, hull, c, (bx, by) = rng.choice(cands[:5])
+        _, hall, hull, c, (bx, by), hl, sw = rng.choice(cands[:5])
         for b in alive:                                # Häuser auf dem Bauplatz weichen der Werft
             if b["poly"].intersects(hall.buffer(2 * s)) and not b.get("landmark"):
                 b["removed"] = True
         self.out["yard_trees"] = [t for t in self.out["yard_trees"] if not hall.buffer(4 * s).contains(Point(t[0], t[1]))]
         self.out["ships"].append({"x": float(c[0]), "y": float(c[1]), "len": hl, "wid": sw,
-                                  "angle": math.degrees(math.atan2(by, bx)), "big": False, "slip": True})
+                                  "angle": math.degrees(math.atan2(by, bx)), "big": False, "slip": True, "hall": hall})
         self.shipyard_zones = getattr(self, "shipyard_zones", []) + [hall, hull]
         rp = hall.representative_point()
         dd = next((i for i, d in enumerate(dl) if d["poly"].buffer(10 * s).contains(rp)), -1)

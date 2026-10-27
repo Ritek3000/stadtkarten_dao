@@ -83,7 +83,7 @@ früher nacheinander.
 | `friedhof` | umzäuntes Feld mit Grabreihen, Bäumen und Kapelle; mit `lage: ausserhalb` (oder bei Platzmangel im Ort) an einer Landstraße vor dem Tor |
 | `festung` / `bastion` / `burg` | Sternfestung; `lage: insel` (Brücke), `landzunge` oder `land`. Mit Stadtmauer liegt der Zugang immer innerhalb: Brückenkopf bzw. Landzunge am Ufer in der Stadt, an Land als Zitadelle in der Mauer mit Tor zur Stadt |
 | `kontor`, `adelshaus` | ganzer Block als ein großes Gebäude (Adelshaus mit Garten) |
-| `werft` | lange Halle direkt am Ufer, quer zum Wasser; im Helling liegt ein Schiff im Bau, dessen Bug aufs Wasser zeigt (im Fluss höchstens 35 % der Breite, die Fahrrinne bleibt frei); ohne `viertel` bevorzugt im Hafen |
+| `werft` | große Halle (bis 30 × 64 px) direkt am Ufer, quer zum Wasser; im Helling liegt ein Schiff im Bau (Kiel und Spanten), dessen Bug aufs Wasser zeigt und von nichts überlagert wird (keine Stege, Schiffe, Brücken, Bäume oder Beschriftungen); im Fluss höchstens 35 % der Breite, die Fahrrinne bleibt frei; ohne `viertel` bevorzugt im Hafen, sonst am nächsten freien Stadtufer |
 | `gasthaus`, `schmiede`, `laden` | einzelnes, passend gelegenes Haus |
 | `wassermuehle` | Mühlhaus am Flussufer mit Wasserrad (Schaufeln, Gischt) im Fluss; ohne Fluss und in der Klamm (Gebirge) wird es eine Windmühle |
 | `muehle` (auch `windmuehle`) | Windmühle vor der Stadt an einer Landstraße: runder Turm mit Kegeldach und vier Flügeln |
