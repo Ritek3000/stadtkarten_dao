@@ -8,7 +8,6 @@ import io
 import json
 import os
 import pathlib
-import re
 import sys
 import threading
 import time
@@ -21,7 +20,7 @@ from urllib.parse import parse_qs, quote, urlparse
 import yaml
 from PIL import Image
 
-from .. import config
+from .. import config, webpaket
 from ..generator import generate
 from ..interaktiv import interactive_html
 from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
@@ -65,13 +64,6 @@ RESULTS = {}            # Ergebnis-ID -> erzeugte Karte (die letzten paar bleibe
 GEN_LOCK = threading.Lock()
 
 
-def slug(text):
-    s = text.lower()
-    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
-        s = s.replace(a, b)
-    return re.sub(r"[^a-z0-9]+", "_", s).strip("_") or "karte"
-
-
 def options():
     return {
         "district_types": list(DISTRICT_TYPES),
@@ -112,8 +104,9 @@ def build(raw):
     while len(RESULTS) >= 4:
         RESULTS.pop(next(iter(RESULTS)))
     RESULTS[rid] = {"svg": svg, "base": base, "png": None, "view": view_job, "lock": threading.Lock(), "W": m["W"],
-                    "name": cfg["name"],
-                    "stem": f"{slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
+                    "name": cfg["name"], "raw": raw, "cfg": cfg, "orte": webpaket.places(m),
+                    "raster": int(cfg["ausgabe"].get("raster") or 0) > 0,
+                    "stem": f"{config.slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
     if (os.cpu_count() or 1) >= 4:   # genug Kerne: PNG mit Beschriftung vorsorglich schon rendern
         start_png(RESULTS[rid])
     return {
@@ -149,7 +142,15 @@ def set_labels(res, moved):
     moved = config.label_offsets(moved)
     with res["lock"]:
         res["svg"] = move_labels(res["svg"], moved, res["W"])
+        res["raw"] = dict(res["raw"], beschriftung=moved)   # für stadt.yaml im Web-Paket
         res["png"] = None
+
+
+def web_files(res):
+    """Dateien des Web-Pakets. Das Bild ohne Beschriftung ist meist schon für die Ansicht gerendert; nur mit Raster
+    entsteht es neu (das Paket bleibt ohne Raster)."""
+    base = png_async(webpaket.base_svg(res["svg"])).result() if res["raster"] else view_png(res)
+    return webpaket.files(res["svg"], res["orte"], res["raw"], res["cfg"], base)
 
 
 def file_bytes(res, fmt):
@@ -163,6 +164,8 @@ def file_bytes(res, fmt):
         buf = io.BytesIO()
         to_pdf(full_png(res), buf)
         return buf.getvalue(), "application/pdf"
+    if fmt == "web":
+        return webpaket.zip_bytes(webpaket.folder_name(res["cfg"]), web_files(res)), "application/zip"
     if fmt == "html":
         return interactive_html(res["svg"], res["name"], base_png=view_png(res)).encode("utf-8"), "text/html; charset=utf-8"
     raise ValueError(f"Unbekanntes Format: {fmt}")
@@ -217,7 +220,8 @@ class Handler(BaseHTTPRequestHandler):
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher - bitte neu erzeugen."})
                 data, ctype = file_bytes(res, q.get("format", "png"))
-                name = f"{res['stem']}.{q.get('format', 'png')}"
+                fmt = q.get("format", "png")
+                name = f"{webpaket.folder_name(res['cfg'])}.zip" if fmt == "web" else f"{res['stem']}.{fmt}"
                 self.send(200, data, ctype, {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
             else:
                 self.send(404, {"error": "Nicht gefunden"})

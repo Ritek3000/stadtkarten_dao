@@ -3,7 +3,9 @@ import argparse
 import pathlib
 import time
 
-from . import config
+import yaml
+
+from . import config, webpaket
 from .generator import generate
 from .interaktiv import interactive_html
 from .parallel import png_async
@@ -18,7 +20,9 @@ def main():
     ap.add_argument("--nacht", action="store_true", help="Nachtmodus (überschreibt die Datei)")
     args = ap.parse_args()
 
-    cfg = config.load(args.datei)
+    with open(args.datei, encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh) or {}
+    cfg = config.from_dict(raw)
     if args.seed is not None:
         cfg["seed"] = args.seed
     if args.nacht:
@@ -35,6 +39,7 @@ def main():
     # PNG (mit Beschriftung) und Bild der interaktiven Karte (ohne) entstehen gleichzeitig in Render-Prozessen
     png_job = png_async(svg) if "png" in formats or "pdf" in formats else None
     base_job = png_async(split_labels(svg)[0]) if "html" in formats else None
+    web_job = png_async(webpaket.base_svg(svg)) if "web" in formats else None
     if "svg" in formats:
         stem.with_suffix(".svg").write_text(svg, encoding="utf-8")
         written.append(stem.with_suffix(".svg"))
@@ -50,6 +55,10 @@ def main():
         stem.with_suffix(".html").write_text(interactive_html(svg, cfg["name"], base_png=base_job.result()),
                                              encoding="utf-8")
         written.append(stem.with_suffix(".html"))
+    if "web" in formats:   # Ordner <kennung>_web mit Kartenbild, Beschriftung, Ortsliste und Stadtbeschreibung
+        folder = out / webpaket.folder_name(cfg)
+        webpaket.write_folder(folder, webpaket.files(svg, webpaket.places(m), raw, cfg, web_job.result()))
+        written.append(folder)
     print(f"{cfg['name']}: {len(m['buildings']) + len(m['suburbs'])} Gebäude, {len(m['trees'])} Bäume "
           f"({time.time() - t0:.1f} s)")
     for p in written:

@@ -281,7 +281,7 @@ def place_labels(m, taken):
         inside = b[0] > 5 * s and b[1] > 5 * s and b[2] < W - 5 * s and b[3] < W - 5 * s
         return inside and not any(b[0] < t[2] and t[0] < b[2] and b[1] < t[3] and t[1] < b[3] for t in taken)
 
-    def put(cands, text, size, halo, kind):
+    def put(cands, text, size, halo, kind, lb):
         for x, y in cands:
             b = box_at(x, y, text, size)
             if free(b):
@@ -290,7 +290,7 @@ def place_labels(m, taken):
             x, y = cands[0]
             b = box_at(x, y, text, size)
         taken.append(b)
-        placed.append((x, y, text, size, halo, kind))
+        placed.append((x, y, text, size, halo, kind, lb))
 
     order = sorted(m["labels"], key=lambda lb: lb["kind"] not in ("viertel", "festung"))
     for lb in order:
@@ -300,17 +300,17 @@ def place_labels(m, taken):
             w = text_width(lb["text"], size)
             lift = lb["lift"]
             put([(x + lift + w / 2, y + size * 0.3), (x - lift - w / 2, y + size * 0.3), (x, y - lift),
-                 (x, y + lift + size)], lb["text"], size, 5 * s, "orte")
+                 (x, y + lift + size)], lb["text"], size, 5 * s, "orte", lb)
         elif lb["kind"] == "viertel":
             size = 34 * s
-            put([(x, y + dy * s) for dy in (10, -30, 50, -70, 90, -110)], lb["text"], size, 5 * s, "viertel")
+            put([(x, y + dy * s) for dy in (10, -30, 50, -70, 90, -110)], lb["text"], size, 5 * s, "viertel", lb)
         else:
             size = 17 * s
             lift = lb["lift"]
             w = text_width(lb["text"], size)
             cands = [(x, y - lift), (x, y + lift + size * 0.7), (x + lift + w / 2, y + size * 0.3),
                      (x - lift - w / 2, y + size * 0.3), (x, y - lift - size), (x, y + lift + size * 1.7)]
-            put(cands, lb["text"], size, 3.5 * s, "orte")
+            put(cands, lb["text"], size, 3.5 * s, "orte", lb)
     return placed
 
 
@@ -1142,11 +1142,13 @@ def render_svg(m):
     offsets = m["cfg"].get("beschriftung") or {}
     groups = {"viertel": [], "orte": []}
     used = {}
-    for x, y, text, size, halo, kind in place_labels(m, taken):
+    m["label_keys"] = []           # (data-key, Beschriftung) für die Ortsliste des Web-Pakets
+    for x, y, text, size, halo, kind, lb in place_labels(m, taken):
         key = f"{kind}:{text}"
         used[key] = used.get(key, 0) + 1
         if used[key] > 1:          # gleicher Text mehrfach: zweite Beschriftung heißt "orte:Laden#2"
             key += f"#{used[key]}"
+        m["label_keys"].append((key, lb))
         groups[kind].append(movable(key, offsets, W, text_el(x, y, text, size, s, halo=halo)))
     o.append(LABELS_START)
     for kind in ("viertel", "orte"):
@@ -1169,7 +1171,7 @@ def render_svg(m):
     grid = int(m["cfg"]["ausgabe"].get("raster") or 0)
     if grid > 0:
         d = "".join(f"M{k},0V{W}M0,{k}H{W}" for k in range(grid, W, grid))
-        o.append(f'<path d="{d}" stroke="#000" stroke-opacity="0.25" stroke-width="1" fill="none"/>')
+        o.append(f'{RASTER_START}<path d="{d}" stroke="#000" stroke-opacity="0.25" stroke-width="1" fill="none"/></g>')
     tex = {k: fut.result() for k, fut in m.pop("_tex", {}).items()}
     if tex:   # jede Textur nur einmal einbetten, Verwendungen verweisen per <use> darauf
         o.append("<defs>" + "".join(
@@ -1181,6 +1183,7 @@ def render_svg(m):
 
 
 LABELS_START = '<g id="beschriftung">'
+RASTER_START = '<g id="raster">'
 LABELS_END = "</g><!--/beschriftung-->"
 
 
@@ -1212,6 +1215,12 @@ def split_labels(svg):
     i = svg.index(LABELS_START)
     j = svg.index(LABELS_END, i) + len(LABELS_END)
     return svg[:i] + svg[j:], svg[i:j]
+
+
+def strip_grid(svg):
+    """Entfernt das Raster (ausgabe.raster) aus einer fertigen Karte."""
+    i = svg.find(RASTER_START)
+    return svg if i < 0 else svg[:i] + svg[svg.index("</g>", i) + 4:]
 
 
 def to_png(svg, zoom=None):

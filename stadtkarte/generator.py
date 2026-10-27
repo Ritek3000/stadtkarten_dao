@@ -9,7 +9,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, unary_union
 
 from .city import CityBuilder, city_radius, make_shape, ship_footprint
-from .config import ROTATION, to_canonical
+from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
 from .styles import BIOMES, FORT_TYPES
@@ -274,7 +274,7 @@ def _outside_label(builder, spec, poly, lift, s):
         builder.out["legend"].append((spec["kuerzel"], spec["name"]))
     c = poly.centroid
     builder.out["labels"].append({"x": c.x, "y": c.y, "text": spec.get("kuerzel") or spec["name"],
-                                  "kind": "ort", "lift": lift})
+                                  "kind": "ort", "lift": lift, "ort": place_info(spec)})
 
 
 def outside_windmill(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
