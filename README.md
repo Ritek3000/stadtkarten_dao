@@ -136,6 +136,20 @@ viertel:
     ausserhalb: true    # optional: vor der Stadtmauer, rund um die Stadt
 ```
 
+## Bebauung
+
+`bebauung` (Werkstatt: „Bebauung“ unter „Allgemein“) verteilt dieselben Einwohner auf mehr Fläche:
+
+| bebauung | Wirkung |
+|---|---|
+| `dicht` (Standard) | wie bisher |
+| `locker` | rund 40 % mehr Stadtfläche: größere Grundstücke mit Abstand zwischen den Häusern, etwas breitere Gassen, mehr Gärten und Bäume |
+| `weitlaeufig` | fast die doppelte Fläche, noch mehr Gärten und Grün zwischen den Häusern |
+
+Die Zahl der Häuser bleibt ungefähr gleich (der Hafen wächst mit der Stadt etwas mit). Eine Stadt füllt höchstens
+80 % der Kartenbreite: Großstädte stoßen schon bei `locker` an diese Grenze und werden nur so weit aufgelockert, wie
+sie tatsächlich an Fläche gewinnen; `weitlaeufig` sieht bei ihnen deshalb aus wie `locker`.
+
 ## Stadtform
 
 Der Umriss der Stadt (`stadtform`, in der Werkstatt unter „Allgemein“):

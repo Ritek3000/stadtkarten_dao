@@ -98,6 +98,15 @@ def from_dict(raw):
         raise ValueError(f"Unbekannte Stadtform: {cfg['stadtform']} "
                          "(möglich: zufall, rund, oval, unregelmaessig, vieleck, gewachsen)")
     cfg["stadtform"] = form
+    beb = norm(cfg.get("bebauung") or "dicht")   # lockere Bebauung: gleiche Einwohner auf mehr Fläche
+    beb = {"normal": "dicht", "eng": "dicht", "aufgelockert": "locker", "weit": "weitlaeufig", "sehrlocker": "weitlaeufig",
+           "laendlich": "weitlaeufig"}.get(beb, beb)
+    if beb not in ("dicht", "locker", "weitlaeufig"):
+        raise ValueError(f"Unbekannte Bebauung: {cfg.get('bebauung')} (möglich: dicht, locker, weitlaeufig)")
+    if beb == "dicht":
+        cfg.pop("bebauung", None)
+    else:
+        cfg["bebauung"] = beb
     aus = norm(cfg["ausgabe"].get("ausschnitt") or "weit")   # wie viel der Karte die Stadt einnimmt
     aus = {"fuellen": "fuellend", "voll": "fuellend", "ganz": "fuellend", "auto": "fuellend", "mittel": "normal",
            "eng": "nah", "gross": "nah"}.get(aus, aus)

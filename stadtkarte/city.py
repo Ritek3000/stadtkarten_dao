@@ -39,12 +39,22 @@ GROSS = 20000
 MAX_EINWOHNER = 250000
 
 
-def city_radius(W, population):
+BEBAUUNG = {"dicht": 1.0, "locker": 1.4, "weitlaeufig": 1.9}   # Flächenfaktor bei gleicher Einwohnerzahl
+
+
+def spread(cfg):
+    return BEBAUUNG.get(cfg.get("bebauung", "dicht"), 1.0)
+
+
+def city_radius(W, population, area=1.0):
     """Fläche wächst mit der Einwohnerzahl; 6000 Einwohner ~ 0.22 der Kartenbreite. Großstädte wachsen auf der
     Karte nur noch wenig (bis 0.33), stattdessen wird der Maßstab kleiner und die Bebauung feiner."""
     if population > GROSS:
-        return W * (0.3 + 0.03 * min(1.0, math.log(population / GROSS) / math.log(MAX_EINWOHNER / GROSS)))
-    return W * max(0.06, min(0.3, 0.222 * math.sqrt(max(population, 100) / 6000)))
+        r = W * (0.3 + 0.03 * min(1.0, math.log(population / GROSS) / math.log(MAX_EINWOHNER / GROSS)))
+    else:
+        r = W * max(0.06, min(0.3, 0.222 * math.sqrt(max(population, 100) / 6000)))
+    # lockere Bebauung: mehr Fläche (area-fach), höchstens 0.4 der Kartenbreite
+    return r if area == 1.0 else min(r * math.sqrt(area), max(r, 0.4 * W))
 
 
 def make_shape(rng, center, r):
@@ -165,6 +175,9 @@ class CityBuilder:
         self.center, self.r, self.rot = center, r, rot
         pop = cfg["einwohner"]
         self.grand = pop >= GROSS
+        # lockere Bebauung: aufgelockert wird nur so weit, wie die Stadt tatsächlich mehr Fläche bekommen hat
+        # (Großstädte stoßen an den Kartenrand und wachsen nicht mehr mit)
+        self.spread = max(1.0, (r / city_radius(W, pop)) ** 2) if spread(cfg) > 1 else 1.0
         self.g = max(1.0, math.sqrt(pop / GROSS))   # 1 bei 20.000, 3.5 bei 250.000 Einwohnern: wie viel feiner
         self.out = {
             "buildings": [], "streets": [], "paved": [], "internal_roads": [], "plazas": [],
@@ -701,6 +714,14 @@ class CityBuilder:
                 block_area, alley = st["block"] * 0.5 / g ** 0.5 * s2, max(2.2, st["alley"] * 0.5 / g ** 0.5) * s
             else:
                 block_area, alley = st["block"] * s2, st["alley"] * s
+            # lockere Bebauung: größere Grundstücke mit Abstand zwischen den Häusern, breitere Gassen, mehr Gärten;
+            # zusammen mit der größeren Stadtfläche bleibt die Zahl der Häuser etwa gleich
+            A = 1.0 if st.get("paved") else self.spread
+            density, inner = st["density"] / A ** 0.5, st.get("inner", 0.0) / A
+            if A > 1:
+                lot *= A ** 0.5
+                block_area *= A ** 0.5
+                alley *= 1 + 0.5 * (A - 1)
             for piece in clean(quarter, lot * 0.5):
                 blocks = subdivide(piece, block_area, alley, rng, min_area=min(lot, block_area) * 0.5)
                 streets.append(piece.difference(unary_union(blocks)) if blocks else piece)
@@ -708,7 +729,7 @@ class CityBuilder:
                     entry = {"poly": blk, "district": di, "ids": []}
                     self.blocks.append(entry)
                     if grand:   # ganzer Block als geschlossene Häuserzeile, selten ein Garten
-                        if rng.random() < max(0.9, st["density"]):
+                        if rng.random() < max(0.9, st["density"]) / A ** 0.5:
                             b = self.block_mass(blk, st, di, poor)
                             if b is not None:
                                 entry["ids"].append(len(self.out["buildings"]))
@@ -721,9 +742,11 @@ class CityBuilder:
                         # über Sumpfwasser: Pfahlhäuser mit Wasser dazwischen, etwas lockerer
                         wet = pools is not None and pools.contains(lp.representative_point())
                         perim = (not st["perimeter"]) or lp.exterior.intersection(edge).length > 2 * s
-                        back = not perim and rng.random() < st.get("inner", 0.0) * (0.3 if wet else 1)
-                        if (perim and rng.random() < st["density"] * (0.75 if wet else 1)) or back:
+                        back = not perim and rng.random() < inner * (0.3 if wet else 1)
+                        if (perim and rng.random() < density * (0.75 if wet else 1)) or back:
                             inset = (4 if d["typ"] == "hafen" else 2.4 if wet else 1.0) * s
+                            if A > 1 and d["typ"] != "hafen":
+                                inset += 2.5 * (A - 1) * s   # Abstand zu den Nachbarhäusern
                             for piece in clean(lp.buffer(-inset, join_style="mitre"), lot * 0.12):
                                 # nur erlaubte geometrische Formen mit Mindestbreite; zu schmale Restflächen bleiben Hof
                                 bp, form = house_shape(piece, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO,
@@ -737,7 +760,7 @@ class CityBuilder:
                                     self.out["buildings"].append(
                                         {"poly": bp, "form": form, "color": self.roof_color(st), "district": di,
                                          "poor": poor})
-                        elif not perim and rng.random() < 0.35:
+                        elif (not perim or A > 1) and rng.random() < 0.35 * A:   # Hof bzw. Garten mit Baum
                             c = lp.representative_point()
                             rad = max(5 * s, min(14 * s, math.sqrt(lp.area) * 0.4))
                             self.out["yard_trees"].append((c.x, c.y, rad))

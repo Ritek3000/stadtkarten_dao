@@ -8,7 +8,7 @@ import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, unary_union
 
-from .city import CityBuilder, city_radius, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
+from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
 from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
@@ -29,7 +29,7 @@ def generate(cfg):
     mode = cfg["ausgabe"].get("ausschnitt", "weit")
     if mode not in AUSSCHNITT:
         return _generate(cfg, W)
-    frac = city_radius(W, cfg["einwohner"]) / W
+    frac = city_radius(W, cfg["einwohner"], spread(cfg)) / W
     z = max(1.0, AUSSCHNITT[mode] / (2 * frac))
     m = _generate(cfg, round(W * z))
     if mode == "fuellend":
@@ -112,7 +112,7 @@ def _generate(cfg, W):
     g = cfg["gelaende"]
     rot = ROTATION[g["kueste"]]
     has_coast = g["kueste"] != "keine"
-    r = city_radius(W, cfg["einwohner"])
+    r = city_radius(W, cfg["einwohner"], spread(cfg))
     biome = BIOMES[g["biotop"]]
 
     plateau = biome["plateau"] and has_coast
