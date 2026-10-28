@@ -17,9 +17,97 @@ from .surroundings import make_bridges, make_fields, make_forest, scatter_trees,
 from .terrain import make_coast, make_islands, make_pools, make_river
 
 
+AUSSCHNITT = {"normal": 0.62, "nah": 0.8, "fuellend": 0.8}   # Anteil des Stadtdurchmessers an der Kartenbreite
+
+
 def generate(cfg):
-    rng = random.Random(cfg["seed"])
+    """Karte erzeugen. Mit ausgabe.ausschnitt (normal | nah | fuellend) wird eine entsprechend größere Welt erzeugt
+    und das Fenster um die Stadt ausgeschnitten: Häuser, Straßen und Dächer werden größer, Schrift, Legende und
+    Titel bleiben in Kartengröße. "fuellend" misst zuerst Stadt, Hafen, Festung und Orte vor der Stadt und erzeugt
+    die Welt dann so groß, dass all das gerade auf die Karte passt."""
     W = int(cfg["ausgabe"]["bildgroesse"])
+    mode = cfg["ausgabe"].get("ausschnitt", "weit")
+    if mode not in AUSSCHNITT:
+        return _generate(cfg, W)
+    frac = city_radius(W, cfg["einwohner"]) / W
+    z = max(1.0, AUSSCHNITT[mode] / (2 * frac))
+    m = _generate(cfg, round(W * z))
+    if mode == "fuellend":
+        minx, miny, maxx, maxy = _important(m).bounds
+        side = max(maxx - minx, maxy - miny) * 1.1 + 2 * 50 * m["s"]   # Rand für Beschriftung
+        z = max(1.0, min(W * z / side, 2.5 * z))   # die Welt so groß, dass 'side' gerade die Kartenbreite ist
+        m = _generate(cfg, round(W * z))
+        c = _important(m).envelope.centroid
+    else:
+        c = m["shape"].envelope.centroid
+    return crop_model(m, c.x, c.y, W, z)
+
+
+def _important(m):
+    """Was auf einer füllenden Karte zu sehen sein muss: Stadt, Hafen, Schiffe, Festung, Orte vor der Stadt."""
+    parts = [m["shape"], m["faubourg"], m["slum_outside"]] + [f["area"] for f in m["forts"]]
+    parts += [p for p in m["piers"]]
+    parts += [Point(lb["x"], lb["y"]).buffer(40 * m["s"]) for lb in m["labels"] if lb["kind"] in ("ort", "festung")]
+    parts += [Point(sh["x"], sh["y"]).buffer(sh["len"] / 2) for sh in m["ships"]]
+    return unary_union([g for g in parts if g is not None and not g.is_empty])
+
+
+SHIFT_KEYS = ("house", "a", "b", "top", "bot")   # Punkte (x, y) in Wörterbüchern; andere Paare sind Richtungen
+
+
+def _shift(v, dx, dy, in_list=False):
+    if hasattr(v, "geom_type"):
+        return shapely.affinity.translate(v, dx, dy)
+    if isinstance(v, dict):
+        out = {}
+        for k, x in v.items():
+            if k in ("x", "y") and isinstance(x, (int, float)) and not isinstance(x, bool):
+                out[k] = x + (dx if k == "x" else dy)
+            elif k in SHIFT_KEYS and isinstance(x, tuple) and len(x) == 2:
+                out[k] = (x[0] + dx, x[1] + dy)
+            else:
+                out[k] = _shift(x, dx, dy)
+        return out
+    if isinstance(v, list):
+        return [_shift(x, dx, dy, True) for x in v]
+    if isinstance(v, tuple):
+        if in_list and len(v) >= 2 and all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in v[:2]):
+            return (v[0] + dx, v[1] + dy) + tuple(v[2:])   # (x, y, ...) in Listen: Bäume, Türme, Tore, Brunnen ...
+        return tuple(_shift(x, dx, dy) for x in v)
+    return v
+
+
+def crop_model(m, cx, cy, W, z):
+    """Schneidet das Fenster W x W um (cx, cy) aus der größeren Welt und verschiebt alles in Kartenkoordinaten."""
+    Wv = m["W"]
+    x0 = min(max(cx - W / 2, 0), Wv - W)
+    y0 = min(max(cy - W / 2, 0), Wv - W)
+    keep = {"cfg", "biome", "W", "s", "rot", "name"}
+    out = {k: (v if k in keep else _shift(v, -x0, -y0)) for k, v in m.items()}
+    if m.get("great_gate"):
+        out["great_gate"] = (m["great_gate"][0] - x0, m["great_gate"][1] - y0) + tuple(m["great_gate"][2:])
+    pad = 80 * m["s"]   # Bäume, Felsen und Felder weit außerhalb des Fensters braucht niemand
+    inside = lambda x, y: -pad < x < W + pad and -pad < y < W + pad
+    for k in ("trees", "rocks", "reeds", "lilies", "haystacks"):
+        out[k] = [t for t in out.get(k, []) if inside(t[0], t[1])]
+    frame = box(-pad, -pad, W + pad, W + pad)
+    out["fields"] = [fl for fl in out["fields"] if fl["poly"].intersects(frame)]
+    for k, v in out.items():   # große Flächen (Meer, Land, Wald ...) aufs Fenster zuschneiden: Weichzeichner und
+        if hasattr(v, "geom_type") and not v.is_empty and not frame.contains(v):   # Texturen arbeiten sonst auf
+            if v.geom_type in ("Polygon", "MultiPolygon"):                        # der ganzen Welt
+                out[k] = unary_union(polys(v.intersection(frame))) if v.intersects(frame) else Polygon()
+            elif v.geom_type in ("LineString", "MultiLineString") and k != "river_line":
+                out[k] = unary_union(lines(v.intersection(frame)))
+    out["W"], out["st"], out["zoom"] = W, W / 2000, z
+    missing = [lb["text"] for lb in out["labels"] if lb["kind"] in ("ort", "festung")
+               and not (0 < lb["x"] < W and 0 < lb["y"] < W)]
+    if missing:
+        print("Hinweis: Außerhalb des Ausschnitts: " + ", ".join(missing) + " (Ausschnitt 'fuellend' zeigt alles).")
+    return out
+
+
+def _generate(cfg, W):
+    rng = random.Random(cfg["seed"])
     s = W / 2000
     g = cfg["gelaende"]
     rot = ROTATION[g["kueste"]]

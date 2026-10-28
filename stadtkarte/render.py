@@ -11,6 +11,7 @@ from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
 import shapely
+import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
@@ -326,8 +327,9 @@ def legend_rows(rows):
 
 
 def place_labels(m, taken):
-    """Setzt Viertel- und Ortsnamen so, dass sie sich nicht überlappen."""
-    s = m["s"]
+    """Setzt Viertel- und Ortsnamen so, dass sie sich nicht überlappen. Schriftgrößen in Kartengröße (st), auch
+    wenn die Karte ein vergrößerter Ausschnitt ist; der Abstand zum Ort (lift) ist in Weltmaßen."""
+    s = m.get("st", m["s"])
     W = m["W"]
     placed = []
 
@@ -1381,7 +1383,8 @@ def render_svg(m):
         night_svg(o, m, lamps, forge_glow)
     o.append("</g>")  # Ende Drehung
 
-    # Beschriftung (immer aufrecht)
+    # Beschriftung (immer aufrecht), Schrift in Kartengröße
+    s = m.get("st", s)
     o.append(f'<rect width="{W}" height="{W}" fill="url(#vignette)"/>')
     title_size = 78 * s
     taken = [(W - 60 * s - text_width(m["name"], title_size), W - 70 * s - title_size, W - 60 * s, W - 50 * s)]
@@ -1390,6 +1393,10 @@ def render_svg(m):
     kw = max([52 * s] + [len(k) * 10.5 * s + 6 * s for k, _ in rows])   # Spalte der Kürzel
     bw, bh = 278 * s + kw, (len(rows) + 1) * lh + 20 * s
     x0, y0 = 40 * s, W - 40 * s - bh
+    if rows and m.get("zoom", 1) > 1:   # vergrößerter Ausschnitt: die Legende in die Ecke mit der wenigsten Stadt
+        city = shapely.affinity.rotate(m["city_land"].union(m["shape"]), m["rot"], origin=(W / 2, W / 2))
+        corners = [(40 * s, W - 40 * s - bh), (40 * s, 40 * s), (W - 40 * s - bw, 40 * s)]
+        x0, y0 = min(corners, key=lambda c: city.intersection(box(c[0], c[1], c[0] + bw, c[1] + bh)).area)
     if rows:
         taken.append((x0, y0, x0 + bw, y0 + bh))
     for sh in m["ships"]:   # das Schiff im Helling der Werft bleibt frei (der Name steht neben der Halle)

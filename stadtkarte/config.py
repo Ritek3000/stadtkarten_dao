@@ -98,6 +98,16 @@ def from_dict(raw):
         raise ValueError(f"Unbekannte Stadtform: {cfg['stadtform']} "
                          "(möglich: zufall, rund, oval, unregelmaessig, vieleck, gewachsen)")
     cfg["stadtform"] = form
+    aus = norm(cfg["ausgabe"].get("ausschnitt") or "weit")   # wie viel der Karte die Stadt einnimmt
+    aus = {"fuellen": "fuellend", "voll": "fuellend", "ganz": "fuellend", "auto": "fuellend", "mittel": "normal",
+           "eng": "nah", "gross": "nah"}.get(aus, aus)
+    if aus not in ("weit", "normal", "nah", "fuellend"):
+        raise ValueError(f"Unbekannter Ausschnitt: {cfg['ausgabe'].get('ausschnitt')} "
+                         "(möglich: weit, normal, nah, fuellend)")
+    if aus == "weit":
+        cfg["ausgabe"].pop("ausschnitt", None)
+    else:
+        cfg["ausgabe"]["ausschnitt"] = aus
     for key in ("wald", "felder"):
         vals = g.get(key) or []
         g[key] = [norm(v) for v in (vals if isinstance(vals, list) else [vals])]

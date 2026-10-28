@@ -227,6 +227,23 @@ Die **Kennung** ist der feste Name der Stadt auf der Webseite. Steht in der Stad
 (nur Kleinbuchstaben a-z, Ziffern, `-` und `_`), wird sie verwendet, sonst wird sie aus dem Namen gebildet. Sie wird in
 `stadt.yaml` festgeschrieben, damit die Stadt auch nach einer Umbenennung dieselbe bleibt.
 
+## Ausschnitt
+
+`ausgabe: ausschnitt:` (Oberfläche: „Ausschnitt“ unter Ausgabe) legt fest, wie viel der Karte die Stadt einnimmt:
+
+| Wert | Wirkung |
+|---|---|
+| `weit` (Standard) | wie bisher: viel Umland mit Feldern, Wald und Landstraßen |
+| `normal` | näher heran, die Stadt nimmt rund 60 % der Kartenbreite ein |
+| `nah` | die Stadt füllt die Karte fast (rund 80 %), nur ein schmaler Rand Umland |
+| `fuellend` | der Ausschnitt wird so gewählt, dass Stadt, Vorstädte, Hafen mit Schiffen, Festung und Orte vor der Stadt (Windmühle, Bauernhof, Friedhof) gerade hineinpassen |
+
+Näher heißt: Häuser, Straßen und Dächer werden größer und detailreicher, Schrift, Legende und Titel bleiben gleich
+groß. Die Legende wandert dabei in die Ecke, in der am wenigsten Stadt liegt. Bei `normal` und `nah` können Orte vor
+der Stadt oder eine Inselfestung aus dem Bild fallen; die Werkstatt nennt sie dann (`fuellend` zeigt alles).
+Großstädte füllen schon von sich aus zwei Drittel der Karte, bei ihnen ändert sich wenig. Mit demselben Seed ist es
+dieselbe Stadt, im Detail (Lage einzelner Häuser, Stege, Schiffe) kann sie je nach Ausschnitt leicht abweichen.
+
 ## Nachtmodus
 
 `ausgabe: nacht: true` (Oberfläche: „Nachtmodus“, Kommandozeile: `--nacht`) dunkelt die Karte bläulich ab. Es leuchten
