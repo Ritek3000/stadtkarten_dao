@@ -53,8 +53,8 @@ def city_radius(W, population, area=1.0):
         r = W * (0.3 + 0.03 * min(1.0, math.log(population / GROSS) / math.log(MAX_EINWOHNER / GROSS)))
     else:
         r = W * max(0.06, min(0.3, 0.222 * math.sqrt(max(population, 100) / 6000)))
-    # lockere Bebauung: mehr Fläche (area-fach), höchstens 0.4 der Kartenbreite
-    return r if area == 1.0 else min(r * math.sqrt(area), max(r, 0.4 * W))
+    # lockere Bebauung: mehr Fläche (area-fach), höchstens 0.45 der Kartenbreite (Durchmesser 90 %)
+    return r if area == 1.0 else min(r * math.sqrt(area), max(r, 0.45 * W))
 
 
 def make_shape(rng, center, r):
@@ -201,6 +201,9 @@ class CityBuilder:
         t = self.t
         given = self.t.get("shape")   # im Gebirge vom Generator vorgegeben (Felskessel)
         self.shape = given if given is not None else make_shape(self.rng, self.center, self.r)
+        if self.spread > 1:   # nach der tatsächlichen Fläche (am Kartenrand oder an der Küste verkleinert)
+            base = city_radius(self.W, self.cfg["einwohner"])
+            self.spread = min(self.spread, max(1.0, self.shape.area / (math.pi * base * base)))
         land = box(0, 0, self.W, self.W).difference(t["water"])
         self.city_land = self.shape.intersection(land)
         self.sides = sorted(clean(self.city_land, 3000 * self.s ** 2), key=lambda p: -p.area)
@@ -1417,23 +1420,28 @@ class CityBuilder:
         pool.sort(key=lambda bk: bk["poly"].distance(self.main_streets))
         tree = shapely.STRtree([bk["poly"] for bk in free])
         rad = math.sqrt(need) * 1.05
-        gap = 3.6 * s                                 # überbrückt Gassen und Quartiersstraßen, nicht die Hauptstraßen
+        gap = 3.6 * s * (1 + 0.5 * (self.spread - 1))   # überbrückt Gassen und Quartiersstraßen, nicht die Hauptstraßen
         best = None
-        for bk in pool[:40]:
-            c = bk["poly"].centroid
-            near = [free[j] for j in tree.query(c.buffer(rad)) if free[j]["poly"].centroid.distance(c) < rad]
-            area = unary_union([b["poly"].buffer(gap, join_style="mitre") for b in near]).buffer(-gap, join_style="mitre")
-            area = area.difference(self.main_streets.buffer(1 * s))
-            parts = polys(area)
-            if not parts:
-                continue
-            area = max(parts, key=lambda p: p.area)
-            rect = fit_rect(area, 2 * MIN_HOUSE * s)
-            if rect is None or rect.area < need * 0.6:
-                continue
-            members = [b for b in near if b["poly"].intersects(area)]
-            if best is None or rect.area > best[0]:
-                best = (rect.area, area, members)
+        # findet sich kein Bauplatz (z.B. lockere Bebauung: Gärten und breitere Gassen trennen die Blöcke),
+        # im größeren Umkreis suchen
+        for rad in (rad, rad * 1.5):
+            if best is not None:
+                break
+            for bk in pool[:40]:
+                c = bk["poly"].centroid
+                near = [free[j] for j in tree.query(c.buffer(rad)) if free[j]["poly"].centroid.distance(c) < rad]
+                area = unary_union([b["poly"].buffer(gap, join_style="mitre") for b in near]).buffer(-gap, join_style="mitre")
+                area = area.difference(self.main_streets.buffer(1 * s))
+                parts = polys(area)
+                if not parts:
+                    continue
+                area = max(parts, key=lambda p: p.area)
+                rect = fit_rect(area, 2 * MIN_HOUSE * s)
+                if rect is None or rect.area < need * 0.6:
+                    continue
+                members = [b for b in near if b["poly"].intersects(area)]
+                if best is None or rect.area > best[0]:
+                    best = (rect.area, area, members)
         if best is None:
             return None
         _, area, members = best

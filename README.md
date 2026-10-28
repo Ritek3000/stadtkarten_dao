@@ -146,9 +146,10 @@ viertel:
 | `locker` | rund 40 % mehr Stadtfläche: größere Grundstücke mit Abstand zwischen den Häusern, etwas breitere Gassen, mehr Gärten und Bäume |
 | `weitlaeufig` | fast die doppelte Fläche, noch mehr Gärten und Grün zwischen den Häusern |
 
-Die Zahl der Häuser bleibt ungefähr gleich (der Hafen wächst mit der Stadt etwas mit). Eine Stadt füllt höchstens
-80 % der Kartenbreite: Großstädte stoßen schon bei `locker` an diese Grenze und werden nur so weit aufgelockert, wie
-sie tatsächlich an Fläche gewinnen; `weitlaeufig` sieht bei ihnen deshalb aus wie `locker`.
+Die Zahl der Häuser bleibt ungefähr gleich (der Hafen wächst mit der Stadt etwas mit). Eine aufgelockerte Stadt
+füllt höchstens 90 % der Kartenbreite; stößt sie an den Kartenrand oder an die Küste, wird sie nur so weit
+aufgelockert, wie sie tatsächlich an Fläche gewinnt. Bei Großstädten liegen `locker` und `weitlaeufig` deshalb
+näher beieinander.
 
 ## Stadtform
 

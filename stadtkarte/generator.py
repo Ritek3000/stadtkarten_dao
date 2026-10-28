@@ -157,6 +157,10 @@ def _generate(cfg, W):
         city_shape = varied_shape(rng, (cx, cy), r, form, W, s, has_coast)
         city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s,
                                             top=coast_y(cx) - 0.2 * r if has_coast else None)
+    elif spread(cfg) > 1:   # runde Stadt mit lockerer Bebauung: so groß, dass sie sonst über den Kartenrand ragt
+        city_shape = make_shape(rng, (cx, cy), r)
+        city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s,
+                                            top=coast_y(cx) - 0.2 * r if has_coast else None)
     islands = []
     if has_coast:
         islands = make_islands(rng, W, s, sea, coast_y, int(g.get("inseln", 0)))
