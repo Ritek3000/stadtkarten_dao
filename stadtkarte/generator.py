@@ -92,7 +92,8 @@ def generate(cfg):
     water = unary_union([w for w in (sea, river) if w is not None]) if (sea or river) else Polygon()
     land = box(0, 0, W, W).difference(water)
     terrain = dict(sea=sea, river=river, river_line=river_line, water=water, coast_y=coast_y, land=land,
-                   mountain=biome["mountain"], plateau=plateau, biome=biome, shape=city_shape)
+                   mountain=biome["mountain"], plateau=plateau, biome=biome, shape=city_shape,
+                   plateau_oben=plateau and g.get("plateau") == "oben")
     pools = make_pools(rng, W, s, biome["pools"], water)
     if biome["stilts"]:   # Pfahlbausiedlung: Wasserflächen und Kanäle mitten im Ort
         extra = []
@@ -258,7 +259,8 @@ def generate(cfg):
     # Abschlussprüfung gegen Überlagerungen: Häuser nicht auf Brücken oder Landstraßen, Bäume auf nichts anderem
     bz = unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in bridges]) if bridges else Polygon()
     rz = unary_union([ln.buffer(w / 2 + 1.5 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
-    keep = unary_union([bz, rz])
+    lifts = [f["lift"]["area"].buffer(3 * s) for f in forts if f.get("lift")]   # Aufzug an der Plateaukante
+    keep = unary_union([bz, rz] + lifts)
     city["buildings"] = [b for b in city["buildings"]
                          if b.get("landmark") or b.get("district") == -1 or not b["poly"].intersects(keep)]
     houses = [h for h in houses if not h["poly"].intersects(keep)]

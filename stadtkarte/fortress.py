@@ -155,6 +155,37 @@ def _citadel_site(s, W, city, water, a):
     return best[1:] if best else None
 
 
+def _plateau_lift(s, road, level, u, oben):
+    """Aufzug an der Plateaukante, wo der Festungsweg die Felswand kreuzt: Schacht quer über die Wand (a auf der
+    Stufe der Festung, b auf der Seite der Stadt), oben das Windenhaus, unten eine Plattform."""
+    ux, uy = u
+    hits = [g for g in shapely.get_parts(road.intersection(level.boundary)) if g.geom_type == "Point"]
+    if not hits:
+        return None
+    e = max(hits, key=lambda q: road.project(q))          # letzter Kantenpunkt vor der Stadt
+    a = (e.x - ux * 40 * s, e.y - uy * 40 * s)          # hinter dem Fuß bzw. der Oberkante der Felswand (30 px)
+    b = (e.x + ux * 4 * s, e.y + uy * 4 * s)
+    top, bot = (b, a) if oben else (a, b)
+    out = (1 if oben else -1)                            # vom Schacht weg auf die obere Stufe
+    hw, hl = 9 * s, 7 * s                                # Windenhaus: halbe Breite quer, halbe Tiefe längs
+    hc = (top[0] + ux * out * hl, top[1] + uy * out * hl)
+    px, py = -uy, ux
+
+    def rect(c, along, across):
+        return Polygon([(c[0] + ux * i * along + px * j * across, c[1] + uy * i * along + py * j * across)
+                        for i, j in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+    shaft = LineString([a, b]).buffer(6 * s, cap_style="flat")
+    house = rect(hc, hl, hw)
+    pc = (bot[0] - ux * out * 5 * s, bot[1] - uy * out * 5 * s)
+    landing = rect(pc, 5 * s, 8 * s)
+    # Endpunkte der Wege: an der Hausseite hinter dem Windenhaus, unten hinter der Plattform
+    a_end, b_end = ((pc[0] - ux * out * 5 * s, pc[1] - uy * out * 5 * s), (hc[0] + ux * out * hl, hc[1] + uy * out * hl))
+    if not oben:
+        a_end, b_end = b_end, a_end
+    return {"a": a_end, "b": b_end, "top": top, "bot": bot, "u": u, "shaft": shaft, "house": house, "landing": landing,
+            "area": unary_union([shaft, house, landing])}
+
+
 def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
     """Liefert dict mit Festungsgeometrie, Gebäuden, Türmen, Brücke/Straße und Landergänzung."""
     sea, river, water = terrain["sea"], terrain["river"], terrain["water"]
@@ -185,7 +216,15 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
             shore = nearest_points(city_land, p)[0]
             ux, uy = unit((shore.x - p.x, shore.y - p.y))
             ang = math.degrees(math.atan2(uy, ux))
-            res["roads"].append((LineString([(p.x, p.y), (shore.x + ux * 15 * s, shore.y + uy * 15 * s)]), 10 * s))
+            road = LineString([(p.x, p.y), (shore.x + ux * 15 * s, shore.y + uy * 15 * s)])
+            lift = _plateau_lift(s, road, sea, (ux, uy), terrain.get("plateau_oben")) if terrain.get("plateau") else None
+            if lift is None:
+                res["roads"].append((road, 10 * s))
+            else:   # Hochplateau: der Weg endet an beiden Enden des Aufzugs, der die Felswand überwindet
+                res["lift"] = lift
+                for a_, b_ in (((p.x, p.y), lift["a"]), (lift["b"], road.coords[-1])):
+                    if Point(a_).distance(Point(b_)) > 2 * s:
+                        res["roads"].append((LineString([a_, b_]), 10 * s))
             lage = "fels"
     if sea is not None and lage not in ("land", "fels"):
         if lage == "landzunge":
@@ -300,8 +339,10 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
         road_to_gate(center)
 
     fort, towers = star_fort(center.x, center.y, a, ang)
-    res.update(fort=fort, towers=towers, buildings=_inner_buildings(center.x, center.y, a, ang, s),
-               area=fort.buffer(15 * s) if res["land_add"] is None else res["land_add"].union(fort),
+    area = fort.buffer(15 * s) if res["land_add"] is None else res["land_add"].union(fort)
+    if res.get("lift"):
+        area = area.union(res["lift"]["area"])
+    res.update(fort=fort, towers=towers, buildings=_inner_buildings(center.x, center.y, a, ang, s), area=area,
                label={"x": center.x, "y": center.y, "text": spec.get("kuerzel") or spec["name"],
                       "kind": "festung", "lift": a * 0.75, "ort": place_info(spec)})
     return res

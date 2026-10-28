@@ -748,6 +748,56 @@ def plateau_edge_svg(o, m, rng):
                      f'<path d="{path_d(spray)}" fill="#ffffff" fill-opacity="0.85" filter="url(#blur)"/>')
 
 
+def lift_svg(o, lift, s):
+    """Aufzug an der Plateaukante: hölzerner Schacht mit Schienen und Streben über die Felswand, Seil und Fahrkorb,
+    oben das Windenhaus mit Seiltrommel, unten eine Bretterplattform."""
+    ux, uy = lift["u"]
+    px, py = -uy, ux
+    (tx, ty), (bx, by) = lift["top"], lift["bot"]
+    L = math.hypot(tx - bx, ty - by)
+    sh = f'transform="translate({f(1.5 * s)},{f(2 * s)})"'
+    o.append(f'<path d="{path_d(lift["area"])}" fill="#141a10" fill-opacity="0.45" {sh}/>'   # Schlagschatten
+             f'<path d="{path_d(lift["shaft"])}" fill="#4a3522" fill-opacity="0.9"/>')
+    rails, braces = [], []
+    for side in (-1, 1):
+        rails.append(f"M{f(tx + px * side * 5 * s)},{f(ty + py * side * 5 * s)}"
+                     f"L{f(bx + px * side * 5 * s)},{f(by + py * side * 5 * s)}")
+    n = max(2, int(L / (8 * s)))
+    for i in range(n):   # Kreuzstreben im Gerüst
+        k0, k1 = i / n, (i + 1) / n
+        x0, y0 = tx + (bx - tx) * k0, ty + (by - ty) * k0
+        x1, y1 = tx + (bx - tx) * k1, ty + (by - ty) * k1
+        braces.append(f"M{f(x0 + px * 5 * s)},{f(y0 + py * 5 * s)}L{f(x1 - px * 5 * s)},{f(y1 - py * 5 * s)}"
+                      f"M{f(x0 - px * 5 * s)},{f(y0 - py * 5 * s)}L{f(x1 + px * 5 * s)},{f(y1 + py * 5 * s)}")
+    o.append(f'<path d="{"".join(braces)}" stroke="#9a7a50" stroke-width="{f(0.8 * s)}" fill="none"/>'
+             f'<path d="{"".join(rails)}" stroke="#2a1d10" stroke-width="{f(1.8 * s)}" fill="none"/>'
+             f'<path d="M{f(tx)},{f(ty)}L{f(bx)},{f(by)}" stroke="#e6d8b0" stroke-width="{f(0.7 * s)}"/>')
+    # Fahrkorb auf etwa einem Drittel der Höhe
+    cx, cy = tx + (bx - tx) * 0.38, ty + (by - ty) * 0.38
+    cabin = Polygon([(cx + ux * i * 4.5 * s + px * j * 4.5 * s, cy + uy * i * 4.5 * s + py * j * 4.5 * s)
+                     for i, j in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+    o.append(f'<path d="{path_d(cabin)}" fill="#b08a58" stroke="#2a1d10" stroke-width="{f(1 * s)}"/>'
+             f'<path d="M{f(cx - px * 4.5 * s)},{f(cy - py * 4.5 * s)}L{f(cx + px * 4.5 * s)},{f(cy + py * 4.5 * s)}" '
+             f'stroke="#5a4028" stroke-width="{f(0.7 * s)}"/>')
+    # Plattform unten
+    land = lift["landing"]
+    lc = land.centroid
+    o.append(f'<path d="{path_d(land)}" fill="#a08058" stroke="#2a1d10" stroke-width="{f(1 * s)}"/>'
+             + "".join(f'<path d="M{f(lc.x + ux * d * s - px * 8 * s)},{f(lc.y + uy * d * s - py * 8 * s)}'
+                     f'L{f(lc.x + ux * d * s + px * 8 * s)},{f(lc.y + uy * d * s + py * 8 * s)}" '
+                     f'stroke="#6a5034" stroke-width="{f(0.6 * s)}"/>' for d in (-2.5, 0, 2.5)))
+    # Windenhaus oben: Satteldach mit First quer zum Schacht, Seiltrommel an der Schachtseite
+    house = lift["house"]
+    hc = house.centroid
+    r0, r1 = (hc.x - px * 9 * s, hc.y - py * 9 * s), (hc.x + px * 9 * s, hc.y + py * 9 * s)   # First
+    c = house.exterior.coords
+    lit = Polygon([r0, r1, c[2], c[1]])   # Dachhälfte auf der +u-Seite etwas heller
+    o.append(f'<path d="{path_d(house)}" fill="#8a5a3a" stroke="#2a1d10" stroke-width="{f(1.1 * s)}"/>'
+             f'<path d="{path_d(lit)}" fill="#ffffff" fill-opacity="0.12"/>'
+             f'<path d="M{f(r0[0])},{f(r0[1])}L{f(r1[0])},{f(r1[1])}" stroke="#2a1d10" stroke-width="{f(1 * s)}"/>'
+             f'<circle cx="{f(tx)}" cy="{f(ty)}" r="{f(3 * s)}" fill="#6a4a2c" stroke="#2a1d10" stroke-width="{f(0.9 * s)}"/>')
+
+
 def mountain_svg(o, m, rng):
     """Felsmassiv: Grundton, Felstextur, Hangschraffur, Grate und Schneefelder."""
     s, W, B = m["s"], m["W"], m["biome"]
@@ -1069,6 +1119,9 @@ def render_svg(m):
                 o.append(f'<path d="{wet}" fill="none" stroke="#3e2f1c" stroke-width="{f(15 * s)}"/>'
                          f'<path d="{wet}" fill="none" stroke="#7d6544" stroke-width="{f(13 * s)}" '
                          f'stroke-dasharray="{f(2.6 * s)} {f(0.9 * s)}"/>')
+    for fort in m["forts"]:
+        if fort.get("lift"):
+            lift_svg(o, fort["lift"], s)
     # Stadtflächen; ihre Randlinie läuft nicht quer über die einmündenden Landstraßen
     # (sonst zeichnet sich dort, wo die Straße in die Gassen übergeht, ein Bogen bzw. Strich ab)
     joins = unary_union([ln.buffer(9 * s) for ln, _ in m["ext_roads"]]) if m["ext_roads"] else None
