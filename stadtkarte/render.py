@@ -295,6 +295,36 @@ def text_width(text, size):
     return len(text) * size * 0.64 + size * 0.2
 
 
+def legend_rows(rows):
+    """Fortlaufend nummerierte Orte gleichen Namens stehen in der Legende in einer Zeile: S1–S5 Schenke."""
+    groups, out = {}, []
+    for k, name in rows:
+        hit = re.fullmatch(r"(.*?)(\d+)", k)
+        if hit:
+            key = (hit[1], name)
+            if key not in groups:
+                groups[key] = []
+                out.append(key)
+            groups[key].append(int(hit[2]))
+        else:
+            out.append((k, name))
+    res = []
+    for item in out:
+        if item not in groups:
+            res.append(item)
+            continue
+        nums, parts = sorted(set(groups[item])), []
+        for n in nums:
+            if parts and n == parts[-1][1] + 1:
+                parts[-1][1] = n
+            else:
+                parts.append([n, n])
+        pre = item[0]
+        res.append((", ".join(f"{pre}{a}" if a == b else f"{pre}{a}–{pre}{b}" if b > a + 1 else f"{pre}{a}, {pre}{b}"
+                              for a, b in parts), item[1]))
+    return res
+
+
 def place_labels(m, taken):
     """Setzt Viertel- und Ortsnamen so, dass sie sich nicht überlappen."""
     s = m["s"]
@@ -1275,9 +1305,10 @@ def render_svg(m):
     o.append(f'<rect width="{W}" height="{W}" fill="url(#vignette)"/>')
     title_size = 78 * s
     taken = [(W - 60 * s - text_width(m["name"], title_size), W - 70 * s - title_size, W - 60 * s, W - 50 * s)]
-    rows = m["legend"] if m["cfg"]["ausgabe"].get("legende") else []
+    rows = legend_rows(m["legend"]) if m["cfg"]["ausgabe"].get("legende") else []
     lh = 26 * s
-    bw, bh = 330 * s, (len(rows) + 1) * lh + 20 * s
+    kw = max([52 * s] + [len(k) * 10.5 * s + 6 * s for k, _ in rows])   # Spalte der Kürzel
+    bw, bh = 278 * s + kw, (len(rows) + 1) * lh + 20 * s
     x0, y0 = 40 * s, W - 40 * s - bh
     if rows:
         taken.append((x0, y0, x0 + bw, y0 + bh))
@@ -1314,7 +1345,7 @@ def render_svg(m):
             y = y0 + lh * (i + 2) + 4 * s
             legend.append(f'<text x="{f(x0 + 18 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
                           f'fill="{C["text"]}" font-weight="bold">{escape(k)}</text>'
-                          f'<text x="{f(x0 + 70 * s)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
+                          f'<text x="{f(x0 + 18 * s + kw)}" y="{f(y)}" font-family="{FONT}" font-size="{f(18 * s)}" '
                           f'fill="{C["text"]}">{escape(name)}</text>')
         o.append(movable("legende", offsets, W, "".join(legend)))
     o.append("</g>" + LABELS_END)

@@ -125,8 +125,38 @@ def from_dict(raw):
     for o in cfg["orte"]:
         o["typ"] = norm(o.get("typ", "laden"))
         o["typ"] = PLACE_ALIASES.get(o["typ"], o["typ"])
+    cfg["orte"] = numbered_places(cfg["orte"])
     cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
     return cfg
+
+
+MAX_ANZAHL = 50
+
+
+def numbered_places(orte):
+    """Orte mit anzahl werden vervielfacht und fortlaufend durchnummeriert: 5 Schenken -> S1 bis S5. Das Kürzel gibt
+    den Buchstaben vor (sonst der erste Buchstabe des Namens); weitere Einträge mit demselben Buchstaben zählen
+    weiter (z.B. 3 Schenken in einem anderen Viertel -> S6 bis S8). Einzeln vergebene Kürzel werden übersprungen."""
+    if not any("anzahl" in o for o in orte):
+        return orte
+    taken = {str(o["kuerzel"]).strip() for o in orte if o.get("kuerzel") and "anzahl" not in o}
+    counter, out = {}, []
+    for o in orte:
+        if "anzahl" not in o:
+            out.append(o)
+            continue
+        n = o.pop("anzahl")
+        if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_ANZAHL:
+            raise ValueError(f"Ort {o.get('name')}: anzahl muss eine ganze Zahl von 1 bis {MAX_ANZAHL} sein")
+        name = str(o.get("name") or o["typ"].capitalize())
+        prefix = re.sub(r"\d+$", "", str(o.get("kuerzel") or "").strip()) or name.strip()[:1].upper()
+        for _ in range(n):
+            k = counter.get(prefix, 0) + 1
+            while f"{prefix}{k}" in taken:
+                k += 1
+            counter[prefix] = k
+            out.append({**o, "name": name, "kuerzel": f"{prefix}{k}"})
+    return out
 
 
 def slug(text):

@@ -409,6 +409,10 @@ function renderForm() {
         el("input", {type: "text", value: o.kuerzel ?? "", placeholder: "Kürzel", style: "flex:0 0 5rem",
           title: "Optional: steht statt des Namens auf der Karte, der Name kommt in die Legende",
           on: {input: e => { if (e.target.value) o.kuerzel = e.target.value; else delete o.kuerzel; }}}),
+        el("input", {type: "number", min: 1, max: 50, value: o.anzahl ?? "", placeholder: "Anz.", style: "flex:0 0 4.5rem",
+          title: "Optional: so viele Orte dieser Art, fortlaufend nummeriert (z.B. 5 Schenken: S1 bis S5). "
+               + "Weitere Einträge mit demselben Kürzel zählen weiter.",
+          on: {input: e => { const n = parseInt(e.target.value, 10); if (n >= 1) o.anzahl = Math.min(n, 50); else delete o.anzahl; }}}),
         iconBtn("x", "Ort entfernen", () => { cfg.orte.splice(i, 1); renderForm(); }, "del")),
       el("div", {class: "row"},
         select(OPT.place_types.map(t => [t, PTYPE[t] ?? t]), o.typ, x => { o.typ = x; delete o.lage; renderForm(); }),

@@ -91,6 +91,33 @@ früher nacheinander.
 | `palast` (auch `schloss`) | drei Flügel mit Eckpavillons um einen Ehrenhof zur Straße, dahinter ein Garten mit Hecken, Wegkreuz, Brunnen und Baumalleen, alles ummauert; braucht einen großen Block |
 | `bauernhof` (auch `hof`, `bauernhaus`) | vor der Stadt an einer Landstraße: Wohnhaus und großer Stall im Winkel, umzäunter Hofplatz mit Heuhaufen und Obstbäumen |
 
+### Mehrere gleiche Orte
+
+Mit `anzahl` entstehen mehrere Orte derselben Art. Sie werden auf der Karte fortlaufend mit Kürzeln markiert,
+in der Legende steht die ganze Reihe in einer Zeile (`S1–S5  Schenke`). Das `kuerzel` gibt den Buchstaben vor,
+ohne Kürzel nimmt die Werkstatt den ersten Buchstaben des Namens. Mehrere Einträge mit demselben Buchstaben
+zählen weiter, so lassen sich die Orte auf Viertel verteilen; einzeln vergebene Kürzel (hier `S1`) werden
+übersprungen:
+
+```yaml
+orte:
+  - name: Schrein der Alten
+    kuerzel: S1
+    typ: tempel
+  - name: Schenke
+    kuerzel: S
+    typ: gasthaus
+    anzahl: 5             # S2 bis S6
+    viertel: Handwerkerviertel
+  - name: Schenke
+    kuerzel: S
+    typ: gasthaus
+    anzahl: 3             # S7 bis S9
+    viertel: Bauernviertel
+```
+
+Höchstens 50 je Eintrag. In der Werkstatt steht das Feld „Anzahl“ neben dem Kürzel.
+
 ## Armenviertel
 
 Viertel mit `typ: armen` (Oberfläche: „Armenviertel“) werden als Elendsviertel gezeichnet: winzige, leicht schief

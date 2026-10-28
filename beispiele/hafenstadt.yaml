@@ -44,6 +44,8 @@ viertel:
 #      festung (bzw. bastion/burg) mit lage: insel | landzunge | land  - steht außerhalb der Stadt
 #      friedhof mit lage: ausserhalb  - liegt dann vor einem Tor (passiert auch automatisch, wenn im Ort kein Platz ist)
 # kuerzel (optional): statt des Namens steht das Kürzel auf der Karte, der Name in der Legende
+# anzahl (optional): so viele Orte dieser Art, fortlaufend nummeriert, z.B. kuerzel: S, anzahl: 5 -> S1 bis S5;
+#        weitere Einträge mit demselben Kürzel zählen weiter (etwa 3 Schenken in einem anderen Viertel: S6 bis S8)
 orte:
   - name: Kontor
     typ: kontor
