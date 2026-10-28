@@ -186,6 +186,67 @@ def _plateau_lift(s, road, level, u, oben):
             "area": unary_union([shaft, house, landing])}
 
 
+def _lift_to_streets(s, city, lift, level, river, ext_roads, res):
+    """Der Aufzug hängt immer am Straßennetz: endet er in der Stadt, führt ein Weg zur nächsten Gasse; sonst ein Weg
+    zur nächsten Landstraße bzw. zum nächsten Tor (mit Mauer) oder an den Stadtrand und weiter zur nächsten Gasse,
+    ohne durch die Stadt, über die Felskante oder durch den Fluss zu laufen."""
+    q = Point(lift["b"])
+    land = city["city_land"]
+    if land.buffer(2 * s).contains(q):
+        _connect_inside(s, city, q, lift["u"])
+        return
+    blocked = unary_union([g for g in (level, river, land.buffer(-3 * s)) if g is not None])
+    house = lift["house"].buffer(-0.5 * s)
+
+    def free(t):
+        ln = LineString([(q.x, q.y), (t.x, t.y)])
+        return not ln.intersects(blocked) and not ln.crosses(house)
+    cands = [Point(x, y) for x, y, _ in city["gates"]]
+    for ln, _ in ext_roads:
+        k = 0.0
+        while k <= ln.length:
+            cands.append(ln.interpolate(k))
+            k += 6 * s
+    if not city["wall"]:   # ohne Mauer: auch der Stadtrand, von dort weiter zur nächsten Gasse
+        edge = nearest_points(land, q)[0]
+        cands.append(edge)
+    cands = sorted(cands, key=q.distance)
+    for t in cands:
+        if free(t):
+            res["roads"].append((LineString([(q.x, q.y), (t.x, t.y)]), 10 * s))
+            if not city["wall"] and land.buffer(2 * s).contains(t):
+                _connect_inside(s, city, t, unit((t.x - q.x, t.y - q.y)) if t.distance(q) > 1 else None)
+            return
+    # kein gerader Weg frei (die Stadt liegt dazwischen): außen an der Mauer entlang zum günstigsten Tor
+    ring = LineString(city["shape"].buffer(22 * s).exterior.coords)
+    d0 = ring.project(q)
+    best = None
+    for x, y, _ in city["gates"]:
+        g = Point(x, y)
+        d1 = ring.project(g)
+        for arc in (_ring_arc(ring, d0, d1), _ring_arc(ring, d1, d0)[::-1]):
+            path = LineString([(q.x, q.y)] + arc + [(g.x, g.y)])
+            if path.intersects(level) or path.crosses(house):
+                continue
+            wet = len(lines(path.intersection(river))) if river is not None else 0   # Flussquerungen werden Brücken
+            score = path.length + wet * 400 * s
+            if best is None or score < best[0]:
+                best = (score, path)
+    if best is not None:
+        res["roads"].append((best[1], 10 * s))
+    elif cands:
+        print("Hinweis: Kein freier Weg vom Aufzug zum Straßennetz - Weg zum nächsten Anschluss.")
+        res["roads"].append((LineString([(q.x, q.y), (cands[0].x, cands[0].y)]), 10 * s))
+
+
+def _ring_arc(ring, d0, d1):
+    """Punkte auf dem geschlossenen Ring von d0 vorwärts bis d1."""
+    R = ring.length
+    if d1 >= d0:
+        return list(shapely.ops.substring(ring, d0, d1).coords)
+    return list(shapely.ops.substring(ring, d0, R).coords) + list(shapely.ops.substring(ring, 0, d1).coords)[1:]
+
+
 def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
     """Liefert dict mit Festungsgeometrie, Gebäuden, Türmen, Brücke/Straße und Landergänzung."""
     sea, river, water = terrain["sea"], terrain["river"], terrain["water"]
@@ -222,9 +283,9 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                 res["roads"].append((road, 10 * s))
             else:   # Hochplateau: der Weg endet an beiden Enden des Aufzugs, der die Felswand überwindet
                 res["lift"] = lift
-                for a_, b_ in (((p.x, p.y), lift["a"]), (lift["b"], road.coords[-1])):
-                    if Point(a_).distance(Point(b_)) > 2 * s:
-                        res["roads"].append((LineString([a_, b_]), 10 * s))
+                if Point(p).distance(Point(lift["a"])) > 2 * s:
+                    res["roads"].append((LineString([(p.x, p.y), lift["a"]]), 10 * s))
+                _lift_to_streets(s, city, lift, sea, river, ext_roads, res)
             lage = "fels"
     if sea is not None and lage not in ("land", "fels"):
         if lage == "landzunge":
