@@ -80,6 +80,12 @@ def generate(cfg):
                                        estuary=not (biome["mountain"] or plateau),
                                        end_y=(cy - 1.35 * r - 80 * s if biome["mountain"] and has_coast
                                               else -60 if plateau else None))   # Hochplateau: über die Kante hinweg
+    if plateau:   # die Stufe ist eine geschlossene Fläche: keine Löcher und keine abgetrennten Splitter
+        parts = polys(sea)
+        sea = Polygon(max(parts, key=lambda q: q.area).exterior) if parts else sea
+    if plateau and river is not None:   # die Kante kreuzt den Fluss quer: gerader Wasserfall von Ufer zu Ufer
+        sea = straight_crossing(sea, river, river_line, W, s,
+                                keep=None if g["kante"] == "direkt" else city_shape.buffer(45 * s))
     level_full = sea if plateau else None   # ganze andere Geländestufe (für Kante und Wasserfall)
     if plateau and river is not None:   # der Fluss fließt über die Kante (Wasserfall), die Stufe ist kein Wasser
         sea = sea.difference(river)
@@ -289,6 +295,59 @@ def generate(cfg):
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         **city,
     }
+
+
+def straight_crossing(level, river, river_line, W, s, keep=None):
+    """Hochplateau: Wo der Fluss die Kante kreuzt, verläuft die Kante gerade und quer zum Fluss (Wasserfall von Ufer
+    zu Ufer). Das Kantenstück um die Kreuzung (bis es auf beiden Seiten den Fluss verlassen hat) wird durch eine
+    geglättete Linie ersetzt, deren Mittelstück senkrecht zum Fluss steht. Die Flächen zwischen alter und neuer
+    Kante wechseln die Seite (keep: dort keine neue Stufe)."""
+    frame = box(1 * s, 1 * s, W - 1 * s, W - 1 * s)
+    edge = level.boundary.intersection(frame)
+    for c in [g for g in shapely.get_parts(river_line.intersection(edge)) if g.geom_type == "Point"]:
+        ln = min(lines(edge), key=lambda q: q.distance(c), default=None)
+        if ln is None or ln.distance(c) > 1 * s:
+            continue
+        d = river_line.project(c)
+        q0, q1 = river_line.interpolate(max(0.0, d - 8 * s)), river_line.interpolate(min(river_line.length, d + 8 * s))
+        fx, fy = unit((q1.x - q0.x, q1.y - q0.y))
+        px, py = -fy, fx                                   # quer zum Fluss
+        probe = LineString([(c.x - px * 300 * s, c.y - py * 300 * s), (c.x + px * 300 * s, c.y + py * 300 * s)])
+        across = [g for g in lines(probe.intersection(river)) if g.distance(c) < 1 * s]
+        hw = across[0].length / 2 if across else 20 * s
+        t = ln.project(c)
+        ends = []
+        for sign in (-1, 1):   # entlang der Kante nach außen, bis sie den Fluss sicher verlassen hat
+            k = hw + 60 * s
+            while 0 < t + sign * k < ln.length and (ln.interpolate(t + sign * k).distance(river) < 30 * s
+                                                    or k < hw + 60 * s):
+                k += 4 * s
+            ends.append(t + sign * k)
+        if not (0 < ends[0] and ends[1] < ln.length):
+            continue
+        a, b = ln.interpolate(ends[0]), ln.interpolate(ends[1])
+        line = [(c.x + px * d, c.y + py * d) for d in (-hw - 45 * s, -hw - 12 * s, hw + 12 * s, hw + 45 * s)]
+        if Point(line[0]).distance(a) > Point(line[-1]).distance(a):
+            line.reverse()
+        pts = [(a.x, a.y)] + line + [(b.x, b.y)]
+        for _ in range(3):   # Chaikin: runde Übergänge, das gerade Mittelstück bleibt gerade
+            pts = [pts[0]] + [q for (x0, y0), (x1, y1) in zip(pts, pts[1:])
+                              for q in ((0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1),
+                                        (0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1))] + [pts[-1]]
+        old = shapely.ops.substring(ln, ends[0], ends[1])
+        new = LineString(pts)
+        faces = polys(shapely.polygonize(shapely.get_parts(unary_union([old, new]))))
+        flip = []
+        for fc in faces:
+            gain = not level.contains(fc.representative_point())
+            if gain and keep is not None and fc.intersects(keep):
+                continue
+            flip.append(fc)
+        if flip:
+            fixed = level.symmetric_difference(unary_union(flip)).buffer(0)
+            level = max(polys(fixed), key=lambda q: q.area) if polys(fixed) else level
+            edge = level.boundary.intersection(frame)
+    return level
 
 
 def outside_cemetery(rng, s, spec, builder, ext_roads, shape, water, pools, taken):

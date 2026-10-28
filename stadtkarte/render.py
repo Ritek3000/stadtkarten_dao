@@ -659,12 +659,14 @@ def plateau_edge_svg(o, m, rng):
     edge = full.boundary.intersection(frame)
     if river is not None:
         edge = edge.difference(river.buffer(1 * s))
-    edges = [ln for ln in lines(edge) if ln.length > 6 * s]
+    edges = [ln for ln in lines(shapely.line_merge(unary_union([q for q in lines(edge) if q.length > 0.5 * s])))
+             if ln.length > 6 * s]   # Ring an seiner Naht zusammenfügen (sonst klafft dort eine Lücke im Felsband)
     if not edges:
         return
     band = full.intersection(unary_union([ln.buffer(wc, cap_style="flat") for ln in edges]))
     if river is not None:
         band = band.difference(river)
+    band = unary_union(polys(band))   # nur Flächen (Schnitte können Linienreste liefern)
     inner_side = band.boundary.intersection(full.buffer(-1 * s)).intersection(frame)   # Wandseite zur anderen Stufe
     top_line = unary_union(edges) if oben else inner_side
     foot_line = inner_side if oben else unary_union(edges)
