@@ -1694,7 +1694,8 @@ class CityBuilder:
                 if 0 <= d < len(self.district_list) and self.district_list[d]["typ"] == "handwerk" \
                         and self.rng.random() < 0.15 and not b.get("landmark"):   # z.B. nicht auf einem Domturm
                     b["forge"] = True
-        self.faubourgs(ext)
+        if self.cfg["mauer"].get("vorstaedte", True):   # abschaltbar: keine Vorstädte vor den Toren
+            self.faubourgs(ext)
         self.fill_empty_with_trees()
         for b in self.out["buildings"]:
             if not b.get("removed") and "ridges" not in b:

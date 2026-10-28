@@ -18,6 +18,7 @@ gelaende:
 mauer:
   vorhanden: true
   tore: 4
+  vorstaedte: true    # false = keine Häuser und Vorstädte vor den Toren
 
 # typ: hafen | handwerk | arbeiter | fischer | bauern | adel | tempel | markt | wohn | armen (Armenviertel)
 # lage (optional): nord | nordost | ost | suedost | sued | suedwest | west | nordwest | mitte

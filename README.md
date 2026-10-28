@@ -163,6 +163,8 @@ Ab 20.000 Einwohnern wird die Stadt anders gezeichnet, damit sie auf die Karte p
   alten Tor ein kleiner Torplatz.
 - **Mehr Hauptachsen:** zusätzlich zu den Torstraßen laufen breite Straßen vom Marktplatz bis an die äußere Mauer.
 - **Vorstädte:** vor den Toren wachsen Häuserblöcke an den Landstraßen entlang, am Tor dicht, nach außen lichter.
+  Mit `mauer: vorstaedte: false` (Oberfläche: Haken „Vorstädte“) entfallen sie, ebenso die einzelnen Häuser an den
+  Landstraßen vor jeder Stadt; Höfe, Mühlen und ein Armenviertel „vor der Stadtmauer“ bleiben.
 - **Große Bauten** (Dom, Palast, Rathaus, Kaserne, Friedhof, Tempel) bekommen mehrere zusammengelegte Blöcke;
   Gasthäuser, Läden und Schmieden sind ein Haus in einer Häuserzeile (in Ortsfarbe, zur Hauptstraße hin).
 - Je mehr Einwohner, desto kleiner die Blöcke und schmaler die Gassen; die Stadt füllt bis zu zwei Drittel der Karte.

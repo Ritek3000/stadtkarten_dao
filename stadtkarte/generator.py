@@ -275,7 +275,7 @@ def _generate(cfg, W):
     field_dirs = [to_canonical(d, rot) for d in g["felder"]]
     fields = make_fields(rng, W, s, (cx, cy), r, field_dirs, blocked, biome["field_kinds"], biome["field_prob"])
     fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
-    houses = suburb_houses(rng, s, ext_roads,
+    houses = [] if not cfg["mauer"].get("vorstaedte", True) else suburb_houses(rng, s, ext_roads,
                            unary_union([water.buffer(4 * s), shape.buffer(12 * s), fields_u.buffer(6 * s),
                                         forest.buffer(4 * s), forts_u,
                                         unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in ext_roads])]))

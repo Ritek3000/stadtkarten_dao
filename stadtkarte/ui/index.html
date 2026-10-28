@@ -378,6 +378,10 @@ function renderForm() {
   f.append(section("Befestigung", false, null,
     field("Stadtmauer", el("div", {class: "row"}, chk(cfg.mauer, "vorhanden"), el("span", {class: "hint"}, "Stein; Sumpf, Nordland, Steppe: Palisade; Wüste: Lehm"))),
     field("Tore", num(cfg.mauer, "tore", {min: 1, max: 8})),
+    field("Vorstädte", el("label", {class: "row"},
+      el("input", {type: "checkbox", checked: cfg.mauer.vorstaedte !== false,
+        on: {change: e => { if (e.target.checked) delete cfg.mauer.vorstaedte; else cfg.mauer.vorstaedte = false; }}}),
+      el("span", {class: "hint"}, "Häuser vor den Toren an den Landstraßen; bei Großstädten ganze Vorstädte"))),
   ));
 
   // Viertel
