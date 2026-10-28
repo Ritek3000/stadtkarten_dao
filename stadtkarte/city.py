@@ -521,9 +521,10 @@ class CityBuilder:
             if sp.get("ausserhalb") and sp["typ"] != "armen":
                 print(f"Hinweis: Nur Armenviertel können vor der Mauer liegen - '{sp.get('name')}' liegt in der Stadt.")
                 sp["ausserhalb"] = False
-            if self.t.get("mountain") and sp["typ"] in ("hafen", "fischer"):
+            if (self.t.get("mountain") or self.t.get("plateau")) and sp["typ"] in ("hafen", "fischer"):
                 new = "markt" if sp["typ"] == "hafen" else "handwerk"
-                print(f"Hinweis: '{sp.get('name')}' ({sp['typ']}) passt nicht ins Gebirge - wird als {new} gebaut.")
+                where = "ins Gebirge" if self.t.get("mountain") else "an die Plateaukante"
+                print(f"Hinweis: '{sp.get('name')}' ({sp['typ']}) passt nicht {where} - wird als {new} gebaut.")
                 sp["typ"] = new
             if sp["typ"] == "hafen" and not has_water:
                 print(f"Hinweis: '{sp.get('name')}' ist ein Hafen, aber es gibt kein Wasser - wird als Markt gebaut.")
@@ -1271,6 +1272,10 @@ class CityBuilder:
         (der Bug ragt höchstens 35 % der Flussbreite hinein). Liefert die Halle (als Gebäude) oder None."""
         s, rng = self.s, self.rng
         water, river, sea = self.t["water"], self.t["river"], self.t["sea"]
+        if self.t.get("mountain") or self.t.get("plateau"):   # Fels bzw. Plateaukante ist kein Ufer: nur am Fluss
+            if river is None or river.is_empty:
+                return None
+            water, sea = river, None
         dl = self.district_list
         if di is None:                                # ohne Angabe bevorzugt im Hafen
             di = next((i for i, d in enumerate(dl) if d["typ"] == "hafen" and not d["poly"].is_empty), None)
@@ -1681,7 +1686,7 @@ class CityBuilder:
         self.connect_to_streets(landmarks=True)
         self.squares_and_wells()
         self.district_labels()
-        if not self.t.get("mountain"):
+        if not (self.t.get("mountain") or self.t.get("plateau")):
             self.harbor()
         if self.t["biome"]["forges"]:   # glühende Essen in Handwerksvierteln
             for b in self.out["buildings"]:

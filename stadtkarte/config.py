@@ -68,8 +68,20 @@ def from_dict(raw):
     g["biotop"] = BIOME_ALIASES.get(norm(g["biotop"]), norm(g["biotop"]))
     if g["biotop"] not in BIOMES:
         raise ValueError(f"Unbekanntes Biotop: {g['biotop']} (möglich: {', '.join(BIOMES)})")
-    if BIOMES[g["biotop"]]["mountain"] and g["kueste"] == "keine":
-        g["kueste"] = "nord"   # im Gebirge gibt "kueste" die Bergseite an
+    if (BIOMES[g["biotop"]]["mountain"] or BIOMES[g["biotop"]]["plateau"]) and g["kueste"] == "keine":
+        g["kueste"] = "nord"   # im Gebirge die Bergseite, beim Hochplateau die Seite der Kante
+    # Hochplateau: Stadt oben auf dem Plateau oder unten am Fuß, direkt an der Kante oder mit Abstand
+    if BIOMES[g["biotop"]]["plateau"]:
+        pl = {"auf": "oben", "aufdemplateau": "oben", "drauf": "oben", "fuss": "unten", "amfuss": "unten",
+              "unterhalb": "unten", "darunter": "unten"}
+        g["plateau"] = pl.get(norm(g.get("plateau") or "oben"), norm(g.get("plateau") or "oben"))
+        if g["plateau"] not in ("oben", "unten"):
+            raise ValueError(f"gelaende.plateau: {g['plateau']} - möglich sind oben (auf dem Plateau) und unten (am Fuß)")
+        ka = {"an": "direkt", "anderkante": "direkt", "kante": "direkt", "weg": "abstand", "entfernt": "abstand",
+              "mitabstand": "abstand"}
+        g["kante"] = ka.get(norm(g.get("kante") or "direkt"), norm(g.get("kante") or "direkt"))
+        if g["kante"] not in ("direkt", "abstand"):
+            raise ValueError(f"gelaende.kante: {g['kante']} - möglich sind direkt (an der Kante) und abstand")
     if g["kueste"] not in ROTATION:
         raise ValueError(f"Unbekannte Küstenlage: {g['kueste']}")
     try:

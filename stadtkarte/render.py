@@ -11,7 +11,7 @@ from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
@@ -466,6 +466,8 @@ def noise_open(m, *keys, extras=(), base=None):
         rgb = tuple(float(v) for v in (m["biome"][col] if col in m["biome"] else col).split())
         layers.append(((bf, octv, seed, rgb, gain, bias, turb), op))
     tid = "_".join(k if isinstance(k, str) else k[0] for k in keys) + ("_d" if extras else "") + ("_b" if base else "")
+    if base and base != m["biome"]["land"]:   # andere Grundfarbe (z.B. zweite Stufe am Hochplateau): eigene Textur
+        tid += base.lstrip("#")
     tex = m.setdefault("_tex", {})
     if tid not in tex:   # im Hintergrund berechnen; render_svg wartet erst beim Einbetten am Ende
         tex[tid] = _tex_pool().submit(_texture_limited, m["W"], m["s"], layers, extras=tuple(extras), base=base)
@@ -597,6 +599,96 @@ def night_svg(o, m, lamps, forge_glow):
         o.append(f'<g fill="#ffd77a">{"".join(windows)}</g>')
     o.append("".join(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r)}" fill="{c}" stroke="#3a2a10" stroke-width="{f(0.5 * s)}"/>'
                      for x, y, r, c in dots))
+
+
+def plateau_level_svg(o, m):
+    """Hochplateau: die andere Geländestufe jenseits der Kante. Das Plateau (Stadt unten) ist heller und
+    trockener, das Tiefland (Stadt oben) dunkler und leicht im Dunst."""
+    s, W, B = m["s"], m["W"], m["biome"]
+    lvl = m["plateau_level"]
+    col = shade(B["land"], 0.68) if m["plateau_oben"] else shade(B["land"], 1.22)
+    # Tiefland im bläulichen Dunst, Plateau sonnig und trockener
+    haze = (f'<rect width="{W}" height="{W}" fill="#b9c6cf" fill-opacity="0.2"/>' if m["plateau_oben"]
+            else f'<rect width="{W}" height="{W}" fill="#eadca0" fill-opacity="0.14"/>')
+    o.append(f'<rect width="{W}" height="{W}" fill="{col}"/>'
+             f'<clipPath id="levelClip"><path d="{path_d(lvl)}"/></clipPath>'
+             f'<g clip-path="url(#levelClip)">'
+             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=col)}/>'
+             f'{haze}</g>')
+
+
+def plateau_edge_svg(o, m, rng):
+    """Kante des Hochplateaus: Felswand als breites Band auf der Seite der anderen Stufe, mit Böschungsschraffur
+    (dick an der Oberkante, spitz zum Fuß), hellem Rand oben, Schatten am Fuß und Wasserfall, wo der Fluss
+    über die Kante stürzt."""
+    s, W, B = m["s"], m["W"], m["biome"]
+    full, river = m["plateau_level"], m["river"]
+    oben = m["plateau_oben"]   # Stadt oben: die Kante zur Stadt ist die Oberkante, die Wand fällt zum Tiefland ab
+    wc = 30 * s
+    frame = box(2 * s, 2 * s, W - 2 * s, W - 2 * s)
+    edge = full.boundary.intersection(frame)
+    if river is not None:
+        edge = edge.difference(river.buffer(1 * s))
+    edges = [ln for ln in lines(edge) if ln.length > 6 * s]
+    if not edges:
+        return
+    band = full.intersection(unary_union([ln.buffer(wc, cap_style="flat") for ln in edges]))
+    if river is not None:
+        band = band.difference(river)
+    inner_side = band.boundary.intersection(full.buffer(-1 * s)).intersection(frame)   # Wandseite zur anderen Stufe
+    top_line = unary_union(edges) if oben else inner_side
+    foot_line = inner_side if oben else unary_union(edges)
+    lower = full.difference(band) if oben else m["land"]
+    # Schatten am Fuß der Wand auf der unteren Stufe
+    o.append(f'<clipPath id="plateauLowClip"><path d="{path_d(lower)}"/></clipPath>'
+             f'<g clip-path="url(#plateauLowClip)"><path d="{line_d(foot_line)}" fill="none" stroke="#141a10" '
+             f'stroke-opacity="0.6" stroke-width="{f(36 * s)}" filter="url(#blur)"/></g>')
+    # Felswand
+    o.append(f'<path d="{path_d(band)}" fill="{B["rock"]}"/>'
+             f'<clipPath id="plateauBand"><path d="{path_d(band)}"/></clipPath>'
+             f'<g clip-path="url(#plateauBand)" opacity="0.4">{noise_open(m, "rockTex", extras=B["rock_detail"])}/></g>')
+    # Böschungsschraffur quer zur Kante: Striche von der Oberkante zum Fuß, oben dick
+    thick, thin = [], []
+    for ln in edges:
+        k = rng.uniform(0, 3) * s
+        while k < ln.length:
+            p, q = ln.interpolate(k), ln.interpolate(min(ln.length, k + 1))
+            k += rng.uniform(2.6, 3.8) * s
+            tx, ty = q.x - p.x, q.y - p.y
+            n = math.hypot(tx, ty) or 1
+            nx, ny = -ty / n, tx / n
+            if not full.contains(Point(p.x + nx * 4 * s, p.y + ny * 4 * s)):
+                nx, ny = -nx, -ny                     # Normale zeigt in die Wand hinein
+            depth = wc * rng.uniform(0.7, 1.0)
+            a, b = (p.x, p.y), (p.x + nx * depth, p.y + ny * depth)
+            top, bot = (a, b) if oben else (b, a)
+            mid = (top[0] + (bot[0] - top[0]) * 0.45, top[1] + (bot[1] - top[1]) * 0.45)
+            thin.append(f"M{f(top[0])},{f(top[1])}L{f(bot[0])},{f(bot[1])}")
+            thick.append(f"M{f(top[0])},{f(top[1])}L{f(mid[0])},{f(mid[1])}")
+    o.append(f'<g clip-path="url(#plateauBand)">'
+             f'<path d="{"".join(thin)}" stroke="{B["rock_dark"]}" stroke-opacity="0.75" stroke-width="{f(0.9 * s)}"/>'
+             f'<path d="{"".join(thick)}" stroke="{B["rock_dark"]}" stroke-opacity="0.9" stroke-width="{f(2 * s)}" '
+             f'stroke-linecap="round"/></g>')
+    # Fuß dunkel, Oberkante als kräftige Linie mit hellem Lichtsaum
+    o.append(f'<path d="{line_d(foot_line)}" fill="none" stroke="#2a2418" stroke-opacity="0.8" stroke-width="{f(1.6 * s)}"/>'
+             f'<path d="{line_d(top_line)}" fill="none" stroke="#2a2418" stroke-width="{f(2.6 * s)}"/>'
+             f'<path d="{line_d(top_line)}" fill="none" stroke="#f3ead0" stroke-opacity="0.85" stroke-width="{f(1.2 * s)}" '
+             f'transform="translate({f(-0.8 * s)},{f(-0.8 * s)})"/>')
+    # Wasserfall: wo der Fluss die Kante kreuzt, weiße Gischt und Sprühnebel
+    if river is not None:
+        fall = river.intersection(full).intersection(full.boundary.intersection(frame).buffer(wc))
+        if not fall.is_empty:
+            streaks = []
+            for p_ in polys(fall):
+                minx, miny, maxx, maxy = p_.bounds
+                for _ in range(int(p_.area / (12 * s * s))):
+                    x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
+                    if p_.contains(Point(x, y)):
+                        streaks.append(f"M{f(x)},{f(y)}l{f(rng.uniform(-0.6, 0.6) * s)},{f(rng.uniform(3, 6) * s)}")
+            o.append(f'<path d="{path_d(fall)}" fill="#e8f2f4" fill-opacity="0.75"/>'
+                     f'<path d="{"".join(streaks)}" stroke="#ffffff" stroke-opacity="0.8" stroke-width="{f(0.9 * s)}"/>'
+                     f'<path d="{path_d(fall.buffer(10 * s).intersection(river))}" fill="#ffffff" fill-opacity="0.35" '
+                     f'filter="url(#blur)"/>')
 
 
 def mountain_svg(o, m, rng):
@@ -865,11 +957,13 @@ def render_svg(m):
     # Wasser bzw. Fels
     if B["mountain"]:
         mountain_svg(o, m, rng)
+    elif m.get("plateau"):
+        plateau_level_svg(o, m)
     else:
         o.append(f'<rect width="{W}" height="{W}" fill="url(#seaGrad)"/>')
     if m["river"] is not None:
         o.append(f'<path d="{path_d(m["river"])}" fill="{"#1e1c19" if B["chasm"] else B["river"]}"/>')
-    if not B["mountain"]:
+    if not B["mountain"] and not m.get("plateau"):
         o.append(f'<path d="{path_d(m["land"])}" fill="none" stroke="{B["shallow"]}" stroke-width="{f(34 * s)}" '
                  f'filter="url(#blur)" clip-path="url(#seaClip)"/>')
         o.append(f'<g clip-path="url(#seaClip)" opacity="0.55">{noise_open(m, "fog")}/></g>')
@@ -888,6 +982,8 @@ def render_svg(m):
     if B["mountain"]:
         cliff_svg(o, m, rng)
         rock_houses_svg(o, m, rng)
+    if m.get("plateau"):
+        plateau_edge_svg(o, m, rng)
     if B["green_banks"] and not m["water"].is_empty:   # Wüste: fruchtbarer Streifen am Wasser
         o.append(f'<g clip-path="url(#landClip)"><path d="{path_d(m["water"])}" fill="none" stroke="#7a8a40" '
                  f'stroke-opacity="0.75" stroke-width="{f(70 * s)}" filter="url(#blur)"/></g>')

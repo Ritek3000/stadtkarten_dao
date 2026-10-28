@@ -65,6 +65,8 @@ _BIOME_BASE = dict(
     rocks=0, dunes=False, green_banks=False, floes=0, cemetery="#3e5235",
     # Gebirge: Felsmassiv statt Meer, Klamm statt Fluss, Terrassen, Minen, Essen
     mountain=False, chasm=False, terraces=False, forges=False, mines=0, rock="#8a857a", rock_dark="#4a463f",
+    # Hochplateau: zweite Geländestufe jenseits einer Felskante (oben: Tiefland, unten: Plateau)
+    plateau=False,
     # Bodendetails in der vorberechneten Landtextur: (Art, Farbe, Deckkraft, Seed[, Dichte])
     ground_detail=[("grain", "#1c2615", 0.35, 41), ("grain", "#a3b97c", 0.22, 42),
                    ("stipple", "#1f2c18", 0.55, 43), ("stipple", "#9fb874", 0.4, 44, 0.6)],
@@ -136,8 +138,20 @@ BIOMES = {
         mountain=True, chasm=True, terraces=True, forges=True, mines=4,
         slope="#8a8476", city_ground="#968f80",   # steiniger Hang und Stadtboden
     ),
+    "hochplateau": dict(_BIOME_BASE,
+        ground_detail=[("grain", "#2a3018", 0.38, 41), ("grain", "#c9c08a", 0.22, 42),
+                       ("strokes", "#d6cc8e", 0.35, 43, 0.8), ("stipple", "#2c3420", 0.45, 44, 0.7)],
+        land="#6c7547", mottle_dark="0.30 0.32 0.20", mottle_light="0.66 0.66 0.44", scribble="0.24 0.25 0.16",
+        trees=["#3f5a34", "#4a6438", "#36502e", "#56703e"], tree_kinds={"lappen": 0.4, "rund": 0.35, "nadel": 0.25},
+        tree_spacing=1.2, forest_floor="#2f3a26",
+        street="#c4bca2", street_edge="#756d58", road="#beb59a",
+        field_kinds=[0.5, 0.25, 0.25], field_prob=0.6,
+        rock="#a09276", rock_dark="#4e4535", rocks=0.6,
+        plateau=True,
+    ),
 }
 BIOME_ALIASES = {"gemaessigtes": "gemaessigt", "wald": "gemaessigt", "moor": "sumpf", "winter": "nordland",
                  "schnee": "nordland", "tundra": "nordland", "norden": "nordland", "wueste": "wueste",
                  "oase": "wueste", "sand": "wueste", "savanne": "steppe", "grasland": "steppe",
-                 "berg": "gebirge", "berge": "gebirge", "zwerge": "gebirge", "gebirgsstadt": "gebirge"}
+                 "plateau": "hochplateau", "hochebene": "hochplateau", "tafelberg": "hochplateau",
+                 "tafelland": "hochplateau", "berg": "gebirge", "berge": "gebirge", "zwerge": "gebirge", "gebirgsstadt": "gebirge"}

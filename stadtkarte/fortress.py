@@ -174,8 +174,8 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
         mid = ((p.x + g.x) / 2, (p.y + g.y) / 2)
         res["roads"].append((LineString([(p.x, p.y), mid, (g.x, g.y)]), 12 * s))
 
-    if terrain.get("mountain") and sea is not None and lage != "land":
-        # Gebirge: Festung auf einem Felssporn, Bergpfad hinunter zur Stadt
+    if (terrain.get("mountain") or terrain.get("plateau")) and sea is not None and lage != "land":
+        # Gebirge: Festung auf einem Felssporn, Bergpfad hinunter zur Stadt (Hochplateau: auf der anderen Stufe)
         p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
         if p is None:
             print("Hinweis: Kein Felssporn für die Festung gefunden - sie wird an Land gebaut.")

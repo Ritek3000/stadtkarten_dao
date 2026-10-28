@@ -27,8 +27,12 @@ def generate(cfg):
     r = city_radius(W, cfg["einwohner"])
     biome = BIOMES[g["biotop"]]
 
+    plateau = biome["plateau"] and has_coast
     if biome["mountain"]:   # Felsmassiv an der "Küstenseite", Inseln gibt es dort nicht
         sea, coast_y = make_coast(rng, W, s, has_coast, depth=0.27, amp=1.6)
+        g["inseln"] = 0
+    elif plateau:           # Hochplateau: jenseits der Felskante liegt die andere Geländestufe (statt Meer)
+        sea, coast_y = make_coast(rng, W, s, True, depth=0.3, amp=1.3)
         g["inseln"] = 0
     else:
         sea, coast_y = make_coast(rng, W, s, has_coast)
@@ -49,6 +53,18 @@ def generate(cfg):
                  for side in (-1, 1)]
         sea = unary_union([sea] + spurs).difference(city_shape)
         sea = max(polys(sea), key=lambda q: q.area) if polys(sea) else sea
+    elif plateau:
+        # direkt an der Kante: die Felskante ersetzt dort die Mauer; mit Abstand: Mauer ringsum, davor ein Streifen Land
+        direkt = g["kante"] == "direkt"
+        cy = coast_y(cx) + (r * 0.8 if direkt else r * 1.25 + 60 * s)
+        city_shape = make_shape(rng, (cx, cy), r) if form == "rund" else varied_shape(rng, (cx, cy), r, form, W, s, True)
+        top = coast_y(cx) - (0.4 * r if direkt else -60 * s)
+        city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s, top=top)
+        if not direkt:   # Buchten der Kante dürfen nicht an die Mauer reichen
+            for _ in range(30):
+                if not city_shape.buffer(45 * s).intersects(sea):
+                    break
+                city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s, top=city_shape.bounds[1] + 10 * s)
     elif form != "rund":   # andere Stadtform: Umriss vor dem Fluss festlegen, an der Küste mit der Oberkante am Ufer
         city_shape = varied_shape(rng, (cx, cy), r, form, W, s, has_coast)
         city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s,
@@ -61,12 +77,16 @@ def generate(cfg):
     river, river_line = (None, None)
     if g.get("fluss"):
         river, river_line = make_river(rng, W, s, (cx, cy), r, coast_y, float(g.get("flussbreite", 60)),
-                                       estuary=not biome["mountain"],
-                                       end_y=cy - 1.35 * r - 80 * s if biome["mountain"] and has_coast else None)
+                                       estuary=not (biome["mountain"] or plateau),
+                                       end_y=(cy - 1.35 * r - 80 * s if biome["mountain"] and has_coast
+                                              else -60 if plateau else None))   # Hochplateau: über die Kante hinweg
+    level_full = sea if plateau else None   # ganze andere Geländestufe (für Kante und Wasserfall)
+    if plateau and river is not None:   # der Fluss fließt über die Kante (Wasserfall), die Stufe ist kein Wasser
+        sea = sea.difference(river)
     water = unary_union([w for w in (sea, river) if w is not None]) if (sea or river) else Polygon()
     land = box(0, 0, W, W).difference(water)
     terrain = dict(sea=sea, river=river, river_line=river_line, water=water, coast_y=coast_y, land=land,
-                   mountain=biome["mountain"], biome=biome, shape=city_shape)
+                   mountain=biome["mountain"], plateau=plateau, biome=biome, shape=city_shape)
     pools = make_pools(rng, W, s, biome["pools"], water)
     if biome["stilts"]:   # Pfahlbausiedlung: Wasserflächen und Kanäle mitten im Ort
         extra = []
@@ -173,6 +193,22 @@ def generate(cfg):
         keep = 0.3 if biome["pool_style"] == "sumpf" else 0.0
         forest_trees = [tr for tr in forest_trees if not pools.contains(Point(tr[0], tr[1])) or rng.random() < keep]
     trees = forest_trees + scatter_trees(rng, W, s, allowed, shape)
+    if plateau:   # die andere Geländestufe: Felder, ein Wäldchen und verstreute Bäume, nicht direkt an der Kante
+        level = sea.buffer(-35 * s).difference(unary_union(
+            [river.buffer(14 * s) if river is not None else Polygon(), forts_u.buffer(30 * s)]
+            + [f["fort"].buffer(30 * s) for f in forts]))
+        if not level.is_empty:
+            off = box(-W, -W, 2 * W, 2 * W).difference(level)
+            side = rng.choice([-1, 1])
+            wood, wood_trees = make_forest(rng, W, s, (cx, cy), r, [(side * 0.6, -0.8)], off, level,
+                                           biome["tree_spacing"], biome["forest_scale"] * 0.7)
+            more = make_fields(rng, W, s, (cx, cy), r, [(0, -1), (-side * 0.7, -0.7)], off.union(wood.buffer(25 * s)),
+                               biome["field_kinds"], biome["field_prob"])
+            fields += more
+            fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
+            forest = forest.union(wood)
+            spare = level.difference(unary_union([wood.buffer(10 * s), fields_u.buffer(12 * s)]))
+            trees += wood_trees + scatter_trees(rng, W, s, spare, Point(-W, -W).buffer(1), count=45)
     trees = [(x, y, rad, rng.choice(biome["trees"])) for x, y, rad, _ in trees]
     trees += oasis_palms(rng, s, oases, biome, unary_union([shape.buffer(10 * s), roads_u, fields_u, water]))
     rocks = make_rocks(rng, s, biome["rocks"], allowed.difference(pools.buffer(6 * s)))
@@ -250,6 +286,7 @@ def generate(cfg):
         "forts": forts, "biome": biome, "pools": pools, "reeds": reeds, "lilies": lilies,
         "oases": oases, "rocks": rocks, "dunes": dunes, "floes": floes,
         "river_line": river_line, "mines": mines, "paths": paths,
+        "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         **city,
     }
 

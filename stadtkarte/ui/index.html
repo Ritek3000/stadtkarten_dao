@@ -257,7 +257,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 const DIRS = [["nordwest","NW"],["nord","N"],["nordost","NO"],["west","W"],null,["ost","O"],["suedwest","SW"],["sued","S"],["suedost","SO"]];
 const DIR_NAMES = {nord:"Nord", nordost:"Nordost", ost:"Ost", suedost:"Südost", sued:"Süd", suedwest:"Südwest", west:"West", nordwest:"Nordwest", mitte:"Mitte"};
 const COAST = {nord:"Norden", ost:"Osten", sued:"Süden", west:"Westen", keine:"keine Küste"};
-const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf / Moor", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)"};
+const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf / Moor", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)", hochplateau:"Hochplateau"};
 const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel"};
 const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion"};
 const FORM = {zufall: "Zufall (je Seed)", rund: "Rund", oval: "Oval (langgestreckt)", unregelmaessig: "Unregelmäßig",
@@ -350,16 +350,23 @@ function renderForm() {
   ));
 
   // Gelände
-  const mtn = g.biotop === "gebirge";
+  const mtn = g.biotop === "gebirge", plat = g.biotop === "hochplateau";
+  const sides = Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]);
   const riverW = el("input", {type: "range", min: 20, max: 110, step: 2, value: g.flussbreite, disabled: !g.fluss,
     on: {input: e => g.flussbreite = Number(e.target.value)}});
   f.append(section("Gelände", true, null,
     field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
-      g.biotop = v; if (v === "gebirge" && g.kueste === "keine") g.kueste = "nord"; renderForm(); })),
-    mtn ? field("Berg", select(Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]),
-                               g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt.")
+      g.biotop = v; if ((v === "gebirge" || v === "hochplateau") && g.kueste === "keine") g.kueste = "nord";
+      if (v === "hochplateau") { g.plateau ??= "oben"; g.kante ??= "direkt"; } renderForm(); })),
+    mtn ? field("Berg", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt.")
+        : plat ? field("Kante", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der die Plateaukante verläuft.")
         : field("Küste", select(Object.entries(COAST), g.kueste, v => { g.kueste = v; renderForm(); })),
-    !mtn && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
+    plat ? field("Stadt", select([["oben", "Auf dem Plateau"], ["unten", "Am Fuße des Plateaus"]], g.plateau ?? "oben",
+                                 v => { g.plateau = v; })) : null,
+    plat ? field("Zur Kante", select([["direkt", "Direkt an der Kante"], ["abstand", "Mit Abstand (Mauer ringsum)"]],
+                                     g.kante ?? "direkt", v => { g.kante = v; }),
+                 "Direkt an der Kante schützt die Felswand die Stadt auf dieser Seite.") : null,
+    !mtn && !plat && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
     field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
     el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
       el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),

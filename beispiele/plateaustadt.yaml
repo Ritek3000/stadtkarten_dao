@@ -1,0 +1,55 @@
+# Beispiel-Stadt am Hochplateau für "Die Alte Ordnung"
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\plateaustadt.yaml
+
+name: Hohenkamm
+seed: 314
+einwohner: 7000
+
+gelaende:
+  biotop: hochplateau
+  kueste: nord        # Seite der Plateaukante: nord | ost | sued | west
+  plateau: oben       # oben = Stadt auf dem Plateau, unten = Stadt am Fuß des Plateaus
+  kante: direkt       # direkt = Stadt an der Kante (die Felswand schützt die Seite), abstand = Mauer ringsum
+  fluss: true         # fließt über die Kante: Wasserfall
+  flussbreite: 40
+  wald: [suedwest]
+  felder: [sued, suedost, ost]
+
+mauer:
+  vorhanden: true
+  tore: 3
+
+viertel:
+  - name: Kantenmarkt
+    typ: markt
+    lage: mitte
+  - name: Burgviertel
+    typ: adel
+    lage: nord
+  - name: Steinmetzgassen
+    typ: handwerk
+    lage: west
+  - name: Untertor
+    typ: wohn
+    lage: sued
+  - name: Windgasse
+    typ: armen
+    lage: suedost
+
+orte:
+  - name: Wachturm am Abgrund
+    typ: festung
+  - name: Tempel der Winde
+    typ: tempel
+    viertel: Kantenmarkt
+  - name: Zur Steilen Wand
+    kuerzel: G1
+    typ: gasthaus
+  - name: Wassermühle
+    typ: wassermuehle
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  raster: 0
+  legende: true
