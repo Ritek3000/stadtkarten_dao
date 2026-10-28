@@ -11,7 +11,7 @@ from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Point, box
+from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
@@ -704,21 +704,46 @@ def plateau_edge_svg(o, m, rng):
              f'<path d="{line_d(top_line)}" fill="none" stroke="#2a2418" stroke-width="{f(2.6 * s)}"/>'
              f'<path d="{line_d(top_line)}" fill="none" stroke="#f3ead0" stroke-opacity="0.85" stroke-width="{f(1.2 * s)}" '
              f'transform="translate({f(-0.8 * s)},{f(-0.8 * s)})"/>')
-    # Wasserfall: wo der Fluss die Kante kreuzt, weiße Gischt und Sprühnebel
+    # Wasserfall: wo der Fluss die Kante kreuzt, stürzt er auf ganzer Breite über eine gerade Abbruchkante von
+    # Ufer zu Ufer (dort, wo die Felswand an beiden Ufern endet); Wasserstreifen in Fallrichtung, Gischt am Fuß
     if river is not None:
-        fall = river.intersection(full).intersection(full.boundary.intersection(frame).buffer(wc))
-        if not fall.is_empty:
+        cut = full.boundary.intersection(frame).intersection(river.buffer(1.5 * s))
+        for part in polys(cut.buffer(2 * s)):
+            ends = [Point(c) for ln in lines(cut.intersection(part)) for c in (ln.coords[0], ln.coords[-1])]
+            if len(ends) < 2:
+                continue
+            a, b = max(((p, q) for p in ends for q in ends), key=lambda pq: pq[0].distance(pq[1]))
+            L = a.distance(b)
+            if L < 4 * s:
+                continue
+            tx, ty = (b.x - a.x) / L, (b.y - a.y) / L
+            nx, ny = -ty, tx
+            mx, my = (a.x + b.x) / 2, (a.y + b.y) / 2
+            if not full.contains(Point(mx + nx * 5 * s, my + ny * 5 * s)):
+                nx, ny = -nx, -ny                 # Normale zeigt in die Wand (auf die andere Stufe)
+            ext = 6 * s                           # etwas über die Ufer hinaus, der Fluss schneidet ab
+            ax, ay, bx, by = a.x - tx * ext, a.y - ty * ext, b.x + tx * ext, b.y + ty * ext
+            strip = Polygon([(ax, ay), (bx, by), (bx + nx * wc, by + ny * wc), (ax + nx * wc, ay + ny * wc)])
+            fall = strip.intersection(river)
+            if fall.is_empty:
+                continue
+            top, foot = (0.0, wc) if oben else (wc, 0.0)   # Abstand der Ober- bzw. Unterkante von der Kante
+            down = 1 if oben else -1                       # Fallrichtung entlang der Normalen
             streaks = []
-            for p_ in polys(fall):
-                minx, miny, maxx, maxy = p_.bounds
-                for _ in range(int(p_.area / (12 * s * s))):
-                    x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
-                    if p_.contains(Point(x, y)):
-                        streaks.append(f"M{f(x)},{f(y)}l{f(rng.uniform(-0.6, 0.6) * s)},{f(rng.uniform(3, 6) * s)}")
-            o.append(f'<path d="{path_d(fall)}" fill="#e8f2f4" fill-opacity="0.75"/>'
-                     f'<path d="{"".join(streaks)}" stroke="#ffffff" stroke-opacity="0.8" stroke-width="{f(0.9 * s)}"/>'
-                     f'<path d="{path_d(fall.buffer(10 * s).intersection(river))}" fill="#ffffff" fill-opacity="0.35" '
-                     f'filter="url(#blur)"/>')
+            for _ in range(int(L * wc / (5 * s * s))):
+                u, v = rng.uniform(-ext, L + ext), rng.uniform(0.05, 0.95) * wc
+                x, y = a.x + tx * u + nx * v, a.y + ty * u + ny * v
+                if fall.contains(Point(x, y)):
+                    d = rng.uniform(4, 9) * s
+                    streaks.append(f"M{f(x)},{f(y)}l{f(nx * d * down)},{f(ny * d * down)}")
+            lip = LineString([(ax + nx * top, ay + ny * top), (bx + nx * top, by + ny * top)]).intersection(river)
+            base = LineString([(ax + nx * foot, ay + ny * foot), (bx + nx * foot, by + ny * foot)])
+            spray = base.buffer(12 * s).intersection(river)
+            o.append(f'<path d="{path_d(fall)}" fill="#cfe3ea" fill-opacity="0.9"/>'
+                     f'<path d="{"".join(streaks)}" stroke="#ffffff" stroke-opacity="0.75" stroke-width="{f(1 * s)}" '
+                     f'stroke-linecap="round"/>'
+                     f'<path d="{line_d(lip)}" fill="none" stroke="#ffffff" stroke-width="{f(2 * s)}"/>'
+                     f'<path d="{path_d(spray)}" fill="#ffffff" fill-opacity="0.85" filter="url(#blur)"/>')
 
 
 def mountain_svg(o, m, rng):
