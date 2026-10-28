@@ -828,8 +828,18 @@ class CityBuilder:
             best = max((j for j in range(len(segs)) if j != i), key=lambda j: grow.intersection(segs[j][0]).area)
             joined = segs[best][0].union(piece).buffer(0.01).buffer(-0.01)
             if joined.geom_type != "Polygon" or grow.intersection(segs[best][0]).area <= 0:
-                i += 1
-                continue
+                # berührt der Splitter den Nachbarn nur an einem Punkt oder über einen Haarspalt: den Spalt im
+                # Ring mit auffüllen (ohne in andere Häuser zu wachsen)
+                others = unary_union([sg for j, (sg, _, _) in enumerate(segs) if j not in (i, best)] or [Polygon()])
+                bridge = piece.buffer(0.8 * s).intersection(ring).difference(others)
+                joined = segs[best][0].union(bridge).buffer(0.01).buffer(-0.01)
+                if joined.geom_type != "Polygon":
+                    if piece.area < (MIN_HOUSE * s) ** 2:   # winziger, nirgends anschließbarer Rest: weglassen
+                        segs.pop(i)
+                        i = 0
+                    else:
+                        i += 1
+                    continue
             segs[best] = (joined, segs[best][1], segs[best][2])
             segs.pop(i)
             i = 0
