@@ -95,7 +95,7 @@ früher nacheinander.
 
 Mit `anzahl` entstehen mehrere Orte derselben Art. Sie werden auf der Karte fortlaufend mit Kürzeln markiert,
 in der Legende steht die ganze Reihe in einer Zeile (`S1–S5  Schenke`). Das `kuerzel` gibt den Buchstaben vor,
-ohne Kürzel nimmt die Werkstatt den ersten Buchstaben des Namens. Mehrere Einträge mit demselben Buchstaben
+ohne Kürzel nimmt die Werkstatt den ersten Buchstaben des Namens, bei Schmieden `SM`. Mehrere Einträge mit demselben Buchstaben
 zählen weiter, so lassen sich die Orte auf Viertel verteilen; einzeln vergebene Kürzel (hier `S1`) werden
 übersprungen:
 

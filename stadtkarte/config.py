@@ -131,11 +131,12 @@ def from_dict(raw):
 
 
 MAX_ANZAHL = 50
+SERIES_PREFIX = {"schmiede": "SM"}   # feste Buchstaben für Reihen ohne Kürzel (Schenke S, Schmiede SM)
 
 
 def numbered_places(orte):
     """Orte mit anzahl werden vervielfacht und fortlaufend durchnummeriert: 5 Schenken -> S1 bis S5. Das Kürzel gibt
-    den Buchstaben vor (sonst der erste Buchstabe des Namens); weitere Einträge mit demselben Buchstaben zählen
+    den Buchstaben vor (sonst SERIES_PREFIX bzw. der erste Buchstabe des Namens); weitere Einträge mit demselben Buchstaben zählen
     weiter (z.B. 3 Schenken in einem anderen Viertel -> S6 bis S8). Einzeln vergebene Kürzel werden übersprungen."""
     if not any("anzahl" in o for o in orte):
         return orte
@@ -149,7 +150,7 @@ def numbered_places(orte):
         if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MAX_ANZAHL:
             raise ValueError(f"Ort {o.get('name')}: anzahl muss eine ganze Zahl von 1 bis {MAX_ANZAHL} sein")
         name = str(o.get("name") or o["typ"].capitalize())
-        prefix = re.sub(r"\d+$", "", str(o.get("kuerzel") or "").strip()) or name.strip()[:1].upper()
+        prefix = re.sub(r"\d+$", "", str(o.get("kuerzel") or "").strip()) or SERIES_PREFIX.get(o["typ"]) or name.strip()[:1].upper()
         for _ in range(n):
             k = counter.get(prefix, 0) + 1
             while f"{prefix}{k}" in taken:
