@@ -141,10 +141,18 @@ def fit_into_map(shape, center, W, s, top=None):
         cy += dy
     m = 70 * s
     minx, miny, maxx, maxy = shape.bounds
-    k = min(1.0, (cx - m) / max(cx - minx, 1), (W - m - cx) / max(maxx - cx, 1),
-            (W - m - cy) / max(maxy - cy, 1), *([] if top is not None else [(cy - m) / max(cy - miny, 1)]))
-    if k < 1.0:
-        shape = shapely.affinity.scale(shape, k, k, origin=(cx, cy))
+    kx = min((cx - m) / max(cx - minx, 1), (W - m - cx) / max(maxx - cx, 1))   # Platz nach links/rechts
+    ky = min([(W - m - cy) / max(maxy - cy, 1)] + ([] if top is not None else [(cy - m) / max(cy - miny, 1)]))
+    if min(kx, ky) < 1.0:
+        # in der Richtung stauchen, in der der Umriss übersteht, und in der anderen so weit verbreitern, wie Platz
+        # ist: eine langgestreckte Stadt würde sonst auch schmaler und verlöre viel Fläche
+        if kx < 1.0 and ky < 1.0:
+            sx, sy = kx, ky
+        elif kx < 1.0:
+            sx, sy = kx, min(ky, 1 / kx, 1.0 if top is not None else ky)   # an der Küste nicht nach oben wachsen
+        else:
+            sx, sy = min(kx, 1 / ky), ky
+        shape = shapely.affinity.scale(shape, sx, sy, origin=(cx, cy))
     return shape, (cx, cy)
 
 
