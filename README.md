@@ -118,6 +118,13 @@ orte:
 
 Höchstens 50 je Eintrag. In der Werkstatt steht das Feld „Anzahl“ neben dem Kürzel.
 
+## Landstraßen
+
+Von jedem Tor führt eine Landstraße aus der Stadt, und keine endet im Leeren: Läuft sie auf Küste, Felswand,
+Plateaukante oder zurück auf die Stadtmauer zu, weicht sie aus und führt weiter bis zum Kartenrand. Kommt sie nicht
+weiter (Bucht, Felsnische), mündet sie in die nächste Landstraße, läuft außen an der Mauer entlang zum nächsten Tor,
+endet an der Küste an einer Anlegestelle mit Steg oder, wenn nichts davon geht, an einem kleinen Weiler.
+
 ## Armenviertel
 
 Viertel mit `typ: armen` (Oberfläche: „Armenviertel“) werden als Elendsviertel gezeichnet: winzige, leicht schief

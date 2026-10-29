@@ -280,22 +280,106 @@ class CityBuilder:
         sea = self.t["sea"]
         frame = box(-30, -30, W + 30, W + 30)
         roads = []
+        near_city = self.shape.buffer(25 * s)
+
+        def free(q):   # Schritt ohne Meer (bzw. Fels, andere Plateaustufe) und nicht zurück an die Stadt
+            return not (sea is not None and sea.distance(Point(q)) < 10 * s) and not near_city.contains(Point(q))
         for a, p, d in self.gates:
             noise = Noise1D(self.rng)
             pts = [(p.x, p.y)]
             for i in range(1, 600):
                 ang = a + 0.5 * noise.fbm(i * 0.035)
                 q = (pts[-1][0] + math.cos(ang) * 20 * s, pts[-1][1] + math.sin(ang) * 20 * s)
-                if sea is not None and sea.contains(Point(q)):
-                    break
-                if self.shape.contains(Point(q)):
-                    break
+                if (sea is not None and sea.contains(Point(q))) or self.shape.contains(Point(q)):
+                    # keine Straße ins Leere: an Küste, Felswand oder Stadtmauer entlang ausweichen und weiter bis
+                    # zum Kartenrand (die Richtung bleibt danach geändert)
+                    for off in (0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.75, -1.75, 2.1, -2.1, 2.45, -2.45):
+                        q2 = (pts[-1][0] + math.cos(ang + off) * 20 * s, pts[-1][1] + math.sin(ang + off) * 20 * s)
+                        q3 = (q2[0] + math.cos(ang + off) * 20 * s, q2[1] + math.sin(ang + off) * 20 * s)
+                        if free(q2) and free(q3):   # auch der nächste Schritt muss frei sein (keine Sackgasse)
+                            a, q = a + off, q2
+                            break
+                    else:
+                        break
                 pts.append(q)
                 if not frame.contains(Point(q)):
                     break
             if len(pts) > 2:
                 roads.append((LineString(pts), 15 * s))
+        # Straße kam nicht bis an den Kartenrand (Bucht, Felsnische): an die nächste andere Landstraße anschließen
+        inner = box(0, 0, W, W).buffer(-2 * s)
+        river = self.t["river"]
+        for i, (ln, w) in enumerate(roads):
+            end = Point(ln.coords[-1])
+            if not inner.contains(end):
+                continue
+            if river is not None and river.buffer(15 * s).contains(end):
+                # im Fluss gestrandet (z.B. an der Mündung): bis vor das Ufer zurücknehmen
+                dry = [g for g in lines(ln.difference(river.buffer(15 * s))) if g.distance(Point(ln.coords[0])) < 1 * s]
+                if dry and dry[0].length > 40 * s:
+                    ln = dry[0]
+                    roads[i] = (ln, w)
+                    end = Point(ln.coords[-1])
+            best = None
+            for j, (o, _) in enumerate(roads):
+                if j == i:
+                    continue
+                t_ = nearest_points(o, end)[0]
+                link = LineString([end, t_])
+                if link.intersects(self.t["water"]) or link.intersects(self.shape):   # nicht übers Wasser
+                    continue
+                if best is None or link.length < best.length:
+                    best = link
+            if best is not None and best.length < 400 * s:
+                roads[i] = (LineString(list(ln.coords) + [best.coords[-1]]), w)
+                continue
+            around = self.ring_route(ln, sea)
+            if around is not None and self.shape.distance(end) < 40 * s:
+                roads[i] = (around, w)   # an der Stadtmauer gelandet: außen an der Mauer entlang zum nächsten Tor
+                continue
+            if sea is not None and sea.distance(end) < 30 * s and not (self.t.get("mountain") or self.t.get("plateau")):
+                # an der Küste (bzw. Bucht) gelandet: die Straße endet an einer Anlegestelle mit Steg
+                shore = nearest_points(sea, end)[0]
+                ux, uy = unit((shore.x - end.x, shore.y - end.y)) if shore.distance(end) > 0.5 else (0.0, -1.0)
+                tip = (shore.x + ux * 28 * s, shore.y + uy * 28 * s)
+                pier = LineString([(end.x, end.y), tip]).buffer(3 * s, cap_style="flat")
+                if not pier.intersects(self.shape.buffer(10 * s)):
+                    roads[i] = (LineString(list(ln.coords) + [(shore.x - ux * 2 * s, shore.y - uy * 2 * s)]), w)
+                    self.out["piers"].append(pier)
+                    continue
+            if around is not None:   # z.B. Nische an Felswand oder Plateaukante: um die Stadt zum nächsten Tor
+                roads[i] = (around, w)
+                continue
+            # sonst: ein kleiner Weiler am Straßenende ist das Ziel
+            self.out.setdefault("dead_ends", []).append(roads[i][0])
         return roads
+
+    def ring_route(self, ln, sea):
+        """Weg vom Ende der Straße ln außen an der Stadtmauer entlang zum nächsten anderen Tor (nicht durchs Meer,
+        über Fluss, Felswand oder Plateaukante). Liefert die verlängerte Straße oder None."""
+        s = self.s
+        end, start = Point(ln.coords[-1]), Point(ln.coords[0])
+        ring = LineString(self.shape.buffer(22 * s).exterior.coords)
+        R, d0 = ring.length, ring.project(end)
+        best = None
+        for _, g, _ in self.gates:
+            if g.distance(start) < 5 * s:   # nicht zurück zum eigenen Tor
+                continue
+            d1 = ring.project(g)
+            for a_, b_, rev in ((d0, d1, False), (d1, d0, True)):
+                if b_ >= a_:
+                    pts = list(substring(ring, a_, b_).coords)
+                else:
+                    pts = list(substring(ring, a_, R).coords) + list(substring(ring, 0, b_).coords)
+                if rev:
+                    pts.reverse()
+                tail = LineString([(end.x, end.y)] + pts + [(g.x, g.y)])
+                river = self.t["river"]   # auch nicht über den Fluss (an der Mündung wäre das ein Damm im Wasser)
+                if (sea is not None and tail.intersects(sea)) or tail.intersects(self.shape.buffer(-3 * s))                         or (river is not None and tail.intersects(river)):
+                    continue
+                if best is None or tail.length < best.length:
+                    best = tail
+        return LineString(list(ln.coords) + list(best.coords)[1:]) if best is not None else None
 
     def internal_roads(self):
         s, t = self.s, self.t

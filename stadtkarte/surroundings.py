@@ -157,3 +157,33 @@ def suburb_houses(rng, s, roads, blocked):
                 ridges, shade = roof(poly)
                 houses.append({"poly": poly, "color": rng.choice(palette), "ridges": ridges, "shade": shade})
     return houses
+
+
+def hamlet(rng, s, road, blocked):
+    """Weiler am Ende einer Landstraße, die sonst kein Ziel hätte: zwei bis drei Höfe an den letzten Metern der
+    Straße (beidseits, der Straße folgend)."""
+    palette = DISTRICT_TYPES["bauern"]["palette"]
+    houses, taken = [], blocked
+    for back in (6, 32, 58, 84, 110, 136):
+        if len(houses) >= 3:
+            break
+        k = road.length - back * s
+        if k < 3 * s:
+            break
+        p, q = road.interpolate(k - 3 * s), road.interpolate(k)
+        tx, ty = unit((q.x - p.x, q.y - p.y))
+        for side in ((1, -1) if rng.random() < 0.5 else (-1, 1)):
+            if len(houses) >= 3:
+                break
+            L, B = rng.uniform(18, 26) * s, rng.uniform(12, 15) * s
+            off = 9 * s + B / 2 + 1 * s
+            cx, cy = q.x - ty * off * side, q.y + tx * off * side
+            corners = [(cx + tx * a * L / 2 - ty * b * B / 2, cy + ty * a * L / 2 + tx * b * B / 2)
+                       for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+            poly = Polygon(corners)
+            if poly.intersects(taken):
+                continue
+            taken = taken.union(poly.buffer(4 * s))
+            ridges, shade = roof(poly)
+            houses.append({"poly": poly, "color": rng.choice(palette), "ridges": ridges, "shade": shade})
+    return houses

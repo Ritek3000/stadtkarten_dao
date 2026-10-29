@@ -13,7 +13,7 @@ from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
 from .styles import BIOMES, FORT_TYPES
-from .surroundings import make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
+from .surroundings import hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
 from .terrain import make_coast, make_islands, make_pools, make_river
 
 
@@ -283,6 +283,10 @@ def _generate(cfg, W):
                            unary_union([water.buffer(4 * s), shape.buffer(12 * s), fields_u.buffer(6 * s),
                                         forest.buffer(4 * s), forts_u,
                                         unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in ext_roads])]))
+    for ln in city.get("dead_ends", []):   # Straße ohne anderes Ziel: Weiler am Ende
+        houses += hamlet(rng, s, ln, unary_union([water.buffer(4 * s), shape.buffer(12 * s), fields_u.buffer(6 * s),
+                                                  unary_union([h["poly"].buffer(4 * s) for h in houses] or [Polygon()]),
+                                                  unary_union([g.buffer(w / 2 + 2 * s) for g, w in ext_roads])]))
     houses_u = unary_union([h["poly"].buffer(8 * s) for h in houses]) if houses else Polygon()
     blocked2 = unary_union([water.buffer(10 * s), shape.buffer(30 * s), roads_u, fields_u.buffer(15 * s), houses_u,
                             unary_union([f["fort"] for f in forts]).buffer(12 * s) if forts else Polygon(), forts_u,
