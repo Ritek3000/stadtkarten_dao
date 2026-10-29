@@ -555,14 +555,18 @@ stage.addEventListener("pointermove", e => {
     moving.g.setAttribute("transform", `translate(${moving.nx.toFixed(1)},${moving.ny.toFixed(1)})`);
   } else if (drag) { stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); }
 });
-stage.addEventListener("pointerup", () => {
+function endPointer() {
   if (moving) {
     moving.g.classList.remove("moving");
     if (moving.nx !== undefined) setLabelOffset(moving.g.dataset.key, moving.nx, moving.ny);
     moving = null;
   }
   drag = null; stage.classList.remove("drag");
-});
+}
+stage.addEventListener("pointerup", endPointer);
+// abgebrochene Geste (z.B. Touch vom System übernommen): Ziehen nicht hängen lassen
+stage.addEventListener("pointercancel", endPointer);
+stage.addEventListener("lostpointercapture", endPointer);
 stage.addEventListener("dblclick", () => {   // Ziel ist wegen setPointerCapture die Ansicht, daher "pressed"
   const g = pressed;
   if (g && $("#labels").classList.contains("edit")) { g.setAttribute("transform", "translate(0,0)"); setLabelOffset(g.dataset.key, 0, 0); }

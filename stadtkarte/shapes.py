@@ -11,7 +11,7 @@ import numpy as np
 import shapely
 from shapely.geometry import Polygon
 
-from .geo import axes, fit_rect, min_width, vdot, vlen
+from .geo import axes, fit_rect, min_width, vlen
 
 SPECIAL = ("achteck", "sechseck", "fuenfeck", "raute")
 
@@ -134,18 +134,6 @@ def _l_from_rect(rect, rng, min_w):
     mx, my = rng.random() < 0.5, rng.random() < 0.5
     pts = [((1 - x) if mx else x, (1 - y) if my else y) for x, y in pts]
     return Polygon([o + u * (x * l1) + v * (y * l2) for x, y in pts])
-
-
-def _min_angle(poly):
-    """Kleinster Innenwinkel in Grad."""
-    cs = np.array(poly.exterior.coords)[:-1]
-    best = 180.0
-    for i in range(len(cs)):
-        a, b, c = cs[i - 1], cs[i], cs[(i + 1) % len(cs)]
-        v1, v2 = a - b, c - b
-        cosang = vdot(v1, v2) / (vlen(v1) * vlen(v2) + 1e-9)
-        best = min(best, float(np.degrees(np.arccos(np.clip(cosang, -1, 1)))))
-    return best
 
 
 def cross_in_rect(rect, arm=0.42):

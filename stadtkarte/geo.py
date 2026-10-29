@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, MultiPoint, Point, Polygon
+from shapely.geometry import LineString, MultiPoint, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import split, unary_union
 
@@ -220,10 +220,6 @@ def vdot(a, b):
 def unit(v):
     n = math.hypot(v[0], v[1])
     return (v[0] / n, v[1] / n) if n > 1e-9 else (0.0, 0.0)
-
-
-def pt(p):
-    return Point(p[0], p[1])
 
 
 def fit_rect(poly, min_short=0.0, max_ratio=None, iters=60):

@@ -1,8 +1,10 @@
 """Setzt Gelände, Stadt und Umland zu einem Kartenmodell zusammen."""
+import contextlib
+import copy
+import io
 import math
 import random
 
-import numpy as np
 import shapely
 import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
@@ -31,14 +33,18 @@ def generate(cfg):
         return _generate(cfg, W)
     frac = city_radius(W, cfg["einwohner"], spread(cfg)) / W
     z = max(1.0, AUSSCHNITT[mode] / (2 * frac))
-    m = _generate(cfg, round(W * z))
     if mode == "fuellend":
+        # Probedurchlauf zum Ausmessen: mit einer Kopie der Beschreibung (die Erzeugung passt sie z.B. bei
+        # unpassenden Vierteln an) und ohne seine Hinweise - die gelten nur für die verworfene Probekarte
+        with contextlib.redirect_stdout(io.StringIO()):
+            m = _generate(copy.deepcopy(cfg), round(W * z))
         minx, miny, maxx, maxy = _important(m).bounds
         side = max(maxx - minx, maxy - miny) * 1.1 + 2 * 50 * m["s"]   # Rand für Beschriftung
         z = max(1.0, min(W * z / side, 2.5 * z))   # die Welt so groß, dass 'side' gerade die Kartenbreite ist
         m = _generate(cfg, round(W * z))
         c = _important(m).envelope.centroid
     else:
+        m = _generate(cfg, round(W * z))
         c = m["shape"].envelope.centroid
     return crop_model(m, c.x, c.y, W, z)
 
@@ -46,7 +52,7 @@ def generate(cfg):
 def _important(m):
     """Was auf einer füllenden Karte zu sehen sein muss: Stadt, Hafen, Schiffe, Festung, Orte vor der Stadt."""
     parts = [m["shape"], m["faubourg"], m["slum_outside"]] + [f["area"] for f in m["forts"]]
-    parts += [p for p in m["piers"]]
+    parts += list(m["piers"])
     parts += [Point(lb["x"], lb["y"]).buffer(40 * m["s"]) for lb in m["labels"] if lb["kind"] in ("ort", "festung")]
     parts += [Point(sh["x"], sh["y"]).buffer(sh["len"] / 2) for sh in m["ships"]]
     return unary_union([g for g in parts if g is not None and not g.is_empty])
@@ -102,7 +108,8 @@ def crop_model(m, cx, cy, W, z):
     missing = [lb["text"] for lb in out["labels"] if lb["kind"] in ("ort", "festung")
                and not (0 < lb["x"] < W and 0 < lb["y"] < W)]
     if missing:
-        print("Hinweis: Außerhalb des Ausschnitts: " + ", ".join(missing) + " (Ausschnitt 'fuellend' zeigt alles).")
+        extra = "" if m["cfg"]["ausgabe"].get("ausschnitt") == "fuellend" else " (Ausschnitt 'fuellend' zeigt mehr)"
+        print("Hinweis: Außerhalb des Ausschnitts: " + ", ".join(missing) + extra + ".")
     return out
 
 

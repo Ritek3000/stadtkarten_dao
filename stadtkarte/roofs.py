@@ -1,7 +1,6 @@
 """Detaillierte Dächer: Dachflächen mit Licht, Materialtextur (Ziegel, Schiefer, Schindel, Reet, Schnee),
 Schornsteine und Glanz auf First und Graten."""
 import colorsys
-import math
 
 import numpy as np
 import shapely

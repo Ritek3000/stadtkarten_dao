@@ -1,7 +1,7 @@
 """Vorberechnete Rauschtexturen.
 
-Ersetzt SVG-Filter aus feTurbulence + feColorMatrix (beim Rendern sehr teuer) durch fertige Bilder in halber
-Auflösung. Verteilung und Farben entsprechen den Filtern: Mittelwert/Streuung des SVG-Rauschens wurden gemessen,
+Ersetzt SVG-Filter aus feTurbulence + feColorMatrix (beim Rendern sehr teuer) durch fertige Bilder (in der
+Auflösung der Karte). Verteilung und Farben entsprechen den Filtern: Mittelwert/Streuung des SVG-Rauschens wurden gemessen,
 Filterfarben gelten wie dort im linearen Farbraum.
 """
 import base64
@@ -155,7 +155,3 @@ def texture(W, s, layers, res=None, extras=(), base=None):
         _CACHE.clear()
     _CACHE[key] = uri
     return uri
-
-
-def image(W, uri, attrs=""):
-    return f'<image href="{uri}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none" {attrs}/>'

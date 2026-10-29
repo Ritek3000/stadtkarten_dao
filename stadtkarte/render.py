@@ -374,12 +374,6 @@ def place_labels(m, taken):
     return placed
 
 
-def _cm(rgb):
-    """'r g b' -> Farbzeilen einer feColorMatrix."""
-    r, g, b = rgb.split()
-    return f"0 0 0 0 {r}  0 0 0 0 {g}  0 0 0 0 {b}"
-
-
 def pools_svg(o, m, rng):
     """Stehende Gewässer je Biotop: Sumpftümpel, zugefrorene Seen oder Oasen."""
     pools, s, B = m["pools"], m["s"], m["biome"]
@@ -483,8 +477,9 @@ def _tex_pool():
     """Threads für die Rauschtexturen: numpy gibt bei den großen Array-Rechnungen die GIL frei,
     mehrere Texturen entstehen so auf mehreren Kernen gleichzeitig."""
     global _TEX_POOL
-    if _TEX_POOL is None:
-        _TEX_POOL = ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 1)), thread_name_prefix="textur")
+    with _TEX_LOCK:   # bei gleichzeitigem Rendern nur ein Pool
+        if _TEX_POOL is None:
+            _TEX_POOL = ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 1)), thread_name_prefix="textur")
     return _TEX_POOL
 
 
@@ -636,7 +631,7 @@ def night_svg(o, m, lamps, forge_glow):
 def plateau_level_svg(o, m):
     """Hochplateau: die andere Geländestufe jenseits der Kante. Das Plateau (Stadt unten) ist heller und
     trockener, das Tiefland (Stadt oben) dunkler und leicht im Dunst."""
-    s, W, B = m["s"], m["W"], m["biome"]
+    W, B = m["W"], m["biome"]
     lvl = m["plateau_level"]
     col = shade(B["land"], 0.68) if m["plateau_oben"] else shade(B["land"], 1.22)
     # Tiefland im bläulichen Dunst, Plateau sonnig und trockener
@@ -852,7 +847,7 @@ def mountain_svg(o, m, rng):
 def slope_svg(o, m, rng):
     """Berghang: steiniger Streifen unter der Felskante, der nach unten in die Alm übergeht.
     Er reicht über die ganze Stadt hinaus; der Stadtboden selbst ist Stein und Geröll."""
-    s, B, W = m["s"], m["biome"], m["W"]
+    s, B = m["s"], m["biome"]
     rock, land = m["sea"], m["land"]
     if rock is None or rock.is_empty:
         return

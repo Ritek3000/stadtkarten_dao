@@ -9,7 +9,7 @@ from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polylabel, substring, unary_union
 
-from .config import place_info, to_canonical
+from .config import MAX_EINWOHNER, place_info, to_canonical
 from .shapes import cross_in_rect, house_shape
 from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, min_width, points, polys, roof, subdivide,
                   unit, vlen)
@@ -36,7 +36,6 @@ UNNAMED_DISTRICT = {"name": "", "typ": "wohn"}
 
 # Großstadt: ab dieser Einwohnerzahl Häuserblöcke statt Einzelhäuser, Altstadtmauer und Vorstädte
 GROSS = 20000
-MAX_EINWOHNER = 250000
 
 
 BEBAUUNG = {"dicht": 1.0, "locker": 1.4, "weitlaeufig": 1.9}   # Flächenfaktor bei gleicher Einwohnerzahl
@@ -284,7 +283,7 @@ class CityBuilder:
 
         def free(q):   # Schritt ohne Meer (bzw. Fels, andere Plateaustufe) und nicht zurück an die Stadt
             return not (sea is not None and sea.distance(Point(q)) < 10 * s) and not near_city.contains(Point(q))
-        for a, p, d in self.gates:
+        for a, p, _ in self.gates:
             noise = Noise1D(self.rng)
             pts = [(p.x, p.y)]
             for i in range(1, 600):
@@ -375,7 +374,8 @@ class CityBuilder:
                     pts.reverse()
                 tail = LineString([(end.x, end.y)] + pts + [(g.x, g.y)])
                 river = self.t["river"]   # auch nicht über den Fluss (an der Mündung wäre das ein Damm im Wasser)
-                if (sea is not None and tail.intersects(sea)) or tail.intersects(self.shape.buffer(-3 * s))                         or (river is not None and tail.intersects(river)):
+                if (sea is not None and tail.intersects(sea)) or tail.intersects(self.shape.buffer(-3 * s)) \
+                        or (river is not None and tail.intersects(river)):
                     continue
                 if best is None or tail.length < best.length:
                     best = tail
@@ -684,11 +684,11 @@ class CityBuilder:
         core = old if old is not None else shapely.affinity.scale(self.shape, 0.6, 0.6, origin=self.center)
         core = core.intersection(self.city_land)
         for i in poor:
-            cut = dl[i]["poly"].intersection(core)
-            if cut.area < 50 * s * s:
+            inner = dl[i]["poly"].intersection(core)
+            if inner.area < 50 * s * s:
                 continue
             dl[i]["poly"] = dl[i]["poly"].difference(core)
-            for piece in polys(cut):
+            for piece in polys(inner):
                 j = min(others, key=lambda k: dl[k]["poly"].distance(piece))
                 dl[j]["poly"] = dl[j]["poly"].union(piece)
 
@@ -842,13 +842,13 @@ class CityBuilder:
                             inset = (4 if d["typ"] == "hafen" else 2.4 if wet else 1.0) * s
                             if A > 1 and d["typ"] != "hafen":
                                 inset += 2.5 * (A - 1) * s   # Abstand zu den Nachbarhäusern
-                            for piece in clean(lp.buffer(-inset, join_style="mitre"), lot * 0.12):
+                            for part in clean(lp.buffer(-inset, join_style="mitre"), lot * 0.12):
                                 # nur erlaubte geometrische Formen mit Mindestbreite; zu schmale Restflächen bleiben Hof
-                                bp, form = house_shape(piece, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO,
+                                bp, form = house_shape(part, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO,
                                                        special_chance=0.0 if poor else 0.12)
                                 if bp is not None and poor:   # Hütten stehen schief auf dem Grundstück
                                     tilt = shapely.affinity.rotate(bp, rng.uniform(-8, 8), origin="centroid")
-                                    if piece.buffer(0.6 * s).contains(tilt):
+                                    if part.buffer(0.6 * s).contains(tilt):
                                         bp = tilt
                                 if bp is not None:
                                     entry["ids"].append(len(self.out["buildings"]))
@@ -1046,7 +1046,6 @@ class CityBuilder:
         shapely.prepare(net)
         alive = [b for b in self.out["buildings"] if not b.get("removed")]
         tree = shapely.STRtree([b["poly"] for b in alive])
-        moved = dropped = 0
         shifted = set()
         for i, b in enumerate(alive):
             if landmarks != bool(b.get("landmark")) or b.get("courtyard") or b.get("poor"):
@@ -1068,13 +1067,10 @@ class CityBuilder:
             if ok:
                 b["poly"] = cand
                 shifted.add(i)
-                moved += 1
             elif landmarks:
                 continue   # Sondergebäude nie streichen
             else:
                 b["removed"] = True
-                dropped += 1
-        self.stats = {k: self.stats.get(k, 0) + v for k, v in (("verschoben", moved), ("entfernt", dropped))}             if hasattr(self, "stats") else {"verschoben": moved, "entfernt": dropped}
 
     def _replace_block(self, blk, color, label_src, inset):
         # erst prüfen, ob ein rechteckiges Sondergebäude hineinpasst, dann den Block räumen
@@ -1333,7 +1329,7 @@ class CityBuilder:
                         # Blöcke mit einem schon gesetzten besonderen Ort nicht abräumen (sonst bliebe z.B. von der
                         # Wassermühle nur das Rad samt Beschriftung übrig)
                         and not any(self.out["buildings"][i].get("landmark") for i in bk["ids"])]
-                outside = str(o.get("lage", "")).lower() in ("ausserhalb", "aussen", "draussen", "vor der stadt")
+                outside = str(o.get("lage", "")) in ("ausserhalb", "aussen", "draussen", "vorderstadt")
                 merged = None
                 if self.grand and not blks and not outside and typ != "werft":
                     merged = self._merged_block(typ, di)   # Großstadt: mehrere kleine Blöcke zusammenlegen

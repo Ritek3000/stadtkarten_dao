@@ -55,6 +55,31 @@ def _merge(base, extra):
     return out
 
 
+MIN_EINWOHNER, MAX_EINWOHNER = 100, 250000
+
+
+def number(sec, key, name, typ, lo, hi, default=None):
+    """Zahlenfeld prüfen und umwandeln; leer (z.B. geleertes Feld in der Oberfläche) heißt Standardwert."""
+    val = sec.get(key)
+    if val is None or (isinstance(val, str) and not val.strip()):
+        if default is None:
+            raise ValueError(f"{name} fehlt (erwartet eine Zahl von {lo} bis {hi})")
+        val = default
+    try:
+        if isinstance(val, bool):
+            raise ValueError
+        num = float(str(val).replace(",", ".")) if isinstance(val, str) else float(val)
+        if typ is int and num != int(num):
+            raise ValueError
+        num = typ(num)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} muss eine {'ganze ' if typ is int else ''}Zahl sein, nicht '{val}'")
+    if not lo <= num <= hi:
+        raise ValueError(f"{name}: {num} - möglich sind {lo} bis {hi}")
+    sec[key] = num
+    return num
+
+
 def load(path):
     with open(path, encoding="utf-8") as f:
         return from_dict(yaml.safe_load(f) or {})
@@ -84,12 +109,16 @@ def from_dict(raw):
             raise ValueError(f"gelaende.kante: {g['kante']} - möglich sind direkt (an der Kante) und abstand")
     if g["kueste"] not in ROTATION:
         raise ValueError(f"Unbekannte Küstenlage: {g['kueste']}")
-    try:
-        cfg["einwohner"] = int(cfg["einwohner"])
-    except (TypeError, ValueError):
-        raise ValueError(f"einwohner muss eine Zahl sein, nicht '{cfg['einwohner']}'")
-    if not 100 <= cfg["einwohner"] <= 250000:
-        raise ValueError(f"einwohner: {cfg['einwohner']} - möglich sind 100 bis 250000")
+    number(cfg, "einwohner", "einwohner", int, MIN_EINWOHNER, MAX_EINWOHNER)
+    if cfg.get("seed") is None or (isinstance(cfg["seed"], str) and not cfg["seed"].strip()):
+        raise ValueError("seed fehlt: bitte eine ganze Zahl eintragen (oder den Würfel nutzen)")
+    number(cfg, "seed", "seed", int, -2 ** 63, 2 ** 63 - 1)
+    number(cfg["mauer"], "tore", "mauer.tore", int, 1, 12, DEFAULTS["mauer"]["tore"])
+    number(g, "flussbreite", "gelaende.flussbreite", float, 5, 400, DEFAULTS["gelaende"]["flussbreite"])
+    number(g, "inseln", "gelaende.inseln", int, 0, 20, DEFAULTS["gelaende"]["inseln"])
+    aus_ = cfg["ausgabe"]
+    number(aus_, "bildgroesse", "ausgabe.bildgroesse", int, 300, 8000, DEFAULTS["ausgabe"]["bildgroesse"])
+    number(aus_, "raster", "ausgabe.raster", int, 0, 2000, 0)
     form = norm(cfg["stadtform"] or "zufall")
     form = {"zufaellig": "zufall", "auto": "zufall", "kreis": "rund", "elliptisch": "oval", "langgestreckt": "oval",
             "lang": "oval", "unregelmassig": "unregelmaessig", "eckig": "vieleck", "polygon": "vieleck",
@@ -144,6 +173,8 @@ def from_dict(raw):
     for o in cfg["orte"]:
         o["typ"] = norm(o.get("typ", "laden"))
         o["typ"] = PLACE_ALIASES.get(o["typ"], o["typ"])
+        if o.get("lage"):   # wie bei Vierteln: "Außerhalb", "vor der Stadt" ... einheitlich schreiben
+            o["lage"] = norm(o["lage"])
     cfg["orte"] = numbered_places(cfg["orte"])
     cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
     return cfg

@@ -62,6 +62,7 @@ PLACE_TYPES = ["gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "konto
                "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof", "festung"]
 RESULTS = {}            # Ergebnis-ID -> erzeugte Karte (die letzten paar bleiben im Speicher)
 GEN_LOCK = threading.Lock()
+RESULTS_LOCK = threading.Lock()   # RESULTS wird von parallelen Anfragen verändert
 
 
 def options():
@@ -101,14 +102,16 @@ def build(raw):
         view_job = png_async(base)
         small = small_job.result()
     rid = uuid.uuid4().hex[:12]
-    while len(RESULTS) >= 4:
-        RESULTS.pop(next(iter(RESULTS)))
-    RESULTS[rid] = {"svg": svg, "base": base, "png": None, "view": view_job, "lock": threading.Lock(), "W": m["W"],
+    res = {"svg": svg, "base": base, "png": None, "view": view_job, "lock": threading.Lock(), "W": m["W"],
                     "name": cfg["name"], "raw": raw, "cfg": cfg, "orte": webpaket.places(m),
                     "raster": int(cfg["ausgabe"].get("raster") or 0) > 0,
                     "stem": f"{config.slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
+    with RESULTS_LOCK:
+        while len(RESULTS) >= 4:
+            RESULTS.pop(next(iter(RESULTS)))
+        RESULTS[rid] = res
     if (os.cpu_count() or 1) >= 4:   # genug Kerne: PNG mit Beschriftung vorsorglich schon rendern
-        start_png(RESULTS[rid])
+        start_png(res)
     return {
         "id": rid,
         "W": m["W"],

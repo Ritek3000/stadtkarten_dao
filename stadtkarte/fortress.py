@@ -380,11 +380,12 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
         # an Land: freier Platz vor der Mauer, möglichst nahe an einem Tor
         roads_u = unary_union([ln.buffer(w / 2 + 40 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
         best = None
+        c = shape.centroid
+        rim = shape.exterior.distance(c)   # beides ändert sich in der Schleife nicht
         for _ in range(400):
             t = rng.uniform(0, 2 * math.pi)
             d = rng.uniform(170, 250) * s
-            c = shape.centroid
-            p = Point(c.x + math.cos(t) * (shape.exterior.distance(c) + d), c.y + math.sin(t) * (shape.exterior.distance(c) + d))
+            p = Point(c.x + math.cos(t) * (rim + d), c.y + math.sin(t) * (rim + d))
             disk = p.buffer(75 * s)
             if not (0 < p.x < W and 0 < p.y < W) or disk.intersects(water.buffer(20 * s)) \
                     or disk.intersects(shape.buffer(60 * s)) or disk.intersects(roads_u):
