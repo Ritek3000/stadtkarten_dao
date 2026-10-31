@@ -18,6 +18,7 @@ import json
 import os
 import pathlib
 import random
+import re
 import subprocess
 import sys
 
@@ -224,6 +225,21 @@ def variants():
     return out
 
 
+BLAS_AUFRUFE = re.compile(r"np\.(dot|linalg|matmul|inner|vdot|einsum|tensordot)\b|\w\s@\s\w")
+
+
+def blas_im_code():
+    """Rechnungen, die über OpenBLAS laufen, runden je nach Prozessor anders - im Generator verboten (geo.vlen und
+    geo.vdot rechnen bitgleich). Die Suche fängt das auch auf Rechnern, auf denen die Läufe zufällig gleich sind."""
+    funde = []
+    for f in sorted((pathlib.Path(__file__).resolve().parents[1] / "stadtkarte").glob("*.py")):
+        for nr, zeile in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            code = zeile.split("#")[0]
+            if BLAS_AUFRUFE.search(code) and '"""' not in zeile:
+                funde.append(f"{f.name}:{nr}: {zeile.strip()}")
+    return funde
+
+
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--einzeln":   # Kindprozess: eine Karte, Ergebnis als JSON
         install()
@@ -238,6 +254,10 @@ def main():
     vs = variants()
     print("Verglichen werden: Lauf 1 und 2 im selben Prozess, " + ", ".join(v for v, _ in vs))
     all_ok = True
+    funde = blas_im_code()
+    for fund in funde:
+        print(f"  BLAS-Aufruf {fund}  (je nach Prozessor andere Rundung: geo.vdot/geo.vlen verwenden)")
+    all_ok &= not funde
     for beispiel, seed in FAELLE:
         runs = [("Lauf 1", trace(beispiel, seed), False), ("Lauf 2", trace(beispiel, seed), False)]
         for label, env in vs:

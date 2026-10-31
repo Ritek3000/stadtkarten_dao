@@ -86,7 +86,9 @@ def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), pr
                 a = np.array([math.cos(ang), math.sin(ang)])     # Streifenrichtung (Pflugrichtung)
                 b = np.array([-a[1], a[0]])                      # quer dazu
                 c = gew.centroid
-                proj = [float(np.dot(np.array(q) - (c.x, c.y), b)) for q in gew.exterior.coords]
+                # Projektion von Hand statt np.dot: das liefe über OpenBLAS und rundet je nach Prozessor anders
+                bx, by = float(b[0]), float(b[1])
+                proj = [(q[0] - c.x) * bx + (q[1] - c.y) * by for q in gew.exterior.coords]
                 lo, hi = min(proj), max(proj)
                 k = lo
                 while k < hi:
