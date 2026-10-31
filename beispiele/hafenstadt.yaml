@@ -27,6 +27,7 @@ mauer:
 viertel:
   - name: Hafen
     typ: hafen
+    groesse: gross     # Hafen: klein | mittel | gross
   - name: Handwerkerviertel
     typ: handwerk
     lage: west

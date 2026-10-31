@@ -830,6 +830,41 @@ def plateau_edge_svg(o, m, rng):
                      f'<path d="{path_d(spray)}" fill="#ffffff" fill-opacity="0.85" filter="url(#blur)"/>')
 
 
+def lighthouse_svg(o, lh, s, night=False, glow=False):
+    """Leuchtturm von oben: achteckiger Steinsockel, weißer Turm mit roten Ringen, Galerie und Laterne. glow=True
+    zeichnet nur das Leuchtfeuer (Lichthof und zwei Lichtkegel), das über allem liegt - nachts weithin sichtbar."""
+    x, y, r = lh["x"], lh["y"], lh["r"]
+    if glow:
+        k = 1.0 if night else 0.45
+        beams = []
+        for ang in (25, 205):                       # zwei Lichtkegel, gegenüber
+            a0, a1 = math.radians(ang - 8), math.radians(ang + 8)
+            L = r * (16 if night else 10)
+            beams.append(f"M{f(x)},{f(y)}L{f(x + math.cos(a0) * L)},{f(y + math.sin(a0) * L)}"
+                         f"L{f(x + math.cos(a1) * L)},{f(y + math.sin(a1) * L)}Z")
+        o.append(f'<radialGradient id="beaconGlow"><stop offset="0" stop-color="#ffe9a8" stop-opacity="{0.85 * k:.2f}"/>'
+                 f'<stop offset="0.35" stop-color="#ffd77a" stop-opacity="{0.35 * k:.2f}"/>'
+                 f'<stop offset="1" stop-color="#ffd77a" stop-opacity="0"/></radialGradient>'
+                 f'<radialGradient id="beamFade" cx="{f(x)}" cy="{f(y)}" r="{f(r * (16 if night else 10))}" '
+                 f'gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff2c4" stop-opacity="{0.7 * k:.2f}"/>'
+                 f'<stop offset="1" stop-color="#fff2c4" stop-opacity="0"/></radialGradient>'
+                 f'<path d="{"".join(beams)}" fill="url(#beamFade)"/>'
+                 f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * (7 if night else 4))}" fill="url(#beaconGlow)"/>'
+                 f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.26)}" fill="#fff6d8"/>')
+        return
+    oct_ = " ".join(f"{f(x + math.cos(math.radians(22.5 + 45 * i)) * r)},{f(y + math.sin(math.radians(22.5 + 45 * i)) * r)}"
+                    for i in range(8))
+    o.append(f'<circle cx="{f(x + 3 * s)}" cy="{f(y + 4 * s)}" r="{f(r)}" fill="#000" fill-opacity="0.35" '
+             f'filter="url(#softblur)"/>'
+             f'<polygon points="{oct_}" fill="#9d978a" stroke="{C["outline"]}" stroke-width="{f(1.4 * s)}"/>'
+             f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.72)}" fill="#efe9dc" stroke="{C["outline"]}" stroke-width="{f(1.3 * s)}"/>'
+             f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.6)}" fill="none" stroke="#b23a2a" stroke-width="{f(r * 0.12)}"/>'
+             f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.42)}" fill="#3a3530" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>'
+             f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.3)}" fill="#ffd77a" stroke="#7a5a20" stroke-width="{f(0.8 * s)}"/>'
+             f'<path d="M{f(x - r * 0.72)},{f(y)}A{f(r * 0.72)},{f(r * 0.72)} 0 0 1 {f(x)},{f(y - r * 0.72)}" '
+             f'fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="{f(1.2 * s)}"/>')
+
+
 def lift_svg(o, lift, s):
     """Aufzug an der Plateaukante: hölzerner Schacht mit Schienen und Streben über die Felswand, Seil und Fahrkorb,
     oben das Windenhaus mit Seiltrommel, unten eine Bretterplattform."""
@@ -1447,6 +1482,8 @@ def render_svg(m):
         o.append(shadow_layer(rk, 2 * s, 2.5 * s, 0.5, s) +
                  f'<g fill="#8b877c" stroke="#2e2c27" stroke-width="{f(1 * s)}">{rk}</g>'
                  f'<g fill="#ffffff" fill-opacity="0.35">{hl}</g>')
+    if m.get("lighthouse"):
+        lighthouse_svg(o, m["lighthouse"], s, night=bool(m["cfg"]["ausgabe"].get("nacht")), glow=False)
     # Gebäude
     stilts_svg(o, m)
     # Schattenwurf als versetzte Silhouette (statt teurem feDropShadow über die ganze Karte)
@@ -1535,6 +1572,8 @@ def render_svg(m):
                  f'<g clip-path="url(#slipBow{i})">{ship_svg(sh, s)}</g>')
     if m["cfg"]["ausgabe"].get("nacht"):
         night_svg(o, m, lamps, forge_glow)
+    if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
+        lighthouse_svg(o, m["lighthouse"], s, night=bool(m["cfg"]["ausgabe"].get("nacht")), glow=True)
     o.append("</g>")  # Ende Drehung
 
     # Beschriftung (immer aufrecht), Schrift in Kartengröße

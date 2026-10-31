@@ -179,6 +179,17 @@ def from_dict(raw):
         if v.get("lage") and norm(v["lage"]) in ("ausserhalb", "aussen", "draussen", "vorderstadt", "vordermauer"):
             v["ausserhalb"] = True   # Armenviertel vor der Stadtmauer
             del v["lage"]
+        if v["typ"] == "hafen":   # Größe des Hafenviertels: klein | mittel | gross (Standard)
+            gr = norm(v.get("groesse") or "gross")
+            gr = {"gross": "gross", "groß": "gross", "klein": "klein", "mittel": "mittel", "normal": "mittel"}.get(gr, gr)
+            if gr not in ("klein", "mittel", "gross"):
+                raise ValueError(f"Viertel {v.get('name')}: groesse {v.get('groesse')} - möglich sind klein, mittel, gross")
+            if gr == "gross":
+                v.pop("groesse", None)
+            else:
+                v["groesse"] = gr
+        else:
+            v.pop("groesse", None)
         if v.get("ausserhalb"):
             v["ausserhalb"] = True
         else:

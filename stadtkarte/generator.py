@@ -13,6 +13,7 @@ from shapely.ops import nearest_points, polylabel, split, unary_union
 from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
 from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
+from . import leuchtturm
 from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
 from .styles import BIOMES, FORT_TYPES
 from .surroundings import hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
@@ -263,6 +264,24 @@ def _generate(cfg, W):
     if len(fort_specs) > 1:
         print("Hinweis: Es wird nur eine Festung gebaut.")
     forts_u = unary_union([f["area"] for f in forts]) if forts else Polygon()
+    # Schiffe, deren Ausfahrt eine Festung, ihre Insel oder Brücke versperrt, legen hier gar nicht erst an
+    if forts:
+        fort_block = unary_union([f["area"] for f in forts]
+                                 + [ln.buffer(w / 2 + 4 * s) for ln, w in fort_bridges])
+        city["ships"] = [sh for sh in city["ships"] if sh.get("depart") is None
+                         or not sh["depart"].intersects(fort_block)]
+    # Leuchtturm: jede Küstenstadt, auf einer vorgelagerten Insel oder an der Spitze des Hafens
+    light = leuchtturm.place(s, W, city, terrain, islands, forts)
+    if light is not None:
+        foot = light["area"]
+        city["buildings"] = [b for b in city["buildings"] if not b["poly"].intersects(foot)]
+        city["stalls"] = [st for st in city["stalls"] if not st["poly"].intersects(foot)]
+        city["wells"] = [w_ for w_ in city["wells"] if not foot.buffer(w_[2]).contains(Point(w_[0], w_[1]))]
+        city["fountains"] = [w_ for w_ in city["fountains"] if not foot.buffer(w_[2]).contains(Point(w_[0], w_[1]))]
+        city["yard_trees"] = [t_ for t_ in city["yard_trees"] if not foot.buffer(t_[2]).contains(Point(t_[0], t_[1]))]
+        forts_u = forts_u.union(foot.buffer(20 * s))
+        city["labels"].append({"x": light["x"], "y": light["y"], "text": "Leuchtturm", "kind": "ort",
+                               "lift": light["r"] * 1.6, "ort": place_info({"name": "Leuchtturm", "typ": "leuchtturm"})})
     if not city["faubourg"].is_empty:   # Großstadt: Vorstädte halten Felder, Wald und Einzelhäuser fern
         forts_u = forts_u.union(city["faubourg"])
     if not city["slum_outside"].is_empty:   # ebenso Hüttensiedlungen vor der Mauer
@@ -399,7 +418,7 @@ def _generate(cfg, W):
                         + [ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]) for sh in city["ships"]]
                         + [st["poly"] for st in city["stalls"]]
                         + [Point(x, y).buffer(r) for x, y, r in city["fountains"] + city["wells"]]
-                        + [f["fort"] for f in forts])
+                        + [f["fort"] for f in forts] + ([light["area"]] if light else []))
     shapely.prepare(solid)
     trees = [tr for tr in trees if not solid.intersects(Point(tr[0], tr[1]).buffer(tr[2] * 0.6))]
     city["yard_trees"] = [tr for tr in city["yard_trees"] if not solid.intersects(Point(tr[0], tr[1]).buffer(tr[2] * 0.6))]
@@ -413,6 +432,7 @@ def _generate(cfg, W):
         "oases": oases, "rocks": rocks, "dunes": dunes, "floes": floes,
         "river_line": river_line, "mines": mines, "paths": paths,
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
+        "lighthouse": light,
         **city,
     }
 

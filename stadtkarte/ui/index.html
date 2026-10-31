@@ -412,6 +412,9 @@ function renderForm() {
       select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => { v.typ = x; if (x !== "armen") delete v.ausserhalb; renderForm(); }),
       v.ausserhalb ? null
         : select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
+    v.typ === "hafen" ? el("div", {class: "row"},
+      select([["klein", "Größe: klein"], ["mittel", "Größe: mittel"], ["gross", "Größe: groß"]], v.groesse ?? "gross",
+        x => { if (x === "gross") delete v.groesse; else v.groesse = x; })) : null,
     v.typ === "armen" ? el("label", {class: "row hint"},
       el("input", {type: "checkbox", checked: !!v.ausserhalb,
         on: {change: e => { if (e.target.checked) { v.ausserhalb = true; delete v.lage; } else delete v.ausserhalb; renderForm(); }}}),

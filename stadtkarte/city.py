@@ -706,7 +706,7 @@ class CityBuilder:
         seeds = self.district_seeds(specs)
         self.seeds = seeds
         self.district_list = [{"name": sp.get("name", ""), "typ": sp["typ"], "poly": Polygon(),
-                               "outside": bool(sp.get("ausserhalb"))} for sp in specs]
+                               "outside": bool(sp.get("ausserhalb")), "groesse": sp.get("groesse")} for sp in specs]
         idx = [i for i, sp in enumerate(specs) if not sp.get("ausserhalb")]
         area = self.city_land
         harbor = self.carve_harbor()
@@ -770,7 +770,9 @@ class CityBuilder:
             side = free[0]
         ends = getattr(self, "bridge_ends", None)
         limit_y = (min(e[1] for e in ends) if ends else self.center[1]) - 60 * s
-        harbor = self.sides[side].intersection(self.t["water"].buffer(150 * s))
+        # Größe des Hafens: Breite des Kai-Streifens (groß = bisheriger Hafen)
+        depth = {"klein": 65, "mittel": 105}.get(dl[hi].get("groesse"), 150) * s
+        harbor = self.sides[side].intersection(self.t["water"].buffer(depth))
         if ends:   # Hafen nur flussabwärts der Brücke
             harbor = harbor.intersection(box(-W, -W, 2 * W, limit_y))
         harbor = unary_union(clean(harbor, 2000 * s * s))
@@ -1758,8 +1760,18 @@ class CityBuilder:
                         angle = math.degrees(math.atan2(ny, nx))
                     hull = ship_footprint(cx, cy, hl, hw, angle)
                     others = occupied[:-1]   # der eigene Steg darf direkt daneben liegen (Abstand ist schon eingerechnet)
+                    # Ausfahrt: das Schiff muss vom Steg ablegen können - auf See ein Korridor in Bugrichtung bis
+                    # aufs offene Wasser (keine Insel, kein Ufer, keine anderen Stege oder Schiffe), im Fluss
+                    # genügt die freie Fahrrinne
+                    lane = None
+                    if not in_river:
+                        far = max(3.0 * hl, 140 * s)
+                        lane = LineString([(cx, cy), (cx + nx * far, cy + ny * far)]).buffer(hw / 2 + 3 * s, cap_style="flat")
+                        if not water.buffer(1 * s).contains(lane) or any(lane.intersects(o) for o in others):
+                            continue
                     if water.buffer(1 * s).contains(hull) and not any(hull.buffer(2 * s).intersects(o) for o in others):
-                        self.out["ships"].append({"x": cx, "y": cy, "len": hl, "wid": hw, "angle": angle, "big": big})
+                        self.out["ships"].append({"x": cx, "y": cy, "len": hl, "wid": hw, "angle": angle, "big": big,
+                                                  "depart": lane})
                         occupied.append(hull.buffer(2 * s))
 
     # ---------------------------------------------------------------- Plätze, Brunnen, Bäume

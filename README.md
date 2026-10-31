@@ -125,6 +125,14 @@ Plateaukante oder zurück auf die Stadtmauer zu, weicht sie aus und führt weite
 weiter (Bucht, Felsnische), mündet sie in die nächste Landstraße, läuft außen an der Mauer entlang zum nächsten Tor,
 endet an der Küste an einer Anlegestelle mit Steg oder, wenn nichts davon geht, an einem kleinen Weiler.
 
+## Hafen
+
+Ein Viertel mit `typ: hafen` hat die Option `groesse: klein | mittel | gross` (Werkstatt: „Größe“ beim
+Hafenviertel). Sie bestimmt, wie breit der gepflasterte Kai-Streifen am Ufer wird; `gross` (Standard) ist der
+bisherige Hafen. Stege und Schiffe gibt es nur am Kai und im Fluss; ein Schiff legt nur dort an, wo es frei aufs
+offene Wasser ablegen kann. Jede Küstenstadt hat einen großen Leuchtturm, bevorzugt auf einer vorgelagerten Insel,
+sonst an der Spitze des Hafens; bei Nacht strahlt sein Feuer weit übers Wasser.
+
 ## Armenviertel
 
 Viertel mit `typ: armen` (Oberfläche: „Armenviertel“) werden als Elendsviertel gezeichnet: winzige, leicht schief
