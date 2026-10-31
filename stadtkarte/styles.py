@@ -71,6 +71,9 @@ _BIOME_BASE = dict(
     ground_detail=[("grain", "#1c2615", 0.35, 41), ("grain", "#a3b97c", 0.22, 42),
                    ("stipple", "#1f2c18", 0.55, 43), ("stipple", "#9fb874", 0.4, 44, 0.6)],
     rock_detail=[],
+    # Bodentönung nach der Umgebung (umgebung.py): "auto" = aus der Bodenfarbe abgeleitet, None = keine
+    moist="auto", dry="auto", worn="auto", moss="auto", shore="#c9b98a",
+    relief=0.27,         # Stärke der Schummerung auf dem Boden
 )
 
 BIOMES = {
@@ -85,6 +88,7 @@ BIOMES = {
         pools=1.0, pool_style="sumpf", stilts=True, pool="#526349", pool_edge="#2c3422",
         field_kinds=[0.1, 0.25, 0.65], field_prob=0.35,
         thatch=["#a89a5e", "#8e7f4a", "#b3a26a", "#7d6b48", "#9a8a52"],
+        dry=None, shore="#5f5a40",
     ),
     "nordland": dict(_BIOME_BASE,
         ground_detail=[("drift", "#ffffff", 0.55, 41), ("drift", "#9fb3c2", 0.3, 45),
@@ -99,6 +103,7 @@ BIOMES = {
         field_colors={"plowed": ("#d3d9db", "#a7a59c")},
         thatch=["#eef1f2", "#e3e8ea", "#d6dde0"], roof_share=0.75,
         rocks=1.0, floes=1.0, cemetery="#cfd8dc",
+        moist=None, dry=None, worn="#b3ab98", shore="#b4bab8", relief=0.32,
     ),
     "steppe": dict(_BIOME_BASE,
         ground_detail=[("grain", "#5a5530", 0.35, 41), ("grain", "#d8cd92", 0.22, 42),
@@ -110,6 +115,7 @@ BIOMES = {
         field_kinds=[0.6, 0.25, 0.15], field_prob=0.6,
         thatch=["#b9a66b", "#a8935a", "#c4b07a", "#9c8752"],
         rocks=0.8, cemetery="#7d7a48",
+        moist="#7f8b48", shore="#d9cc98",
     ),
     "wueste": dict(_BIOME_BASE,
         ground_detail=[("ripple_light", "#f7e9c6", 0.5, 41), ("ripple_dark", "#a07c47", 0.35, 41),
@@ -123,6 +129,7 @@ BIOMES = {
         field_kinds=[0.5, 0.15, 0.35], field_prob=0.55,
         thatch=["#c9a06a", "#b88d5a", "#d4b07c", "#a97e4e", "#c2955f"], roof_share=0.85, flat_roofs=True,
         rocks=0.6, dunes=True, green_banks=True, cemetery="#c9b48a",
+        moist="#86934a", dry="#e8d3a0", shore="#efdcae", relief=0.3,
     ),
     "gebirge": dict(_BIOME_BASE,
         ground_detail=[("grain", "#262a1e", 0.4, 41), ("grain", "#b9bb9c", 0.25, 42),

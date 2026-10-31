@@ -117,18 +117,51 @@ def _hex_rgb(h):
     return np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)], np.float32)
 
 
-def texture(W, s, layers, res=None, extras=(), base=None):
+def _unit(n):
+    """Rauschen auf 0..1 strecken (2. und 98. Perzentil), damit Farbverläufe voll ausgeschöpft werden."""
+    lo, hi = np.percentile(n, 2), np.percentile(n, 98)
+    return np.clip((n - lo) / (hi - lo + 1e-6), 0, 1)
+
+
+def palette_base(res, s, palette, seed):
+    """Deckender Untergrund als Farbverlauf: großräumiges, fließendes Simplex-Rauschen wird auf eine Palette
+    abgebildet (z.B. saftiges Grün - Gelbgrün - Oliv - trockene Stellen), statt einer einzigen Grundfarbe."""
+    big = _fbm(res, 900 * s, 3, seed, False, warp=0.6)
+    mid = _fbm(res, 260 * s, 3, seed + 1, False, warp=0.4)
+    t = _unit(0.7 * big + 0.3 * mid)
+    cols = np.array([_hex_rgb(c) for c in palette], np.float32)
+    x = t * (len(cols) - 1)
+    i = np.clip(np.floor(x).astype(np.int32), 0, len(cols) - 2)
+    f = (x - i)[..., None]
+    f = f * f * (3 - 2 * f)                     # weiche Übergänge zwischen den Farbstufen
+    return cols[i] * (1 - f) + cols[i + 1] * f
+
+
+def relief(res, s, period, seed, light):
+    """Schummerung: Höhenfeld aus Simplex-Rauschen, beleuchtet aus Richtung 'light' (Kartenkoordinaten, zeigt
+    zur Lichtquelle). Liefert -1 (Schatten) .. 1 (Licht); Hänge zum Licht hin werden hell."""
+    h = _fbm(res, period * s, 3, seed, False, warp=0.5)   # wenige Oktaven: sanfte, weite Bodenwellen
+    gy, gx = np.gradient(h.astype(np.float64))
+    lx, ly = light
+    sh = -(gx * lx + gy * ly)                   # Anstieg in Lichtrichtung = zum Licht geneigt
+    return np.clip(sh / (np.std(sh) * 2.5 + 1e-9), -1, 1).astype(np.float32)
+
+
+def texture(W, s, layers, res=None, extras=(), base=None, palette=None, shading=None):
     """Data-URI eines RGBA-Bildes aus einer oder mehreren übereinandergelegten Rauschschichten.
     layers: Liste aus (Parameter, Deckkraft); Parameter = (baseFrequency, Oktaven, Seed, Farbe linear,
-    Verstärkung, Versatz, Turbulenz). Mehrere Schichten in einem Bild sparen Renderzeit."""
+    Verstärkung, Versatz, Turbulenz[, Verzerrung]). Mehrere Schichten in einem Bild sparen Renderzeit.
+    palette: Farbverlauf statt einfarbigem Untergrund (nur mit base); shading: Relief als
+    (Stärke, Wellenlänge bei 2000 px, Licht-x, Licht-y, Seed) - zuletzt aufgetragen, wie Licht über allem."""
     res = res or W
-    key = (W, round(s, 4), res, tuple((tuple(map(str, sp)), op) for sp, op in layers), tuple(map(tuple, extras)), base)
+    key = (W, round(s, 4), res, tuple((tuple(map(str, sp)), op) for sp, op in layers), tuple(map(tuple, extras)), base,
+           tuple(palette or ()), tuple(shading or ()))
     if key in _CACHE:
         return _CACHE[key]
     out_rgb = np.zeros((res, res, 3), np.float32)   # vormultipliziert
     out_a = np.zeros((res, res), np.float32)
     if base:   # deckender Untergrund: Bild ohne Transparenz, komprimiert viel besser
-        out_rgb[:] = _hex_rgb(base)
+        out_rgb[:] = palette_base(res, s, palette, 61) if palette else _hex_rgb(base)
         out_a[:] = 1
     for spec, opacity in layers:
         rgb, alpha = _layer(W, s, res, spec)
@@ -141,6 +174,12 @@ def texture(W, s, layers, res=None, extras=(), base=None):
         a = _detail(kind, res, s, seed, *(ex[4:5] or [1.0])) * opacity
         out_rgb = _hex_rgb(color)[None, None, :] * a[..., None] + out_rgb * (1 - a[..., None])
         out_a = a + out_a * (1 - a)
+    if shading:   # Relief: Licht warm-hell, Schatten kühl-dunkel, nur wo schon etwas ist (Deckkraft bleibt)
+        strength, period, lx, ly, seed = shading
+        sh = relief(res, s, period, seed, (lx, ly))
+        for col, a in (("#fff4d6", np.clip(sh, 0, 1) * strength), ("#26301f", np.clip(-sh, 0, 1) * strength)):
+            # "darüber, aber nur wo schon etwas ist": vormultiplizierte Farbe, Deckkraft bleibt unverändert
+            out_rgb = _hex_rgb(col)[None, None, :] * (a * out_a)[..., None] + out_rgb * (1 - a[..., None])
     img = np.empty((res, res, 4), np.uint8)
     img[..., :3] = np.clip(out_rgb / np.maximum(out_a, 1e-6)[..., None] * 255, 0, 255).astype(np.uint8)
     img[..., 3] = np.clip(out_a * 255, 0, 255).astype(np.uint8)

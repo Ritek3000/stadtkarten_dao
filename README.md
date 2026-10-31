@@ -201,6 +201,8 @@ Im Nachtmodus leuchten Fenster einzelner Häuser der Häuserzeilen.
 - jeder Platz hat einen Laufbrunnen, große Plätze zusätzlich einen Wochenmarkt; an breiten Straßenstellen stehen Ziehbrunnen
 - größere leere Flächen (Höfe, freie Grundstücke) bekommen einzelne Bäume
 - Gelände und Bodentexturen beruhen auf Simplex-Rauschen: Küsten, Flussläufe, Landstraßen und Umrisse (1D), Bodenflecken und Nebel (verzerrt, fließend), Felsrisse (Nulllinien), Schneeverwehungen (in Windrichtung gestreckt) und Sandrippel; ohne Kästchen-Muster und auf jedem Prozessor bitgleich
+- Boden mit Relief (sanfte Bodenwellen, Licht immer von Nordwesten der fertigen Karte) und Farbverlauf aus der Bodenfarbe des Biotops; dazu eine Tönung nach der Umgebung: am Wasser satter, fern davon trockener, an Landstraßen, Toren und entlang der Mauer ausgetreten, am Waldrand moosig, an der Küste ein Sand- bzw. Kiesstreifen (Farben je Biotop in `styles.py`: moist, dry, worn, moss, shore, relief)
+- Plätze gehen weich in die einmündenden Gassen über; Brücken enden mit Brüstung an der Uferkante und blenden an Land in Platz, Gasse oder Landstraße aus
 
 ## Beschriftung verschieben
 

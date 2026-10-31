@@ -1,4 +1,5 @@
 """Zeichnet das Kartenmodell als SVG (und daraus PNG/PDF)."""
+import colorsys
 import io
 import math
 import os
@@ -16,7 +17,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
-from . import noise
+from . import noise, umgebung
 from .roofs import detailed_roof, material_for
 from .city import ship_footprint
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -484,21 +485,72 @@ def _tex_pool():
     return _TEX_POOL
 
 
-def noise_open(m, *keys, extras=(), base=None):
+def light_dir(m):
+    """Richtung zur Lichtquelle (Nordwesten der fertigen Karte) in Kartenkoordinaten, also vor der Drehung."""
+    lx = ly = -0.7071067811865476
+    return {0: (lx, ly), 90: (ly, -lx), 180: (-lx, -ly), 270: (-ly, lx)}[int(m["rot"]) % 360]
+
+
+def _hls(hex_color, dl=1.0, ds=1.0, dh=0.0):
+    r, g, b = (int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    h, l_, s_ = colorsys.rgb_to_hls(r, g, b)
+    r, g, b = colorsys.hls_to_rgb((h + dh) % 1.0, min(1.0, l_ * dl), min(1.0, s_ * ds))
+    return "#{:02x}{:02x}{:02x}".format(*(int(round(v * 255)) for v in (r, g, b)))
+
+
+def ground_palette(color):
+    """Farbverlauf des Bodens aus seiner Grundfarbe: kühl-satt, Grundton, warm-hell, trocken."""
+    return (_hls(color, 0.84, 1.15, 0.012), color, _hls(color, 1.08, 1.05, -0.018), _hls(color, 1.16, 0.92, -0.045))
+
+
+def umgebung_daten(m):
+    """Flächen und Farben für die Bodentönung nach der Umgebung (umgebung.image)."""
+    B, s = m["biome"], m["s"]
+
+    def rings(g):
+        return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
+
+    def col(key, auto):
+        v = B.get(key, "auto")
+        return auto if v == "auto" else v
+    land = B["land"]
+    water = unary_union([g for g in (m["water"], m["pools"]) if g is not None and not g.is_empty] or [Polygon()])
+    coastal = m["sea"] is not None and not B["mountain"] and not m.get("plateau")
+    return {
+        "water": rings(water),
+        "forest": rings(m["forest"]),
+        "roads": [(list(ln.coords), w + 8 * s) for ln, w in m["ext_roads"]],
+        "gates": [(x, y, 40 * s) for x, y, _ in m["gates"]],
+        "city_ring": rings(m["shape"].buffer(26 * s).difference(m["shape"])),
+        "sea": rings(m["sea"]) if coastal else [],
+        "moist": col("moist", _hls(land, 0.8, 1.3, 0.02)),
+        "dry": col("dry", _hls(land, 1.15, 0.9, -0.05)),
+        "worn": col("worn", _hls(B["road"], 0.72, 0.85)),
+        "moss": col("moss", _hls(B["forest_floor"], 0.82, 1.1)),
+        "shore": B.get("shore") if coastal else None,
+    }
+
+
+def noise_open(m, *keys, extras=(), base=None, palette=None, shading=None):
     """Öffnendes <use>-Tag einer vorberechneten Rauschtextur (Attribute und '/>' folgen im Aufrufer).
-    keys: Texturname oder (Name, Deckkraft); mehrere werden zu einem Bild zusammengelegt."""
+    keys: Texturname oder (Name, Deckkraft); mehrere werden zu einem Bild zusammengelegt.
+    palette: Farbverlauf als Untergrund, shading: Relief (Stärke, Wellenlänge) - Licht aus Nordwesten."""
     layers = []
     for k in keys:
         name, op = (k, 1.0) if isinstance(k, str) else k
         bf, octv, seed, col, gain, bias, turb = NOISE[name][:7]
         rgb = tuple(float(v) for v in (m["biome"][col] if col in m["biome"] else col).split())
         layers.append(((bf, octv, seed, rgb, gain, bias, turb) + NOISE[name][7:], op))   # samt Verzerrung
-    tid = "_".join(k if isinstance(k, str) else k[0] for k in keys) + ("_d" if extras else "") + ("_b" if base else "")
+    tid = ("_".join(k if isinstance(k, str) else k[0] for k in keys) + ("_d" if extras else "") + ("_b" if base else "")
+           + ("_p" if palette else "") + ("_r" if shading else ""))
+    if shading:
+        shading = (shading[0], shading[1], *light_dir(m), 71)
     if base and base != m["biome"]["land"]:   # andere Grundfarbe (z.B. zweite Stufe am Hochplateau): eigene Textur
         tid += base.lstrip("#")
     tex = m.setdefault("_tex", {})
     if tid not in tex:   # im Hintergrund berechnen; render_svg wartet erst beim Einbetten am Ende
-        tex[tid] = _tex_pool().submit(_texture_limited, m["W"], m["s"], layers, extras=tuple(extras), base=base)
+        tex[tid] = _tex_pool().submit(_texture_limited, m["W"], m["s"], layers, extras=tuple(extras), base=base,
+                                      palette=palette, shading=shading)
     return f'<use href="#tex_{tid}"'
 
 
@@ -641,7 +693,7 @@ def plateau_level_svg(o, m):
     o.append(f'<rect width="{W}" height="{W}" fill="{col}"/>'
              f'<clipPath id="levelClip"><path d="{path_d(lvl)}"/></clipPath>'
              f'<g clip-path="url(#levelClip)">'
-             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=col)}/>'
+             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=col, palette=ground_palette(col), shading=(B["relief"], 480))}/>'
              f'{haze}</g>')
 
 
@@ -676,7 +728,7 @@ def plateau_edge_svg(o, m, rng):
     # Felswand
     o.append(f'<path d="{path_d(band)}" fill="{B["rock"]}"/>'
              f'<clipPath id="plateauBand"><path d="{path_d(band)}"/></clipPath>'
-             f'<g clip-path="url(#plateauBand)" opacity="0.4">{noise_open(m, "rockTex", extras=B["rock_detail"])}/></g>')
+             f'<g clip-path="url(#plateauBand)" opacity="0.4">{noise_open(m, "rockTex", extras=B["rock_detail"], shading=(0.45, 140))}/></g>')
     # Böschungsschraffur quer zur Kante: Striche von der Oberkante zum Fuß, oben dick
     thick, thin = [], []
     for ln in edges:
@@ -801,7 +853,7 @@ def mountain_svg(o, m, rng):
     s, W, B = m["s"], m["W"], m["biome"]
     rock = m["sea"]
     o.append(f'<rect width="{W}" height="{W}" fill="{B["rock"]}"/>'
-             f'{noise_open(m, "rockTex", extras=B["rock_detail"])} opacity="0.7"/>')
+             f'{noise_open(m, "rockTex", extras=B["rock_detail"], shading=(0.45, 140))} opacity="0.7"/>')
     if rock is None or rock.is_empty:
         return
     # Hangschraffur: kurze Striche bergab (intern liegt das Land im Süden)
@@ -861,7 +913,7 @@ def slope_svg(o, m, rng):
     o.append(f'<g fill="{B["slope"]}" fill-opacity="0.18" filter="url(#blur)">{"".join(bands)}</g>')
     upper = land.intersection(rock.buffer(depth * 0.75))
     o.append(f'<clipPath id="slopeClip"><path d="{path_d(upper)}"/></clipPath>'
-             f'<g clip-path="url(#slopeClip)" opacity="0.45">{noise_open(m, "rockTex", extras=B["rock_detail"])}/></g>')
+             f'<g clip-path="url(#slopeClip)" opacity="0.45">{noise_open(m, "rockTex", extras=B["rock_detail"], shading=(0.45, 140))}/></g>')
     # Hangschraffur, nach unten immer seltener
     zone = land.intersection(rock.buffer(depth))
     minx, miny, maxx, maxy = zone.bounds
@@ -882,7 +934,7 @@ def slope_svg(o, m, rng):
     # Stadtboden: Fels und Geröll statt Wiese
     o.append(f'<path d="{path_d(m["city_land"])}" fill="{B["city_ground"]}" fill-opacity="0.9"/>'
              f'<clipPath id="cityClip"><path d="{path_d(m["city_land"])}"/></clipPath>'
-             f'<g clip-path="url(#cityClip)" opacity="0.5">{noise_open(m, "rockTex", extras=B["rock_detail"])}/></g>')
+             f'<g clip-path="url(#cityClip)" opacity="0.5">{noise_open(m, "rockTex", extras=B["rock_detail"], shading=(0.45, 140))}/></g>')
 
 
 def rock_houses_svg(o, m, rng):
@@ -1078,7 +1130,10 @@ def render_svg(m):
     # Land
     o.append(f'<path d="{path_d(m["land"])}" fill="{B["land"]}"/>')
     o.append(f'<g clip-path="url(#landClip)">'
-             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=B["land"])}/></g>')
+             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=B["land"], palette=ground_palette(B["land"]), shading=(B["relief"], 480))}/>'
+             f'<use href="#tex_umgebung"/></g>')
+    tex = m.setdefault("_tex", {})
+    tex["umgebung"] = _tex_pool().submit(umgebung.image, W, s, umgebung_daten(m))
     o.append(f'<path d="{path_d(m["land"])}" fill="none" stroke="{C["coast"]}" stroke-width="{f(2.4 * s)}"/>')
     if B["mountain"]:
         slope_svg(o, m, rng)
@@ -1135,8 +1190,28 @@ def render_svg(m):
     if m["streets"]:   # eine gemeinsame Fläche: Zugangswege (z.B. von der Festungsbrücke) gehen ohne Randlinie
         o.append(edged(unary_union(m["streets"]), B["street"]))   # und ohne sichtbares rundes Ende in die Gassen über
     paved_fill = "url(#cobble)" if B["wall"] == "stein" else B["street"]
-    for pv in m["paved"] + m["plazas"]:
-        o.append(edged(pv, paved_fill))
+    paved = [pv for pv in m["paved"] + m["plazas"] if not pv.is_empty]
+    if paved and m["streets"]:
+        # Plätze gehen weich in die Gassen über: das Pflaster blendet am Rand über wenige Pixel aus (Maske mit
+        # weichgezeichnetem Umriss), die Randlinie fehlt dort, wo eine Gasse einmündet
+        street_u = unary_union(m["streets"])
+        crisp = unary_union(paved)
+        soft = crisp.buffer(2 * s)
+        near = street_u.buffer(10 * s)               # nur an den Einmündungen weich, sonst scharfer Rand
+        o.append(f'<filter id="pavedSoft" x="-5%" y="-5%" width="110%" height="110%">'
+                 f'<feGaussianBlur stdDeviation="{f(3.5 * s)}"/></filter>'
+                 f'<clipPath id="pavedNear"><path d="{path_d(near)}"/></clipPath>'
+                 f'<mask id="pavedMask" maskUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{W}">'
+                 f'<path d="{path_d(crisp.difference(near))}" fill="#fff"/>'
+                 f'<g clip-path="url(#pavedNear)"><path d="{path_d(soft)}" fill="#fff" filter="url(#pavedSoft)"/></g></mask>'
+                 f'<path d="{path_d(soft.buffer(6 * s))}" fill="{paved_fill}" mask="url(#pavedMask)"/>')
+        open_side = street_u.buffer(2 * s) if joins is None else street_u.buffer(2 * s).union(joins)
+        edge = line_d(unary_union([p.boundary for pv in paved for p in polys(pv)]).difference(open_side))
+        if edge:
+            o.append(f'<path d="{edge}" fill="none" stroke="{B["street_edge"]}" stroke-width="{f(1.2 * s)}"/>')
+    else:
+        for pv in paved:
+            o.append(edged(pv, paved_fill))
     slums = [d["poly"] for d in m.get("districts", []) if DISTRICT_TYPES.get(d["typ"], {}).get("poor")]
     if slums and m["streets"]:   # Armenviertel: festgetretener Boden, schlammige Gassen mit Pfützen
         slum = unary_union(slums).buffer(6 * s).intersection(m["city_land"].union(m["slum_outside"]))
@@ -1256,11 +1331,27 @@ def render_svg(m):
         o.append(f'<path d="{path_d(pier)}" fill="#7a5a3c" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>')
     o.append('<g filter="url(#shadow)">' + "".join(ship_svg(sh, s) for sh in m["ships"]) + "</g>")
     lamps = []
+    if m["bridges"]:
+        # Kontur und Brüstung nur über dem Wasser (enden am Ufer wie Widerlager), die Fahrbahn blendet an Land
+        # weich in Gasse, Platz oder Landstraße aus statt als eckiges Brett darauf zu liegen
+        wet = m["water"]
+        o.append(f'<clipPath id="bridgeWet"><path d="{path_d(wet.buffer(1.5 * s))}"/></clipPath>'
+                 f'<filter id="bridgeSoft" x="-5%" y="-5%" width="110%" height="110%">'
+                 f'<feGaussianBlur stdDeviation="{f(3 * s)}"/></filter>'
+                 f'<mask id="bridgeFade" maskUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{W}">'
+                 f'<path d="{path_d(wet.buffer(5 * s))}" fill="#fff" filter="url(#bridgeSoft)"/></mask>')
+    for ln, w in m["bridges"]:   # an Land ein kurzes Stück Weg bis zum Platz bzw. zur Straße (schließt den Uferstreifen)
+        dry = ln.difference(m["water"].buffer(1 * s))
+        if not dry.is_empty:
+            col = B["street"] if m["city_land"].buffer(5 * s).contains(dry.centroid) else B["road"]
+            o.append(f'<path d="{line_d(dry)}" stroke="{col}" stroke-width="{f(w * 0.8)}" stroke-linecap="round" fill="none"/>')
     for ln, w in m["bridges"]:
         d = line_d(ln)
-        o.append(f'<path d="{d}" stroke="{C["outline"]}" stroke-width="{f(w + 4 * s)}" fill="none"/>'   # Kontur
-                 f'<path d="{d}" stroke="#9d9482" stroke-width="{f(w)}" fill="none"/>'                    # Brüstung
-                 f'<path d="{d}" stroke="#c2b9a3" stroke-width="{f(max(w - 4.5 * s, w * 0.5))}" fill="none"/>')  # Fahrbahn
+        o.append(f'<g clip-path="url(#bridgeWet)">'
+                 f'<path d="{d}" stroke="{C["outline"]}" stroke-width="{f(w + 4 * s)}" fill="none"/>'   # Kontur
+                 f'<path d="{d}" stroke="#9d9482" stroke-width="{f(w)}" fill="none"/></g>'               # Brüstung
+                 f'<path d="{d}" stroke="#c2b9a3" stroke-width="{f(max(w - 4.5 * s, w * 0.5))}" fill="none" '
+                 f'mask="url(#bridgeFade)"/>')                                                           # Fahrbahn
         # Brückenlaternen abwechselnd an beiden Geländern, nicht in der Brückenmitte
         n = max(2, int(ln.length / (45 * s)))
         for k in range(n + 1):
