@@ -1,12 +1,14 @@
 """Staub: in der Spielwelt allgegenwärtig, an manchen Stellen dichter. In hoher Konzentration wird er zur
-Finsternis. Staubflächen liegen in Himmelsrichtungen um die Stadt (wie Wald und Felder), über der Stadt ("mitte")
-oder als Schleier über der ganzen Karte ("ueberall"); jede mit einer Stärke:
+Finsternis. Staubflächen liegen in einem 5x5-Raster über der fertigen Karte (Felder a1 bis e5: Spalte a-e von
+links, Zeile 1-5 von oben), in Himmelsrichtungen um die Stadt (wie Wald und Felder), über der Stadt ("mitte") oder
+als Schleier über der ganzen Karte ("ueberall"); jede mit einer Stärke:
   wenig      - leichter, dunkler Schleier über allem
   mittel     - alles darunter nur noch schemenhaft
   finsternis - im Kern schwarz, nichts mehr erkennbar; zum Rand hin verwehend
 Gezeichnet wird ein Bild über der fertigen Karte (unter der Beschriftung, über Licht und Leuchtfeuer)."""
 import base64
 import io
+import math
 import random
 
 import numpy as np
@@ -16,6 +18,7 @@ from .geo import blob, polys
 from .noise import _fbm, _hex_rgb
 
 STUFEN = {"wenig": 0.55, "mittel": 0.8, "finsternis": 0.99}   # Deckkraft im Kern
+GRID = {c + r for c in "abcde" for r in "12345"}                # Rasterfelder über der Karte (5x5)
 
 
 def areas(cfg, W, s, center, r, rot):
@@ -26,8 +29,17 @@ def areas(cfg, W, s, center, r, rot):
     rng = random.Random(f"staub-{cfg['seed']}")
     cx, cy = center
     out = []
+    a = math.radians(-rot)                      # Rasterfelder liegen auf der fertigen Karte: zurückdrehen
+    half = W / 2
     for key, level in sorted(wish.items()):
         if key in ("ueberall", "mitte"):
+            continue
+        if key in GRID:
+            col, row = "abcde".index(key[0]), int(key[1]) - 1
+            fx, fy = (col + 0.5) / 5 * W - half, (row + 0.5) / 5 * W - half
+            px, py = half + fx * math.cos(a) - fy * math.sin(a), half + fx * math.sin(a) + fy * math.cos(a)
+            out.append((blob(rng, px, py, W * rng.uniform(0.12, 0.145), rough=0.45,
+                             stretch=(rng.uniform(0.9, 1.2), rng.uniform(0.9, 1.2))), level))
             continue
         dx, dy = to_canonical(key, rot)
         dist = r + W * 0.3

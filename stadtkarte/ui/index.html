@@ -142,10 +142,15 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 .compass .mid { display: grid; place-items: center; }
 .compass .mid::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--gold); }
 
-/* Staub: Windrose mit Stärke je Feld (aus, wenig, mittel, Finsternis) */
-.compass.dust button.d1 { background: color-mix(in srgb, #3b342b 35%, var(--surface)); color: var(--ink); }
-.compass.dust button.d2 { background: color-mix(in srgb, #1b1712 70%, var(--surface)); color: #e8e0d0; }
-.compass.dust button.d3 { background: #0c0a08; border-color: #000; color: #d8c9a0; }
+/* Staub: 5x5-Raster über der Karte, Stärke je Feld (aus, wenig, mittel, Finsternis) */
+.dustgrid { display: grid; grid-template-columns: repeat(5, 1.6rem); gap: 3px; }
+.dustgrid.one { grid-template-columns: 4.4rem; }
+.dustgrid button { height: 1.6rem; padding: 0; font-size: .8rem; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 2px; color: var(--ink-soft); cursor: pointer; transition: background-color .25s ease, border-color .25s ease; }
+.dustgrid button:hover { border-color: var(--gold); }
+.dustgrid button.d1 { background: color-mix(in srgb, #3b342b 35%, var(--surface)); color: var(--ink); }
+.dustgrid button.d2 { background: color-mix(in srgb, #1b1712 70%, var(--surface)); color: #e8e0d0; }
+.dustgrid button.d3 { background: #0c0a08; border-color: #000; color: #d8c9a0; }
 
 /* Viertel und Orte: eckige Karten mit Haarlinie */
 .list { display: grid; gap: .7rem; }
@@ -330,26 +335,26 @@ function compass(list, onchange) {
 
 const DUST = ["", "wenig", "mittel", "finsternis"];
 const DUST_LBL = {wenig: "wenig", mittel: "mittel", finsternis: "Finsternis"};
-function dustCompass(g) {
+function dustGrid(g) {   // 5x5 Felder über der Karte: Spalten A-E von links, Zeilen 1-5 von oben
   g.staub ??= {};
-  const box = el("div", {class: "compass dust"});
-  const cells = [...DIRS.slice(0, 4), ["mitte", "●"], ...DIRS.slice(5)];
-  for (const d of cells) {
-    const key = d[0];
-    const b = el("button", {type: "button"}, d[1]);
+  const box = el("div", {class: "dustgrid"});
+  const cell = (key, label, title) => {
+    const b = el("button", {type: "button"}, label);
     const paint = () => {
       const v = g.staub[key] || "";
       b.className = v ? "d" + DUST.indexOf(v) : "";
-      b.title = (key === "mitte" ? "Über der Stadt" : DIR_NAMES[key]) + ": " + (DUST_LBL[v] || "kein Staub");
+      b.title = title + ": " + (DUST_LBL[v] || "kein Staub");
     };
     b.onclick = () => {   // Klick schaltet weiter: aus → wenig → mittel → Finsternis → aus
       const next = DUST[(DUST.indexOf(g.staub[key] || "") + 1) % DUST.length];
       if (next) g.staub[key] = next; else delete g.staub[key];
       paint();
     };
-    paint(); box.append(b);
-  }
-  return box;
+    paint();
+    return b;
+  };
+  for (const r of "12345") for (const c of "abcde") box.append(cell(c + r, "", `Feld ${c.toUpperCase()}${r}`));
+  return {grid: box, city: cell("mitte", "Stadt", "Über der Stadt")};
 }
 
 function renderForm() {
@@ -420,13 +425,19 @@ function renderForm() {
       el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
       el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
     el("div", {class: "hint"}, "Himmelsrichtungen um die Stadt, in denen Wald bzw. Felder liegen."),
-    el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
-      el("div", {}, el("div", {class: "lbl"}, "Staub"), dustCompass(g)),
-      el("div", {}, el("div", {class: "lbl"}, "Überall"),
-        select([["", "kein Schleier"], ["wenig", "leichter Schleier"], ["mittel", "dichter Schleier"]], (g.staub ?? {}).ueberall ?? "",
-          v => { g.staub ??= {}; if (v) g.staub.ueberall = v; else delete g.staub.ueberall; }))),
-    el("div", {class: "hint"}, "Staub: jeder Klick schaltet weiter – leer, wenig (Schleier), mittel (schemenhaft), " +
-       "schwarz (Finsternis). Die Mitte legt Staub über die Stadt, „Überall“ einen Schleier über die ganze Karte."),
+    ...(() => { const dg = dustGrid(g); const dirs = Object.keys(g.staub ?? {}).filter(k => DIR_NAMES[k] && k !== "mitte");
+      return [
+      el("div", {class: "row", style: "align-items:flex-start; gap:1.4rem"},
+        el("div", {}, el("div", {class: "lbl"}, "Staub"), dg.grid),
+        el("div", {style: "display:grid; gap:.5rem"},
+          el("div", {}, el("div", {class: "lbl"}, "Stadt"), el("div", {class: "dustgrid one"}, dg.city)),
+          el("div", {}, el("div", {class: "lbl"}, "Überall"),
+            select([["", "kein Schleier"], ["wenig", "leichter Schleier"], ["mittel", "dichter Schleier"]], (g.staub ?? {}).ueberall ?? "",
+              v => { g.staub ??= {}; if (v) g.staub.ueberall = v; else delete g.staub.ueberall; })))),
+      el("div", {class: "hint"}, "Staub: 25 Felder über der Karte (oben links = A1). Jeder Klick schaltet weiter – leer, " +
+         "wenig (Schleier), mittel (schemenhaft), schwarz (Finsternis). „Stadt“ legt Staub über die Stadt, „Überall“ " +
+         "einen Schleier über die ganze Karte." + (dirs.length ? ` Aus der Datei zusätzlich: ${dirs.map(k => DIR_NAMES[k]).join(", ")}.` : ""))];
+    })(),
   ));
 
   // Mauer

@@ -128,8 +128,9 @@ endet an der Küste an einer Anlegestelle mit Steg oder, wenn nichts davon geht,
 ## Staub
 
 Staub ist in der Welt allgegenwärtig, an manchen Stellen dichter; in hoher Konzentration wird er zur Finsternis.
-`gelaende: staub:` legt Staubflächen in Himmelsrichtungen um die Stadt (wie Wald und Felder), über die Stadt
-(`mitte`) oder als Schleier über die ganze Karte (`ueberall`), jeweils mit einer Stärke:
+`gelaende: staub:` legt Staubflächen in ein 5×5-Raster über der Karte (Felder `a1` bis `e5`: Spalte a–e von
+links, Zeile 1–5 von oben), über die Stadt (`mitte`) oder als Schleier über die ganze Karte (`ueberall`); auch
+Himmelsrichtungen um die Stadt (`nordwest` …) gehen. Jede Fläche hat eine Stärke:
 
 | Stärke | Wirkung |
 |---|---|
@@ -139,11 +140,12 @@ Staub ist in der Welt allgegenwärtig, an manchen Stellen dichter; in hoher Konz
 
 ```yaml
 gelaende:
-  staub: {suedwest: finsternis, ost: mittel, mitte: wenig, ueberall: wenig}
+  staub: {a3: finsternis, a4: finsternis, b4: mittel, d1: wenig, mitte: wenig, ueberall: wenig}
 ```
 
-In der Werkstatt unter Gelände: die Windrose „Staub“ (jeder Klick schaltet weiter: leer, wenig, mittel,
-Finsternis; die Mitte ist die Stadt) und „Überall“ für einen Schleier über der ganzen Karte. Der Staub liegt über
+In der Werkstatt unter Gelände: das Raster „Staub“ mit 25 Feldern (oben links = A1; jeder Klick schaltet
+weiter: leer, wenig, mittel, Finsternis), „Stadt“ für Staub über der Stadt und „Überall“ für einen Schleier über
+der ganzen Karte. Der Staub liegt über
 allem, auch über Laternen und Leuchtfeuer, aber unter der Beschriftung.
 
 ## Hafen

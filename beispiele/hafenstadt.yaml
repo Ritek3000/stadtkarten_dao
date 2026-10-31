@@ -15,7 +15,7 @@ gelaende:
   inseln: 3
   wald: [west, suedwest]
   felder: [ost, suedost, sued]
-  # staub: {suedwest: finsternis, ost: mittel, ueberall: wenig}   # Staub: wenig | mittel | finsternis
+  # staub: {a3: finsternis, b4: mittel, d1: wenig, ueberall: wenig}   # 5x5-Raster a1..e5 (oben links a1); wenig | mittel | finsternis
 
 mauer:
   vorhanden: true

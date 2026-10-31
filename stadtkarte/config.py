@@ -173,7 +173,7 @@ def from_dict(raw):
     if isinstance(st, (list, tuple)):
         st = {d: "mittel" for d in st}
     if not isinstance(st, dict):
-        raise ValueError("gelaende.staub: erwartet z.B. {nordwest: finsternis, sued: wenig}")
+        raise ValueError("gelaende.staub: erwartet z.B. {a1: finsternis, c3: wenig} (Raster 5x5) oder {nordwest: mittel}")
     clean_st = {}
     for k, v in st.items():
         k = norm(k)
@@ -183,7 +183,7 @@ def from_dict(raw):
              "aus": "", "kein": "", "keiner": ""}.get(v, v)
         if not v:
             continue
-        if k not in DIRS and k not in ("mitte", "ueberall"):
+        if k not in DIRS and k not in ("mitte", "ueberall") and not re.fullmatch(r"[a-e][1-5]", k):
             raise ValueError(f"gelaende.staub: unbekannte Richtung {k}")
         if v not in ("wenig", "mittel", "finsternis"):
             raise ValueError(f"gelaende.staub.{k}: {v} - möglich sind wenig, mittel, finsternis")
