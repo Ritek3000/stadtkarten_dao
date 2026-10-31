@@ -182,7 +182,8 @@ Ab 20.000 Einwohnern wird die Stadt anders gezeichnet, damit sie auf die Karte p
 - **Häuserblöcke statt Einzelhäuser:** geschlossene Häuserzeilen um Innenhöfe; jedes Haus ist eine eigene Dachfläche
   mit eigener Farbe, dazwischen Brandmauern, rundum der First. Jedes Haus liegt an einer Gasse.
 - **Altstadt:** die alte Mauer mit Türmen und Toren steht noch mitten in der Stadt, davor eine Ringstraße und an jedem
-  alten Tor ein kleiner Torplatz.
+  alten Tor ein kleiner Torplatz. Reicht der Hafen von der Altstadt bis in den äußeren Ring, ist die alte Mauer dort
+  geschleift (kurze Wege zwischen Kai und Stadt).
 - **Mehr Hauptachsen:** zusätzlich zu den Torstraßen laufen breite Straßen vom Marktplatz bis an die äußere Mauer.
 - **Vorstädte:** vor den Toren wachsen Häuserblöcke an den Landstraßen entlang, am Tor dicht, nach außen lichter.
   Mit `mauer: vorstaedte: false` (Oberfläche: Haken „Vorstädte“) entfallen sie, ebenso die einzelnen Häuser an den

@@ -517,6 +517,34 @@ class CityBuilder:
                 d += rng.uniform(75, 95) * s
         self.old_wall = unary_union(self.out["old_wall"]) if self.out["old_wall"] else None
 
+    def raze_harbor_wall(self):
+        """Großstadt: reicht der Hafen von der Altstadt bis in den äußeren Ring, ist die alte Mauer dort längst
+        geschleift - kurze Wege zwischen Kai und Stadt. Mauerstücke, Türme und alte Tore im Hafen entfallen."""
+        old = getattr(self, "old_shape", None)
+        if old is None or not self.out["old_wall"]:
+            return
+        s = self.s
+        harbors = [d["poly"] for d in self.district_list if d["typ"] == "hafen" and not d["poly"].is_empty]
+        if not harbors:
+            return
+        harbor = unary_union(harbors)
+        inside = harbor.intersection(old).area
+        if inside < 0.08 * harbor.area or harbor.difference(old).area < 0.08 * harbor.area:
+            return                                        # Hafen liegt nur innen oder nur außen
+        gone = harbor.buffer(12 * s)
+        near = harbor.buffer(30 * s)   # kurze Reste, die am Hafenrand entlanglaufen, entfallen ebenfalls
+        walls = [g for ln in self.out["old_wall"] for g in lines(ln.difference(gone))
+                 if g.length > 20 * s and g.intersection(near).length < 0.5 * g.length]
+        if len(walls) == len(self.out["old_wall"]) and sum(w.length for w in walls) >= \
+                sum(w.length for w in self.out["old_wall"]) - 1:
+            return
+        old_lines = unary_union(self.out["old_wall"])
+        self.out["old_wall"] = walls
+        self.out["towers"] = [t for t in self.out["towers"]
+                              if not (old_lines.distance(Point(t[0], t[1])) < 1 * s and gone.contains(Point(t[0], t[1])))]
+        self.out["old_gates"] = [g for g in self.out["old_gates"] if not gone.contains(Point(g[0], g[1]))]
+        self.old_wall = unary_union(walls) if walls else None
+
     def great_gate(self):
         """Zwergentor: am obersten Punkt der Felswand (intern liegt der Berg im Norden)."""
         s = self.s
@@ -1809,6 +1837,7 @@ class CityBuilder:
         internal = self.internal_roads()
         self.out["internal_roads"] = internal
         self.districts()
+        self.raze_harbor_wall()
         self.buildings(internal)
         self.outside_slums(ext)
         self.landmarks()
