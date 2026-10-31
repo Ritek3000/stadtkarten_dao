@@ -202,6 +202,7 @@ Im Nachtmodus leuchten Fenster einzelner Häuser der Häuserzeilen.
 - größere leere Flächen (Höfe, freie Grundstücke) bekommen einzelne Bäume
 - Gelände und Bodentexturen beruhen auf Simplex-Rauschen: Küsten, Flussläufe, Landstraßen und Umrisse (1D), Bodenflecken und Nebel (verzerrt, fließend), Felsrisse (Nulllinien), Schneeverwehungen (in Windrichtung gestreckt) und Sandrippel; ohne Kästchen-Muster und auf jedem Prozessor bitgleich
 - Boden mit Relief (sanfte Bodenwellen, Licht immer von Nordwesten der fertigen Karte) und Farbverlauf aus der Bodenfarbe des Biotops; dazu eine Tönung nach der Umgebung: am Wasser satter, fern davon trockener, an Landstraßen, Toren und entlang der Mauer ausgetreten, am Waldrand moosig, an der Küste ein Sand- bzw. Kiesstreifen (Farben je Biotop in `styles.py`: moist, dry, worn, moss, shore, relief)
+- Felder als gewachsene Feldmark: je Richtung eine Flur aus Gewannen mit eigener Pflugrichtung, darin lange, schmale Ackerstreifen dicht an dicht (im Gewann meist dieselbe Frucht, einzelne Brachen), Feldwege und Hecken an den Gewanngrenzen, gedämpfte Farben
 - Wasser mit Tiefe: helles Flachwasser an der Küste, nach außen dunkler, mit Sandbänken und Rinnen; feine Wellenkräusel auf tiefem Wasser, Brandung am Ufer, gestrichelte Küstenlinien; Flüsse mit hellen Ufern, an der Mündung weich ins Meer übergehend (Farben aus dem Biotop: sea_deep, sea, shallow, river)
 - Plätze gehen weich in die einmündenden Gassen über; Brücken enden mit Brüstung an der Uferkante und blenden an Land in Platz, Gasse oder Landstraße aus
 
@@ -254,6 +255,15 @@ Für die eigene Webseite: Der Knopf „Web-Paket“ lädt eine ZIP-Datei herunte
 Die **Kennung** ist der feste Name der Stadt auf der Webseite. Steht in der Stadtbeschreibung `kennung: rabenfurt`
 (nur Kleinbuchstaben a-z, Ziffern, `-` und `_`), wird sie verwendet, sonst wird sie aus dem Namen gebildet. Sie wird in
 `stadt.yaml` festgeschrieben, damit die Stadt auch nach einer Umbenennung dieselbe bleibt.
+
+## Stil
+
+`ausgabe: stil:` (Oberfläche: „Stil“ unter Ausgabe) bestimmt das Aussehen der fertigen Karte:
+
+| Wert | Wirkung |
+|---|---|
+| `pergament` (Standard) | wie auf altem Papier: Papierstruktur mit Fasern, Körnung und Stockflecken, warmer Sepiaton, unregelmäßig gebräunter Rand, Küstenlinie wie mit der Feder gezeichnet |
+| `standard` | ohne Papier: klare Farben, dunkle Vignette am Rand |
 
 ## Ausschnitt
 

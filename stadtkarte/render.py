@@ -17,7 +17,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
-from . import noise, umgebung, wasser
+from . import noise, papier, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .city import ship_footprint
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -105,10 +105,12 @@ def defs(m):
     stripes.update(m["biome"]["field_colors"] or {})
     for i, fl in enumerate(m["fields"]):
         a, b = stripes[fl["kind"]]
-        w = 8 * s
+        tone = fl.get("tone", 1.0)                       # jedes Feld etwas anders reif bzw. feucht
+        a, b = _hls(shade(a, tone), 1.0, 0.78), _hls(shade(b, tone), 1.0, 0.78)   # etwas gedämpft, wie gemalt
+        w = (5 if fl["kind"] == "plowed" else 6) * s     # Furchen fein und mit wenig Kontrast
         out.append(f'<pattern id="field{i}" patternUnits="userSpaceOnUse" width="{f(w)}" height="{f(w)}" '
                    f'patternTransform="rotate({f(fl["angle"])})"><rect width="{f(w)}" height="{f(w)}" fill="{a}"/>'
-                   f'<rect width="{f(w * 0.35)}" height="{f(w)}" fill="{b}"/></pattern>')
+                   f'<rect width="{f(w * 0.3)}" height="{f(w)}" fill="{b}" fill-opacity="0.75"/></pattern>')
     out.append(f'<clipPath id="landClip"><path d="{path_d(m["land"])}"/></clipPath>')
     out.append(f'<clipPath id="seaClip"><path d="{path_d(m["water"])}"/></clipPath>')
     return "<defs>" + "".join(out) + "</defs>"
@@ -1170,7 +1172,14 @@ def render_svg(m):
              f'<use href="#tex_umgebung"/></g>')
     tex = m.setdefault("_tex", {})
     tex["umgebung"] = _tex_pool().submit(umgebung.image, W, s, umgebung_daten(m))
-    o.append(f'<path d="{path_d(m["land"])}" fill="none" stroke="{C["coast"]}" stroke-width="{f(2.4 * s)}"/>')
+    if m["cfg"]["ausgabe"].get("stil") == "pergament":   # Küste wie mit der Feder: leicht zitternd, Tinte
+        o.append(f'<filter id="feder" x="-2%" y="-2%" width="104%" height="104%">'
+                 f'<feTurbulence type="fractalNoise" baseFrequency="{0.035 / s:.4f}" numOctaves="2" seed="5"/>'
+                 f'<feDisplacementMap in="SourceGraphic" scale="{f(2.6 * s)}" xChannelSelector="R" yChannelSelector="G"/></filter>'
+                 f'<path d="{path_d(m["land"])}" fill="none" stroke="#3b2a18" stroke-width="{f(2.6 * s)}" '
+                 f'stroke-linejoin="round" filter="url(#feder)"/>')
+    else:
+        o.append(f'<path d="{path_d(m["land"])}" fill="none" stroke="{C["coast"]}" stroke-width="{f(2.4 * s)}"/>')
     if B["mountain"]:
         slope_svg(o, m, rng)
     if B["chasm"] and m["river"] is not None:
@@ -1194,7 +1203,29 @@ def render_svg(m):
     if not m["forest"].is_empty:
         o.append(f'<path d="{path_d(m["forest"])}" fill="{B["forest_floor"]}" fill-opacity="0.55" filter="url(#softblur)"/>')
     for i, fl in enumerate(m["fields"]):
-        o.append(f'<path d="{path_d(fl["poly"])}" fill="url(#field{i})" stroke="#2e2a1e" stroke-width="{f(1.6 * s)}"/>')
+        o.append(f'<path d="{path_d(fl["poly"])}" fill="url(#field{i})" stroke="#3a3322" stroke-opacity="0.45" '
+                 f'stroke-width="{f(0.8 * s)}"/>')
+    if m["fields"]:
+        # Bodenflecken über den Feldern (nicht jedes Feld gleichmäßig) und Hecken an den Gewanngrenzen
+        fu = unary_union([fl["poly"] for fl in m["fields"]])
+        o.append(f'<clipPath id="fieldClip"><path d="{path_d(fu)}"/></clipPath>'
+                 f'<g clip-path="url(#fieldClip)" opacity="0.55">{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5))}/></g>')
+        groups = {}
+        for fl in m["fields"]:
+            groups.setdefault(fl.get("furlong", 0), []).append(fl["poly"])
+        hedge = []
+        hrng = random.Random(m["cfg"]["seed"] + 53)
+        for polys_ in groups.values():
+            outline = unary_union([p.buffer(2.5 * s) for p in polys_]).buffer(-1 * s)
+            for ln in lines(outline.boundary):
+                if hrng.random() < 0.55:                  # nicht jedes Gewann ist eingehegt
+                    hedge.append(line_d(ln))
+        if hedge:
+            hd = "".join(hedge)
+            o.append(f'<path d="{hd}" fill="none" stroke="#1f2c18" stroke-opacity="0.55" stroke-width="{f(4.2 * s)}" '
+                     f'stroke-linecap="round" stroke-dasharray="{f(0.1 * s)} {f(4.6 * s)}" transform="translate({f(0.8 * s)},{f(1 * s)})"/>'
+                     f'<path d="{hd}" fill="none" stroke="#4d6a35" stroke-width="{f(3.6 * s)}" '
+                     f'stroke-linecap="round" stroke-dasharray="{f(0.1 * s)} {f(4.6 * s)}"/>')
     # Landstraßen
     rd = "".join(line_d(ln) for ln, _ in m["ext_roads"])
     if rd:
@@ -1508,7 +1539,13 @@ def render_svg(m):
 
     # Beschriftung (immer aufrecht), Schrift in Kartengröße
     s = m.get("st", s)
-    o.append(f'<rect width="{W}" height="{W}" fill="url(#vignette)"/>')
+    if m["cfg"]["ausgabe"].get("stil") == "pergament":
+        # Papierstruktur und warmer Ton, multipliziert; Farben leicht entsättigt wie alte Druckfarbe
+        o.append(f'<image href="{papier.image(W, m["s"])}" x="0" y="0" width="{W}" height="{W}" '
+                 f'preserveAspectRatio="none" style="mix-blend-mode:multiply"/>'
+                 f'<rect width="{W}" height="{W}" fill="#c9a86a" style="mix-blend-mode:color" opacity="0.18"/>')
+    else:
+        o.append(f'<rect width="{W}" height="{W}" fill="url(#vignette)"/>')
     title_size = 78 * s
     taken = [(W - 60 * s - text_width(m["name"], title_size), W - 70 * s - title_size, W - 60 * s, W - 50 * s)]
     rows = legend_rows(m["legend"]) if m["cfg"]["ausgabe"].get("legende") else []

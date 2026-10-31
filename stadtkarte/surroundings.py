@@ -37,41 +37,74 @@ def make_bridges(roads, river, s, river_line=None):
 
 
 def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), prob=0.72):
+    """Flur vor der Stadt wie in einer gewachsenen Feldmark: eine unregelmäßige Fläche je Richtung, in Gewanne
+    (Feldblöcke) mit eigener Ausrichtung geteilt, jedes Gewann in lange, schmale Ackerstreifen verschiedener
+    Breite. Streifen liegen dicht an dicht (nur ein schmaler Rain dazwischen), Gewanne trennen Feldwege und
+    Hecken. Felder gibt es nur, wo Platz ist; prob steuert, wie viele Streifen bestellt sind."""
     fields = []
     cx, cy = center
-    frame = box(0, 0, W, W)
+    frame = box(0, 0, W, W).buffer(-4 * s)
+    furlong_id = 0
     for v in dirs:
         if v == (0, 0):
             continue
         theta = math.atan2(v[1], v[0])
-        phi = theta + rng.uniform(-0.2, 0.2)
-        u = np.array([math.cos(phi), math.sin(phi)])
-        w = np.array([-u[1], u[0]])
-        cw, ch = 165 * s, 120 * s
-        origin = np.array(center) + u * (r * 1.15)
-        for i in range(8):
-            for j in range(-8, 9):
-                if rng.random() > prob:
-                    continue
-                fl, fh = cw * rng.uniform(0.5, 0.92), ch * rng.uniform(0.5, 0.92)
-                tilt = rng.uniform(-0.18, 0.18)
-                uu = np.array([math.cos(phi + tilt), math.sin(phi + tilt)])
-                ww = np.array([-uu[1], uu[0]])
-                base = origin + u * (i * cw + rng.uniform(0, 20) * s) + w * (j * ch + rng.uniform(0, 20) * s)
-                corners = [base, base + uu * fl, base + uu * fl + ww * fh, base + ww * fh]
-                corners = [c_ + np.array([rng.uniform(-9, 9), rng.uniform(-9, 9)]) * s for c_ in corners]
-                poly = Polygon(corners).buffer(0)
-                c = poly.centroid
-                ang = math.atan2(c.y - cy, c.x - cx)
-                diff = abs((ang - theta + math.pi) % (2 * math.pi) - math.pi)
-                if diff > 0.6 or poly.intersects(blocked):
-                    continue
-                clipped = poly.intersection(frame)
-                if clipped.area < poly.area * 0.5:
-                    continue
-                kind = rng.choices(["wheat", "plowed", "meadow"], kinds)[0]
-                fields.append({"poly": clipped, "kind": kind, "angle": math.degrees(phi + tilt)})
-                blocked = blocked.union(poly.buffer(10 * s))
+        u = np.array([math.cos(theta), math.sin(theta)])
+        # Flur: unregelmäßige Fläche vor der Stadt in dieser Richtung
+        dist = r * 1.15 + 260 * s
+        fc = np.array(center) + u * dist
+        side = np.array([-u[1], u[0]])
+        flur = unary_union([blob(rng, *(fc + side * off * s + u * rng.uniform(-60, 80) * s), rng.uniform(170, 240) * s,
+                                 rough=0.4, stretch=(rng.uniform(0.9, 1.3), rng.uniform(0.8, 1.1)))
+                            for off in (-170, 0, 170)])           # Flur aus mehreren Lappen: ausgefranster Rand
+        flur = flur.difference(blocked).intersection(frame)
+        parts = [p for p in clean(flur, 4000 * s * s)]
+        if not parts:
+            continue
+        flur = max(parts, key=lambda p: p.area)
+        # Gewanne: Voronoi-Zellen aus wenigen Punkten, getrennt durch Feldwege (Abstand 7 px)
+        minx, miny, maxx, maxy = flur.bounds
+        pts = []
+        for _ in range(60):
+            if len(pts) >= max(3, int(flur.area / (14000 * s * s))):
+                break
+            p = Point(rng.uniform(minx, maxx), rng.uniform(miny, maxy))
+            if flur.contains(p) and all(p.distance(q) > 70 * s for q in pts):
+                pts.append(p)
+        if len(pts) < 2:
+            pts = [flur.representative_point()]
+            cells = [flur]
+        else:
+            cells = list(shapely.voronoi_polygons(shapely.MultiPoint(pts), extend_to=flur.buffer(50 * s)).geoms)
+        for cell in cells:
+            block = cell.intersection(flur).buffer(-3.5 * s, join_style="mitre")
+            for gew in clean(block, 1500 * s * s):
+                furlong_id += 1
+                main = rng.choices(["wheat", "plowed", "meadow"], kinds)[0]   # im Gewann meist dieselbe Frucht
+                # Ausrichtung des Gewanns: meist quer oder längs zur Flur, mit etwas Abweichung
+                ang = theta + rng.choice([0.0, math.pi / 2]) + rng.uniform(-0.35, 0.35)
+                a = np.array([math.cos(ang), math.sin(ang)])     # Streifenrichtung (Pflugrichtung)
+                b = np.array([-a[1], a[0]])                      # quer dazu
+                c = gew.centroid
+                proj = [float(np.dot(np.array(q) - (c.x, c.y), b)) for q in gew.exterior.coords]
+                lo, hi = min(proj), max(proj)
+                k = lo
+                while k < hi:
+                    width = rng.uniform(16, 38) * s           # Breite des Ackerstreifens
+                    k2 = min(hi, k + width)
+                    p0 = np.array([c.x, c.y]) + b * k
+                    p1 = np.array([c.x, c.y]) + b * k2
+                    far = 600 * s
+                    band = Polygon([p0 - a * far, p0 + a * far, p1 + a * far, p1 - a * far])
+                    strip = gew.intersection(band).buffer(-0.9 * s, join_style="mitre")   # schmaler Rain
+                    for piece in clean(strip, 250 * s * s):
+                        if rng.random() > prob + 0.2:            # mal ein Stück Brache (bleibt Wiese)
+                            continue
+                        kind = main if rng.random() < 0.7 else rng.choices(["wheat", "plowed", "meadow"], kinds)[0]
+                        fields.append({"poly": piece, "kind": kind, "angle": math.degrees(ang),
+                                       "furlong": furlong_id, "tone": rng.uniform(0.92, 1.06)})
+                    k = k2
+        blocked = blocked.union(flur.buffer(10 * s))
     return fields
 
 

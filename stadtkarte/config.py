@@ -136,6 +136,12 @@ def from_dict(raw):
         cfg.pop("bebauung", None)
     else:
         cfg["bebauung"] = beb
+    stil = norm(cfg["ausgabe"].get("stil") or "pergament")   # Zeichenstil der fertigen Karte (Standard: Pergament)
+    stil = {"normal": "standard", "modern": "standard", "papier": "pergament", "alt": "pergament",
+            "historisch": "pergament"}.get(stil, stil)
+    if stil not in ("standard", "pergament"):
+        raise ValueError(f"Unbekannter Stil: {cfg['ausgabe'].get('stil')} (möglich: standard, pergament)")
+    cfg["ausgabe"]["stil"] = stil
     aus = norm(cfg["ausgabe"].get("ausschnitt") or "weit")   # wie viel der Karte die Stadt einnimmt
     aus = {"fuellen": "fuellend", "voll": "fuellend", "ganz": "fuellend", "auto": "fuellend", "mittel": "normal",
            "eng": "nah", "gross": "nah"}.get(aus, aus)
