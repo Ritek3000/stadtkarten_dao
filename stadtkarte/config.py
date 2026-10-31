@@ -122,11 +122,27 @@ def from_dict(raw):
     form = norm(cfg["stadtform"] or "zufall")
     form = {"zufaellig": "zufall", "auto": "zufall", "kreis": "rund", "elliptisch": "oval", "langgestreckt": "oval",
             "lang": "oval", "unregelmassig": "unregelmaessig", "eckig": "vieleck", "polygon": "vieleck",
-            "ausgebuchtet": "gewachsen"}.get(form, form)
-    if form not in ("zufall", "rund", "oval", "unregelmaessig", "vieleck", "gewachsen"):
+            "ausgebuchtet": "gewachsen", "custom": "eigene", "gezeichnet": "eigene", "selbst": "eigene",
+            "eigen": "eigene"}.get(form, form)
+    if form not in ("zufall", "rund", "oval", "unregelmaessig", "vieleck", "gewachsen", "eigene"):
         raise ValueError(f"Unbekannte Stadtform: {cfg['stadtform']} "
-                         "(möglich: zufall, rund, oval, unregelmaessig, vieleck, gewachsen)")
+                         "(möglich: zufall, rund, oval, unregelmaessig, vieleck, gewachsen, eigene)")
     cfg["stadtform"] = form
+    if form == "eigene":   # selbst gezeichnete Mauer: Punkte in % der fertigen Karte, je Turm oder Tor
+        if BIOMES[g["biotop"]]["mountain"]:
+            raise ValueError("Die eigene Stadtform gibt es (noch) nicht im Gebirge.")
+        pts = []
+        for i, p in enumerate(cfg["mauer"].get("punkte") or []):
+            try:
+                x, y = float(p[0]), float(p[1])
+                kind = norm(p[2]) if len(p) > 2 else "turm"
+            except (TypeError, ValueError, IndexError):
+                raise ValueError(f"mauer.punkte[{i}]: erwartet [x, y, turm|tor] in Prozent der Karte")
+            if kind not in ("turm", "tor") or not (0 <= x <= 100 and 0 <= y <= 100):
+                raise ValueError(f"mauer.punkte[{i}]: x und y von 0 bis 100, Art turm oder tor")
+            pts.append([round(x, 3), round(y, 3), kind])
+        cfg["mauer"]["punkte"] = pts
+        cfg["ausgabe"].pop("ausschnitt", None)   # gezeichnet wird auf der ganzen Karte
     beb = norm(cfg.get("bebauung") or "dicht")   # lockere Bebauung: gleiche Einwohner auf mehr Fläche
     beb = {"normal": "dicht", "eng": "dicht", "aufgelockert": "locker", "weit": "weitlaeufig", "sehrlocker": "weitlaeufig",
            "laendlich": "weitlaeufig"}.get(beb, beb)

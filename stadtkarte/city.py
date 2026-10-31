@@ -74,7 +74,7 @@ SHAPES = ("rund", "oval", "unregelmaessig", "vieleck", "gewachsen")
 def pick_shape(seed, wanted):
     """Stadtform aus der Einstellung; bei "zufall" fest an den Seed gebunden (eigener Zufallsgenerator, damit
     Karten mit Form "rund" genau wie früher aussehen)."""
-    if wanted in SHAPES:
+    if wanted in SHAPES or wanted == "eigene":
         return wanted
     return random.Random(f"stadtform-{seed}").choice(SHAPES)
 
@@ -186,7 +186,12 @@ class CityBuilder:
         # (Großstädte stoßen an den Kartenrand und wachsen nicht mehr mit)
         self.spread = max(1.0, (r / city_radius(W, pop)) ** 2) if spread(cfg) > 1 else 1.0
         self.g = max(1.0, math.sqrt(pop / GROSS))   # 1 bei 20.000, 3.5 bei 250.000 Einwohnern: wie viel feiner
-        self.out = {
+        self.out = self.empty_out()
+
+    @staticmethod
+    def empty_out():
+        """Leeres Stadtmodell (alle Listen und Flächen, die der Generator füllt)."""
+        return {
             "buildings": [], "streets": [], "paved": [], "internal_roads": [], "plazas": [],
             "grounds": [], "graves": [], "fountains": [], "deferred": [],
             "great_gate": None, "terrace_walls": [], "stairs": [], "wells": [], "stalls": [],
@@ -206,8 +211,18 @@ class CityBuilder:
     # ---------------------------------------------------------------- Umriss
     def outline(self):
         t = self.t
-        given = self.t.get("shape")   # im Gebirge vom Generator vorgegeben (Felskessel)
+        given = self.t.get("shape")   # vom Generator vorgegeben (Felskessel, andere Stadtform, gezeichnete Mauer)
         self.shape = given if given is not None else make_shape(self.rng, self.center, self.r)
+        if self.t.get("custom"):   # gezeichnete Mauer: die Bebauung richtet sich nach der Fläche
+            base = city_radius(self.W, self.cfg["einwohner"])
+            ratio = self.shape.area / (math.pi * base * base)
+            if ratio < 0.45:
+                print("Hinweis: Die gezeichnete Mauer ist für die Einwohnerzahl sehr eng - die Stadt wird dicht "
+                      "bebaut und wirkt kleiner als angegeben.")
+            elif ratio > 3.5:
+                print("Hinweis: Die gezeichnete Mauer umschließt sehr viel Fläche für die Einwohnerzahl - "
+                      "die Stadt wird weitläufig mit vielen Gärten.")
+            self.spread = min(3.0, max(1.0, ratio))
         if self.spread > 1:   # nach der tatsächlichen Fläche (am Kartenrand oder an der Küste verkleinert)
             base = city_radius(self.W, self.cfg["einwohner"])
             self.spread = min(self.spread, max(1.0, self.shape.area / (math.pi * base * base)))
@@ -225,6 +240,27 @@ class CityBuilder:
         s, W, t = self.s, self.W, self.t
         walled = self.cfg["mauer"].get("vorhanden", True)
         count = int(self.cfg["mauer"].get("tore", 4))
+        custom = t.get("custom")
+        if custom:   # gezeichnete Mauer: Tore und Türme genau dort, wo sie gesetzt wurden
+            c = np.array(self.center)
+            self.gates = []
+            for p in custom["gates"]:
+                if p.distance(t["water"]) < 8 * s:
+                    print("Hinweis: Ein Tor liegt im Wasser und entfällt.")
+                    continue
+                d = unit((p.x - c[0], p.y - c[1]))
+                self.gates.append((math.atan2(d[1], d[0]), p, np.array(d)))
+            self.walled = walled
+            if not walled:
+                return
+            wall = self.shape.exterior.difference(t["water"].buffer(4 * s))
+            self.out["wall"] = [ln for ln in lines(wall) if ln.length > 10 * s]
+            for p in custom["towers"]:
+                if p.distance(t["water"]) > 4 * s:
+                    self.out["towers"].append((p.x, p.y, wall_angle(self.shape, p)))
+            for _, p, _ in self.gates:
+                self.out["gates"].append((p.x, p.y, wall_angle(self.shape, p)))
+            return
         c = np.array(self.center)
         frame = box(0, 0, W, W).buffer(-40 * s)
         cands = []
@@ -1655,6 +1691,9 @@ class CityBuilder:
         occupied = [ln.buffer(w / 2 + 14 * s).intersection(water.buffer(10 * s))
                     for ln, w in self.out["internal_roads"] if ln.intersects(water)]
         occupied += [z.buffer(6 * s) for z in getattr(self, "shipyard_zones", [])]   # Werft mit Schiff im Helling
+        # Stege nur am Hafen (am gepflasterten Kai) und im Fluss - nicht die ganze Meeresküste entlang
+        # (Anlegestellen am Ende einer Landstraße entstehen in external_roads)
+        quay = unary_union(self.out["paved"]).buffer(15 * s) if self.out["paved"] else Polygon()
         for d in self.district_list:
             if d["typ"] not in ("hafen", "fischer"):
                 continue
@@ -1672,6 +1711,8 @@ class CityBuilder:
                         nx, ny = -nx, -ny
                     probe = Point(p.x + nx * 15 * s, p.y + ny * 15 * s)
                     in_river = river is not None and river.contains(probe) and (sea is None or not sea.contains(probe))
+                    if not in_river and not (big and quay.contains(p)):
+                        continue
                     length = (48 if big else 26) * s
                     wid = (9 if big else 6) * s
                     if in_river:   # örtliche Breite: Strahl quer übers Wasser bis zum anderen Ufer

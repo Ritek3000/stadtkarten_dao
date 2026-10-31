@@ -170,6 +170,27 @@ Der Umriss der Stadt (`stadtform`, in der Werkstatt unter „Allgemein“):
 | `unregelmaessig` | ausgebeult, mit Ein- und Ausbuchtungen |
 | `vieleck` | wenige lange, gerade Mauerseiten wie bei einer planmäßig angelegten Stadt |
 | `gewachsen` | runder Kern mit ein bis zwei eingemeindeten Ausbuchtungen |
+| `eigene` | die Stadtmauer selbst zeichnen (siehe unten) |
+
+### Eigene Stadtform: Mauer selbst zeichnen
+
+In der Werkstatt unter Allgemein „Stadtform: Eigene“ wählen, dann:
+
+1. **Gelände erzeugen** – die Karte zeigt nur Land, Küste, Inseln, Fluss und Tümpel, noch ohne Stadt.
+2. **Mauer zeichnen** – Linksklick setzt einen Turm, die Taste **T** ein Tor an der Mausposition, dazwischen
+   entsteht die Mauer; die Rücktaste nimmt den letzten Punkt zurück, Rechtsklick (oder Esc) beendet das Zeichnen
+   und schließt den Ring. „Mauer löschen“ fängt von vorn an.
+3. **Stadt erzeugen** – innerhalb der Mauer entstehen Viertel, Straßen und Häuser, außen Landstraßen ab den Toren,
+   Felder, Wald und Höfe. Türme und Tore stehen genau dort, wo sie gesetzt wurden.
+
+Beginnt und endet die Mauer an der Küste (bzw. am Hochplateau an der Kante), ist die Stadt dort offen: Küste
+und Felswand sind die Mauer, es wird kein Mauerstück übers Wasser gezogen. Der Fluss zählt nicht als Mauer.
+
+Das Gelände bleibt dabei dasselbe. Die Bebauung richtet sich nach der gezeichneten Fläche: eine große Mauer bei
+wenigen Einwohnern ergibt eine weitläufige Stadt mit Gärten, eine sehr enge Mauer eine dichte, kleinere Stadt (die
+Werkstatt weist darauf hin). Tore im Wasser entfallen; die Mauer darf sich nicht kreuzen und braucht mindestens ein
+Tor. In der YAML-Datei steht die Mauer als `mauer: punkte:` mit `[x, y, turm|tor]` in Prozent der Karte (von links
+oben). Im Gebirge gibt es die eigene Form (noch) nicht; der Ausschnitt ist bei ihr immer „weit“.
 
 Alle Formen haben etwa dieselbe Fläche, die Einwohnerzahl bestimmt weiter die Größe. Ältere Stadtbeschreibungen
 ohne `stadtform` bekommen jetzt je nach Seed eine andere Form; mit `stadtform: rund` sehen sie wieder aus wie früher.
@@ -204,6 +225,7 @@ Im Nachtmodus leuchten Fenster einzelner Häuser der Häuserzeilen.
 - Gelände und Bodentexturen beruhen auf Simplex-Rauschen: Küsten, Flussläufe, Landstraßen und Umrisse (1D), Bodenflecken und Nebel (verzerrt, fließend), Felsrisse (Nulllinien), Schneeverwehungen (in Windrichtung gestreckt) und Sandrippel; ohne Kästchen-Muster und auf jedem Prozessor bitgleich
 - Boden mit Relief (sanfte Bodenwellen, Licht immer von Nordwesten der fertigen Karte) und Farbverlauf aus der Bodenfarbe des Biotops; dazu eine Tönung nach der Umgebung: am Wasser satter, fern davon trockener, an Landstraßen, Toren und entlang der Mauer ausgetreten, am Waldrand moosig, an der Küste ein Sand- bzw. Kiesstreifen (Farben je Biotop in `styles.py`: moist, dry, worn, moss, shore, relief)
 - Felder als gewachsene Feldmark: je Richtung eine Flur aus Gewannen mit eigener Pflugrichtung, darin lange, schmale Ackerstreifen dicht an dicht (im Gewann meist dieselbe Frucht, einzelne Brachen), Feldwege und Hecken an den Gewanngrenzen, gedämpfte Farben
+- Stege und Schiffe nur am gepflasterten Hafenkai und im Fluss, nicht an der offenen Küste; endet eine Landstraße an der Küste, bekommt sie eine Anlegestelle mit Steg
 - Wasser mit Tiefe: helles Flachwasser an der Küste, nach außen dunkler, mit Sandbänken und Rinnen; feine Wellenkräusel auf tiefem Wasser, Brandung am Ufer, gestrichelte Küstenlinien; Flüsse mit hellen Ufern, an der Mündung weich ins Meer übergehend (Farben aus dem Biotop: sea_deep, sea, shallow, river)
 - Plätze gehen weich in die einmündenden Gassen über; Brücken enden mit Brüstung an der Uferkante und blenden an Land in Platz, Gasse oder Landstraße aus
 

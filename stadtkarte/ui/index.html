@@ -167,6 +167,10 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 #labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;
   user-select: none; -webkit-user-select: none; }
 #labels.edit [data-key] { pointer-events: all; cursor: move; }
+#wallDraw { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+#wallDraw[hidden] { display: none; }
+#stage.draw, #stage.draw * { cursor: crosshair !important; }
+.drawbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 #labels.edit [data-key]:hover, #labels [data-key].moving { filter: drop-shadow(0 0 4px var(--gold-hi)); }
 .btn.on { color: var(--on-gold); }
 .btn.on::before { transform: translateY(0); }
@@ -247,7 +251,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
         <h2>Noch keine Karte</h2>
         <p>Stelle links die Stadt zusammen und klicke auf „Karte erzeugen“.</p>
       </div></div>
-      <div id="mapWrap" hidden><img id="map" alt="Erzeugte Stadtkarte"><svg id="labels" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div id="mapWrap" hidden><img id="map" alt="Erzeugte Stadtkarte"><svg id="labels" xmlns="http://www.w3.org/2000/svg"></svg><svg id="wallDraw" viewBox="0 0 100 100" preserveAspectRatio="none" hidden></svg></div>
       <div id="busy"><div style="text-align:center"><div class="sun" aria-hidden="true"></div><div class="msg">Die Karte wird gezeichnet …</div><div class="hint" id="busyTime"></div></div></div>
     </div>
   </section>
@@ -261,7 +265,8 @@ const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf / Moor",
 const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel"};
 const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion"};
 const FORM = {zufall: "Zufall (je Seed)", rund: "Rund", oval: "Oval (langgestreckt)", unregelmaessig: "Unregelmäßig",
-              vieleck: "Vieleckig (gerade Mauern)", gewachsen: "Gewachsen (mit Ausbuchtungen)"};
+              vieleck: "Vieleckig (gerade Mauern)", gewachsen: "Gewachsen (mit Ausbuchtungen)",
+              eigene: "Eigene (Mauer selbst zeichnen)"};
 const PLAGE = {festung: [["insel","auf einer Insel"],["landzunge","auf einer Landzunge"],["land","an Land vor der Stadt"]],
                friedhof: [["","im Ort (wenn Platz)"],["ausserhalb","vor der Stadt"]]};
 
@@ -342,8 +347,18 @@ function renderForm() {
   f.append(section("Allgemein", true, null,
     field("Name", txt(cfg, "name")),
     field("Größe", el("div", {}, pop, popOut)),
-    field("Stadtform", select(Object.entries(FORM), cfg.stadtform, v => cfg.stadtform = v),
+    field("Stadtform", select(Object.entries(FORM), cfg.stadtform, v => { cfg.stadtform = v; if (v !== "eigene") drawEnd(); renderForm(); drawWall(); }),
           "Umriss der Stadt; „Zufall“ wählt je Seed eine Form."),
+    cfg.stadtform === "eigene" ? field("Mauer", el("div", {class: "drawbar"},
+      el("button", {type: "button", class: "btn" + (drawMode ? " on" : ""), id: "btnDraw",
+        on: {click: () => drawMode ? drawEnd() : drawStart()}}, drawMode ? "Zeichnen beenden" : "Mauer zeichnen"),
+      el("button", {type: "button", class: "btn ghost", disabled: !wallPts().length,
+        on: {click: () => { cfg.mauer.punkte = []; drawWall(); renderForm(); }}}, "Mauer löschen"),
+      el("span", {class: "hint", id: "wallInfo"}, wallInfo())),
+      "Erst „Gelände erzeugen“, dann zeichnen: Linksklick setzt einen Turm, Taste T ein Tor an der Maus, " +
+      "Rücktaste nimmt den letzten Punkt zurück, Rechtsklick beendet. Beginnt und endet die Mauer an der Küste " +
+      "(bzw. an der Plateaukante), ist die Stadt dort offen – Küste und Felswand sind dann die Mauer. " +
+      "Danach „Stadt erzeugen“.") : null,
     field("Bebauung", select([["dicht", "Dicht (wie bisher)"], ["locker", "Locker (+40 % Fläche)"],
                               ["weitlaeufig", "Weitläufig (fast doppelte Fläche)"]],
       cfg.bebauung ?? "dicht", v => { if (v === "dicht") delete cfg.bebauung; else cfg.bebauung = v; }),
@@ -453,7 +468,8 @@ function renderForm() {
       el("span", {class: "hint"}, "Ziegel, Schiefer, Reet, Schornsteine (SVG wird etwas größer)"))),
   ));
 
-  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: generateMap}}, "Karte erzeugen")));
+  const genLabel = cfg.stadtform !== "eigene" ? "Karte erzeugen" : wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen";
+  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: generateMap}}, genLabel)));
 }
 
 async function api(path, opts = {}) {
@@ -476,6 +492,8 @@ async function generateMap() {
     const lab = $("#labels");
     lab.setAttribute("viewBox", `0 0 ${res.W} ${res.W}`); lab.innerHTML = res.labels;
     showImage(res.preview);
+    terrainOnly = !!res.gelaende_nur; drawWall();
+    if (terrainOnly) $("#hints").append(el("div", {}, "Gelände ohne Stadt: jetzt links unter „Mauer“ die Stadtmauer zeichnen und dann „Stadt erzeugen“."));
     for (const h of res.hints) $("#hints").append(el("div", {}, h));
     document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = false);
     updateResetButton();
@@ -507,6 +525,7 @@ function showImage(src) {
       zoom *= k; applyZoom(); st.scrollLeft = sl; st.scrollTop = stp;
     }
     lastNatural = img.naturalWidth;
+    drawWall();   // gezeichnete Mauer erst zeigen, wenn die Karte sichtbar ist
   };
   img.src = src;
 }
@@ -539,6 +558,70 @@ stage.addEventListener("wheel", e => {
   e.preventDefault(); const r = stage.getBoundingClientRect();
   zoomBy(e.deltaY < 0 ? 1.15 : 0.87, e.clientX - r.left, e.clientY - r.top);
 }, {passive: false});
+// Mauer zeichnen (Stadtform "eigene"): Punkte in Prozent der Karte, [x, y, "turm" | "tor"]
+let drawMode = false, terrainOnly = false, lastPos = null;
+function wallPts() { return (cfg && cfg.mauer && cfg.mauer.punkte) || []; }
+function wallInfo() {
+  const p = wallPts(), tore = p.filter(q => q[2] === "tor").length;
+  if (!p.length) return "noch keine Mauer";
+  return `${p.length - tore} Türme, ${tore} Tore` + (p.length < 3 ? " – mindestens 3 Punkte" : !tore ? " – noch kein Tor" : "");
+}
+function mapPos(e) {
+  const r = $("#mapWrap").getBoundingClientRect();
+  return [Math.round((e.clientX - r.left) / r.width * 10000) / 100, Math.round((e.clientY - r.top) / r.height * 10000) / 100];
+}
+function drawWall() {
+  const svg = $("#wallDraw"), p = wallPts();
+  const show = cfg && cfg.stadtform === "eigene" && (drawMode || terrainOnly) && !$("#mapWrap").hidden;
+  svg.toggleAttribute("hidden", !show);   // SVG-Elemente kennen die Eigenschaft .hidden nicht
+  if (!show) return;
+  const pts = p.map(q => `${q[0]},${q[1]}`).join(" ");
+  let h = "";
+  if (p.length > 1) h += `<polyline points="${pts}" fill="none" stroke="#2a2018" vector-effect="non-scaling-stroke" style="stroke-width:5px"/>`
+                       + `<polyline points="${pts}" fill="none" stroke="#c9b98f" style="stroke-width:2.5px" vector-effect="non-scaling-stroke"/>`;
+  if (p.length > 2) h += `<line x1="${p[p.length - 1][0]}" y1="${p[p.length - 1][1]}" x2="${p[0][0]}" y2="${p[0][1]}" stroke="#c9b98f" style="stroke-width:2px" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>`;
+  if (p.length > 2) h += `<polygon points="${pts}" fill="#c9b98f" fill-opacity="0.12" stroke="none"/>`;
+  for (const q of p) {
+    h += q[2] === "tor"
+      ? `<rect x="${q[0] - 0.7}" y="${q[1] - 0.7}" width="1.4" height="1.4" fill="#b23a2a" stroke="#2a2018" style="stroke-width:1.5px" vector-effect="non-scaling-stroke"/>`
+      : `<circle cx="${q[0]}" cy="${q[1]}" r="0.6" fill="#d9a441" stroke="#2a2018" style="stroke-width:1.5px" vector-effect="non-scaling-stroke"/>`;
+  }
+  svg.innerHTML = h;
+  const info = $("#wallInfo"); if (info) info.textContent = wallInfo();
+}
+function addPoint(kind) {
+  if (!lastPos) return;
+  cfg.mauer.punkte = [...wallPts(), [lastPos[0], lastPos[1], kind]];
+  drawWall(); refreshGen();
+}
+function refreshGen() {
+  const b = $("#btnGen"); if (!b) return;
+  b.textContent = wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen";
+}
+function drawStart() {
+  if ($("#mapWrap").hidden) { status("Zuerst „Gelände erzeugen“ – darauf wird die Mauer gezeichnet.", true); return; }
+  drawMode = true; stage.classList.add("draw"); renderForm(); drawWall();
+  status("Mauer zeichnen: Linksklick = Turm, T = Tor, Rücktaste = zurück, Rechtsklick = fertig");
+}
+function drawEnd() {
+  if (!drawMode) return;
+  drawMode = false; stage.classList.remove("draw"); renderForm(); drawWall();
+  status(wallPts().length >= 3 ? "Mauer fertig – jetzt „Stadt erzeugen“." : "Zeichnen beendet.");
+}
+stage.addEventListener("pointerdown", e => {
+  if (!drawMode || e.button !== 0 || $("#mapWrap").hidden) return;
+  e.stopImmediatePropagation(); e.preventDefault();
+  lastPos = mapPos(e); addPoint("turm");
+}, true);
+stage.addEventListener("pointermove", e => { if (drawMode) lastPos = mapPos(e); }, true);
+stage.addEventListener("contextmenu", e => { if (drawMode) { e.preventDefault(); drawEnd(); } });
+document.addEventListener("keydown", e => {
+  if (!drawMode || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+  if (e.key === "t" || e.key === "T") { e.preventDefault(); addPoint("tor"); }
+  else if (e.key === "Backspace") { e.preventDefault(); cfg.mauer.punkte = wallPts().slice(0, -1); drawWall(); refreshGen(); }
+  else if (e.key === "Escape") drawEnd();
+});
+
 let drag = null, moving = null, pressed = null;
 stage.addEventListener("pointerdown", e => {
   const g = pressed = e.target.closest?.("#labels.edit [data-key]");

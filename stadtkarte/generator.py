@@ -8,7 +8,7 @@ import random
 import shapely
 import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
-from shapely.ops import nearest_points, unary_union
+from shapely.ops import nearest_points, polylabel, split, unary_union
 
 from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
 from .config import ROTATION, place_info, to_canonical
@@ -29,7 +29,7 @@ def generate(cfg):
     die Welt dann so groß, dass all das gerade auf die Karte passt."""
     W = int(cfg["ausgabe"]["bildgroesse"])
     mode = cfg["ausgabe"].get("ausschnitt", "weit")
-    if mode not in AUSSCHNITT:
+    if mode not in AUSSCHNITT or cfg["stadtform"] == "eigene":
         return _generate(cfg, W)
     frac = city_radius(W, cfg["einwohner"], spread(cfg)) / W
     z = max(1.0, AUSSCHNITT[mode] / (2 * frac))
@@ -135,7 +135,12 @@ def _generate(cfg, W):
     cy = coast_y(cx) + r * 1.0 if has_coast else W / 2
     city_shape = None
     form = pick_shape(cfg["seed"], cfg["stadtform"])
-    if biome["mountain"] and has_coast:
+    custom = custom_wall(cfg, W, rot, s) if form == "eigene" else None
+    if form == "eigene":
+        # Gelände entsteht wie bei einer runden Stadt (Fluss und Küste bleiben gleich, ob schon eine Mauer
+        # gezeichnet ist oder nicht); die gezeichnete Mauer wird erst danach zum Stadtumriss
+        city_shape = None   # Umriss erst, wenn Küste bzw. Plateaukante feststehen (sie können Mauer sein)
+    elif biome["mountain"] and has_coast:
         # Felskessel: Stadt rückt tief ins Massiv, Felsflanken links und rechts, unten offen
         # Der Kessel folgt exakt dem Stadtumriss, damit der Fels oben und seitlich direkt an die Stadt grenzt.
         cy = coast_y(cx) + r * 0.45
@@ -184,12 +189,15 @@ def _generate(cfg, W):
         sea = Polygon(max(parts, key=lambda q: q.area).exterior) if parts else sea
     if plateau and river is not None:   # die Kante kreuzt den Fluss quer: gerader Wasserfall von Ufer zu Ufer
         sea = straight_crossing(sea, river, river_line, W, s,
-                                keep=None if g["kante"] == "direkt" else city_shape.buffer(45 * s))
+                                keep=None if g["kante"] == "direkt" or city_shape is None else city_shape.buffer(45 * s))
     level_full = sea if plateau else None   # ganze andere Geländestufe (für Kante und Wasserfall)
     if plateau and river is not None:   # der Fluss fließt über die Kante (Wasserfall), die Stufe ist kein Wasser
         sea = sea.difference(river)
     water = unary_union([w for w in (sea, river) if w is not None]) if (sea or river) else Polygon()
     land = box(0, 0, W, W).difference(water)
+    if custom is not None:   # gezeichnete Mauer schließen: an Küste bzw. Plateaukante offen, sonst als Ring
+        custom = close_custom(custom, sea, W, s)
+        city_shape = custom["shape"]
     terrain = dict(sea=sea, river=river, river_line=river_line, water=water, coast_y=coast_y, land=land,
                    mountain=biome["mountain"], plateau=plateau, biome=biome, shape=city_shape,
                    plateau_oben=plateau and g.get("plateau") == "oben")
@@ -210,6 +218,13 @@ def _generate(cfg, W):
         pools = unary_union([pools] + oases)
     # Nur Pfahldörfer bauen über Wasser; sonst bleiben Seen und Oasen außerhalb des Orts
     terrain["pools"] = pools if biome["stilts"] else Polygon()
+
+    if form == "eigene" and custom is None:   # erster Schritt: nur das Gelände, die Mauer wird darauf gezeichnet
+        return terrain_model(cfg, W, s, rot, terrain, pools, oases, biome)
+    if custom is not None:
+        terrain["custom"] = custom
+        cx, cy = custom["center"]
+        r = custom["radius"]
 
     builder = CityBuilder(cfg, rng, W, s, terrain, (cx, cy), r, rot)
     city, ext_roads, internal = builder.build()
@@ -399,6 +414,79 @@ def _generate(cfg, W):
         "river_line": river_line, "mines": mines, "paths": paths,
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         **city,
+    }
+
+
+def custom_wall(cfg, W, rot, s):
+    """Selbst gezeichnete Mauer (mauer.punkte, % der fertigen Karte) in Kartenkoordinaten: Eckpunkte, Türme und
+    Tore. None, solange weniger als drei Punkte gezeichnet sind. Den Umriss bildet erst close_custom."""
+    pts = cfg["mauer"].get("punkte") or []
+    if len(pts) < 3:
+        return None
+    a = math.radians(-rot)                      # die fertige Karte ist um rot gedreht: zurückdrehen
+    c = W / 2
+
+    def internal(px, py):
+        x, y = px / 100 * W - c, py / 100 * W - c
+        return (c + x * math.cos(a) - y * math.sin(a), c + x * math.sin(a) + y * math.cos(a))
+    corners = [internal(p[0], p[1]) for p in pts]
+    if not any(p[2] == "tor" for p in pts):
+        raise ValueError("Die gezeichnete Mauer braucht mindestens ein Tor (Taste T).")
+    return {"corners": corners,
+            "towers": [Point(q) for q, p in zip(corners, pts) if p[2] == "turm"],
+            "gates": [Point(q) for q, p in zip(corners, pts) if p[2] == "tor"]}
+
+
+def close_custom(custom, sea, W, s):
+    """Umriss aus der gezeichneten Mauer. Enden beide Mauerenden an der Küste (beim Hochplateau: an der Kante),
+    ist dort die Stadt offen - Küste bzw. Felswand sind die Mauer: das Land wird entlang der Mauer geteilt, die
+    Stadt ist das Stück auf der Mauerseite. Sonst schließt sich der Ring vom letzten zum ersten Punkt."""
+    corners = custom["corners"]
+    ring = Polygon(corners)
+    shape = None
+    reach = 40 * s                              # so nah muss ein Mauerende am Meer bzw. an der Kante liegen
+    if sea is not None and not sea.is_empty and len(corners) >= 2:
+        a, b = Point(corners[0]), Point(corners[-1])
+        if a.distance(sea) < reach and b.distance(sea) < reach:
+            path = LineString(corners)
+            if not path.is_simple:
+                raise ValueError("Die gezeichnete Mauer kreuzt sich selbst - bitte die Punkte neu setzen.")
+
+            def into_sea(p):                    # Mauerende bis ins Wasser verlängern
+                q = nearest_points(sea, p)[0]
+                d = unit((q.x - p.x, q.y - p.y)) if q.distance(p) > 0.5 else (0.0, 0.0)
+                return (q.x + d[0] * 12 * s, q.y + d[1] * 12 * s)
+            cut = LineString([into_sea(a)] + list(corners) + [into_sea(b)])
+            land = box(0, 0, W, W).difference(sea)
+            pieces = [pc for poly in polys(land) for pc in polys(split(poly, cut))]
+            if len(pieces) > 1:
+                inner = ring.buffer(0)
+                best = max(pieces, key=lambda pc: pc.intersection(inner).area)
+                # das gewählte Stück muss die Mauer wirklich umschließen (nicht das ganze übrige Land)
+                if best.area < 2.5 * max(inner.area, 1) and best.intersection(inner).area > 0.5 * inner.area:
+                    shape = best
+    if shape is None:
+        if not ring.is_valid:
+            raise ValueError("Die gezeichnete Mauer kreuzt sich selbst - bitte die Punkte neu setzen.")
+        shape = ring
+    if shape.area < (120 * s) ** 2:
+        raise ValueError("Die gezeichnete Mauer umschließt zu wenig Fläche für eine Stadt.")
+    center = polylabel(shape, 2 * s)             # Punkt tief im Inneren (auch bei verwinkelten Mauern)
+    return dict(custom, shape=shape, center=(center.x, center.y), radius=math.sqrt(shape.area / math.pi),
+                offen=shape is not ring)
+
+
+def terrain_model(cfg, W, s, rot, terrain, pools, oases, biome):
+    """Kartenmodell nur mit Gelände (Land, Meer, Inseln, Fluss, Tümpel, Oasen) ohne Stadt und Umland."""
+    empty = CityBuilder.empty_out()
+    empty.update(shape=Polygon(), city_land=Polygon())
+    return {
+        "name": cfg["name"], "W": W, "s": s, "rot": rot, "cfg": cfg,
+        "sea": terrain["sea"], "river": terrain["river"], "land": terrain["land"], "water": terrain["water"],
+        "fields": [], "forest": Polygon(), "trees": [], "suburbs": [], "ext_roads": [], "bridges": [],
+        "forts": [], "biome": biome, "pools": pools, "reeds": [], "lilies": [], "oases": oases, "rocks": [],
+        "dunes": [], "floes": [], "river_line": terrain["river_line"], "mines": [], "paths": [],
+        "plateau": False, "plateau_level": None, "plateau_oben": False, "gelaende_nur": True, **empty,
     }
 
 
