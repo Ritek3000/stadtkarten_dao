@@ -168,6 +168,30 @@ def from_dict(raw):
         cfg["ausgabe"].pop("ausschnitt", None)
     else:
         cfg["ausgabe"]["ausschnitt"] = aus
+    # Staub: {Richtung | "mitte" | "ueberall": wenig | mittel | finsternis}; auch als Liste von Richtungen (= mittel)
+    st = g.get("staub") or {}
+    if isinstance(st, (list, tuple)):
+        st = {d: "mittel" for d in st}
+    if not isinstance(st, dict):
+        raise ValueError("gelaende.staub: erwartet z.B. {nordwest: finsternis, sued: wenig}")
+    clean_st = {}
+    for k, v in st.items():
+        k = norm(k)
+        k = {"alles": "ueberall", "ganzekarte": "ueberall", "stadt": "mitte", "zentrum": "mitte"}.get(k, k)
+        v = norm(v or "")
+        v = {"leicht": "wenig", "schleier": "wenig", "dicht": "mittel", "schwarz": "finsternis", "dunkel": "finsternis",
+             "aus": "", "kein": "", "keiner": ""}.get(v, v)
+        if not v:
+            continue
+        if k not in DIRS and k not in ("mitte", "ueberall"):
+            raise ValueError(f"gelaende.staub: unbekannte Richtung {k}")
+        if v not in ("wenig", "mittel", "finsternis"):
+            raise ValueError(f"gelaende.staub.{k}: {v} - möglich sind wenig, mittel, finsternis")
+        clean_st[k] = v
+    if clean_st:
+        g["staub"] = clean_st
+    else:
+        g.pop("staub", None)
     for key in ("wald", "felder"):
         vals = g.get(key) or []
         g[key] = [norm(v) for v in (vals if isinstance(vals, list) else [vals])]

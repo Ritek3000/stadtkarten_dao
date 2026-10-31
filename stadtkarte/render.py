@@ -17,7 +17,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
-from . import noise, papier, umgebung, wasser
+from . import noise, papier, staub, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .city import ship_footprint
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -1574,6 +1574,11 @@ def render_svg(m):
         night_svg(o, m, lamps, forge_glow)
     if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
         lighthouse_svg(o, m["lighthouse"], s, night=bool(m["cfg"]["ausgabe"].get("nacht")), glow=True)
+    patches, overall = m.get("dust") or ([], None)
+    if patches or overall:   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
+        tex = m.setdefault("_tex", {})
+        tex["staub"] = _tex_pool().submit(staub.image, W, s, [(staub.rings(p), lv) for p, lv in patches], overall)
+        o.append('<use href="#tex_staub"/>')
     o.append("</g>")  # Ende Drehung
 
     # Beschriftung (immer aufrecht), Schrift in Kartengröße

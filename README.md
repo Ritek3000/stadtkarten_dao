@@ -125,6 +125,27 @@ Plateaukante oder zurück auf die Stadtmauer zu, weicht sie aus und führt weite
 weiter (Bucht, Felsnische), mündet sie in die nächste Landstraße, läuft außen an der Mauer entlang zum nächsten Tor,
 endet an der Küste an einer Anlegestelle mit Steg oder, wenn nichts davon geht, an einem kleinen Weiler.
 
+## Staub
+
+Staub ist in der Welt allgegenwärtig, an manchen Stellen dichter; in hoher Konzentration wird er zur Finsternis.
+`gelaende: staub:` legt Staubflächen in Himmelsrichtungen um die Stadt (wie Wald und Felder), über die Stadt
+(`mitte`) oder als Schleier über die ganze Karte (`ueberall`), jeweils mit einer Stärke:
+
+| Stärke | Wirkung |
+|---|---|
+| `wenig` | leichter, dunkler Schleier über allem |
+| `mittel` | alles darunter nur noch schemenhaft |
+| `finsternis` | im Kern schwarz, nichts mehr erkennbar; am Rand fransen Schwaden aus |
+
+```yaml
+gelaende:
+  staub: {suedwest: finsternis, ost: mittel, mitte: wenig, ueberall: wenig}
+```
+
+In der Werkstatt unter Gelände: die Windrose „Staub“ (jeder Klick schaltet weiter: leer, wenig, mittel,
+Finsternis; die Mitte ist die Stadt) und „Überall“ für einen Schleier über der ganzen Karte. Der Staub liegt über
+allem, auch über Laternen und Leuchtfeuer, aber unter der Beschriftung.
+
 ## Hafen
 
 Ein Viertel mit `typ: hafen` hat die Option `groesse: klein | mittel | gross` (Werkstatt: „Größe“ beim

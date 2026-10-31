@@ -13,7 +13,7 @@ from shapely.ops import nearest_points, polylabel, split, unary_union
 from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
 from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
-from . import leuchtturm
+from . import leuchtturm, staub
 from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
 from .styles import BIOMES, FORT_TYPES
 from .surroundings import hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
@@ -433,6 +433,7 @@ def _generate(cfg, W):
         "river_line": river_line, "mines": mines, "paths": paths,
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         "lighthouse": light,
+        "dust": staub.areas(cfg, W, s, (cx, cy), r, rot),
         **city,
     }
 

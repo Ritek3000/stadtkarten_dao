@@ -15,6 +15,7 @@ gelaende:
   inseln: 3
   wald: [west, suedwest]
   felder: [ost, suedost, sued]
+  # staub: {suedwest: finsternis, ost: mittel, ueberall: wenig}   # Staub: wenig | mittel | finsternis
 
 mauer:
   vorhanden: true

@@ -142,6 +142,11 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 .compass .mid { display: grid; place-items: center; }
 .compass .mid::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--gold); }
 
+/* Staub: Windrose mit Stärke je Feld (aus, wenig, mittel, Finsternis) */
+.compass.dust button.d1 { background: color-mix(in srgb, #3b342b 35%, var(--surface)); color: var(--ink); }
+.compass.dust button.d2 { background: color-mix(in srgb, #1b1712 70%, var(--surface)); color: #e8e0d0; }
+.compass.dust button.d3 { background: #0c0a08; border-color: #000; color: #d8c9a0; }
+
 /* Viertel und Orte: eckige Karten mit Haarlinie */
 .list { display: grid; gap: .7rem; }
 .item { display: grid; gap: .5rem; padding: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 45%, transparent); }
@@ -323,6 +328,30 @@ function compass(list, onchange) {
   return box;
 }
 
+const DUST = ["", "wenig", "mittel", "finsternis"];
+const DUST_LBL = {wenig: "wenig", mittel: "mittel", finsternis: "Finsternis"};
+function dustCompass(g) {
+  g.staub ??= {};
+  const box = el("div", {class: "compass dust"});
+  const cells = [...DIRS.slice(0, 4), ["mitte", "●"], ...DIRS.slice(5)];
+  for (const d of cells) {
+    const key = d[0];
+    const b = el("button", {type: "button"}, d[1]);
+    const paint = () => {
+      const v = g.staub[key] || "";
+      b.className = v ? "d" + DUST.indexOf(v) : "";
+      b.title = (key === "mitte" ? "Über der Stadt" : DIR_NAMES[key]) + ": " + (DUST_LBL[v] || "kein Staub");
+    };
+    b.onclick = () => {   // Klick schaltet weiter: aus → wenig → mittel → Finsternis → aus
+      const next = DUST[(DUST.indexOf(g.staub[key] || "") + 1) % DUST.length];
+      if (next) g.staub[key] = next; else delete g.staub[key];
+      paint();
+    };
+    paint(); box.append(b);
+  }
+  return box;
+}
+
 function renderForm() {
   const f = $("#form"); f.innerHTML = "";
   const g = cfg.gelaende;
@@ -391,6 +420,13 @@ function renderForm() {
       el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
       el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
     el("div", {class: "hint"}, "Himmelsrichtungen um die Stadt, in denen Wald bzw. Felder liegen."),
+    el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
+      el("div", {}, el("div", {class: "lbl"}, "Staub"), dustCompass(g)),
+      el("div", {}, el("div", {class: "lbl"}, "Überall"),
+        select([["", "kein Schleier"], ["wenig", "leichter Schleier"], ["mittel", "dichter Schleier"]], (g.staub ?? {}).ueberall ?? "",
+          v => { g.staub ??= {}; if (v) g.staub.ueberall = v; else delete g.staub.ueberall; }))),
+    el("div", {class: "hint"}, "Staub: jeder Klick schaltet weiter – leer, wenig (Schleier), mittel (schemenhaft), " +
+       "schwarz (Finsternis). Die Mitte legt Staub über die Stadt, „Überall“ einen Schleier über die ganze Karte."),
   ));
 
   // Mauer
