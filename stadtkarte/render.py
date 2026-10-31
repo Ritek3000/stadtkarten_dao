@@ -446,14 +446,15 @@ def stilts_svg(o, m):
         o.append(f'<g fill="#2a2018">{"".join(posts)}</g>')
 
 
-# Rauschtexturen (früher SVG-Filter): baseFrequency, Oktaven, Seed, Farbe (linear), Verstärkung, Versatz, Turbulenz
+# Rauschtexturen (früher SVG-Filter): baseFrequency, Oktaven, Seed, Farbe (linear), Verstärkung, Versatz, Turbulenz,
+# optional Verzerrung (Simplex-Domain-Warp: fließende Flecken, Nebelschwaden)
 NOISE = {
-    "mottleDark": (0.0045, 5, 7, "mottle_dark", 2.6, -1.15, False),
-    "mottleLight": (0.006, 4, 21, "mottle_light", 2.4, -1.3, False),
+    "mottleDark": (0.0045, 5, 7, "mottle_dark", 2.6, -1.15, False, 0.45),
+    "mottleLight": (0.006, 4, 21, "mottle_light", 2.4, -1.3, False, 0.45),
     "scribble": (0.03, 2, 3, "scribble", 3.0, -1.2, True),
     "rockTex": (0.012, 5, 17, "0.20 0.19 0.17", 2.8, -1.2, False),
     "snowTex": (0.008, 4, 29, "0.96 0.97 0.98", 3.2, -1.25, False),
-    "fog": (0.003, 4, 11, "1 1 1", 2.2, -1.0, False),
+    "fog": (0.003, 4, 11, "1 1 1", 2.2, -1.0, False, 0.9),
     "algae": (0.02, 3, 5, "0.30 0.38 0.18", 2.5, -1.2, False),
 }
 
@@ -489,9 +490,9 @@ def noise_open(m, *keys, extras=(), base=None):
     layers = []
     for k in keys:
         name, op = (k, 1.0) if isinstance(k, str) else k
-        bf, octv, seed, col, gain, bias, turb = NOISE[name]
+        bf, octv, seed, col, gain, bias, turb = NOISE[name][:7]
         rgb = tuple(float(v) for v in (m["biome"][col] if col in m["biome"] else col).split())
-        layers.append(((bf, octv, seed, rgb, gain, bias, turb), op))
+        layers.append(((bf, octv, seed, rgb, gain, bias, turb) + NOISE[name][7:], op))   # samt Verzerrung
     tid = "_".join(k if isinstance(k, str) else k[0] for k in keys) + ("_d" if extras else "") + ("_b" if base else "")
     if base and base != m["biome"]["land"]:   # andere Grundfarbe (z.B. zweite Stufe am Hochplateau): eigene Textur
         tid += base.lstrip("#")

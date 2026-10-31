@@ -1,8 +1,9 @@
 """Vorberechnete Rauschtexturen.
 
 Ersetzt SVG-Filter aus feTurbulence + feColorMatrix (beim Rendern sehr teuer) durch fertige Bilder (in der
-Auflösung der Karte). Verteilung und Farben entsprechen den Filtern: Mittelwert/Streuung des SVG-Rauschens wurden gemessen,
-Filterfarben gelten wie dort im linearen Farbraum.
+Auflösung der Karte). Grundlage ist Simplex-Rauschen (simplex.py): ohne Kästchen-Muster, dazu verzerrt (fließende
+Flecken, Nebelschwaden), als Nulllinien (Felsrisse) und gestreckt (Schneeverwehungen). Helligkeit und Streuung
+entsprechen den früheren Filtern, Filterfarben gelten wie dort im linearen Farbraum.
 """
 import base64
 import io
@@ -10,21 +11,20 @@ import io
 import numpy as np
 from PIL import Image, ImageFilter
 
+from .simplex import grid
+
 # gemessene Verteilung des feTurbulence-Kanals (linearer Farbraum)
 STATS = {"fractalNoise": (0.516, 0.105), "turbulence": (0.309, 0.141)}
 _CACHE = {}
 
 
-def _fbm(size, period, octaves, seed, turbulence):
-    """Wertrauschen mit mehreren Oktaven; period = Wellenlänge der gröbsten Oktave in Pixeln."""
-    rng = np.random.default_rng(seed)
+def _fbm(size, period, octaves, seed, turbulence, warp=0.0, stretch=1.0):
+    """Simplex-Rauschen mit mehreren Oktaven; period = Wellenlänge der gröbsten Oktave in Pixeln.
+    turbulence: Beträge der Oktaven (bauschig), warp/stretch siehe simplex.grid (nur die groben Oktaven)."""
     total = np.zeros((size, size), np.float32)
     amp = 1.0
-    for _ in range(octaves):
-        cells = max(2, int(round(size / period)) + 2)
-        grid = rng.uniform(-1, 1, (cells, cells)).astype(np.float32)
-        layer = np.asarray(Image.fromarray(grid, "F").resize(
-            (int(size * cells / (size / period)),) * 2, Image.BICUBIC))[:size, :size]
+    for o in range(octaves):
+        layer = grid(size, period, seed * 16 + o, warp=warp if o < 2 else 0.0, stretch=stretch)
         total += amp * (np.abs(layer) if turbulence else layer)
         amp *= 0.5
         period /= 2
@@ -41,9 +41,10 @@ def _lin_to_srgb(c):
 
 
 def _layer(W, s, res, spec):
-    base_freq, octaves, seed, rgb_linear, gain, bias, turbulence = spec
+    base_freq, octaves, seed, rgb_linear, gain, bias, turbulence = spec[:7]
+    warp = spec[7] if len(spec) > 7 else 0.0       # optional: Verzerrung (fließende Formen)
     period = (1.0 / (base_freq / s)) * res / W     # Wellenlänge in Pixeln des Texturbildes
-    n = _fbm(res, period, octaves, seed, turbulence)
+    n = _fbm(res, period, octaves, seed, turbulence, warp=warp)
     alpha = np.clip(gain * n + bias, 0, 1)
     rgb = _lin_to_srgb(np.array(rgb_linear, np.float32))
     return rgb, alpha
@@ -98,15 +99,13 @@ def _detail(kind, res, s, seed, density=1.0):
         v = np.sin(phase)
         fade = np.clip((_fbm(res, 260 * s, 3, seed + 3, False) - 0.5) * 6, 0, 1)   # nur stellenweise sichtbar
         return np.clip((v - 0.78) * 4.5, 0, 1) * fade
-    if kind == "drift":           # Schneeverwehungen: in Windrichtung gestreckte Flecken
-        q = max(16, res // 4)
-        small = _fbm(q, 10, 4, seed, False)[:, : max(4, q // 4)]    # ausgeschnittener Streifen ...
-        n = np.asarray(Image.fromarray(np.ascontiguousarray(small), "F").resize((res, res), Image.BICUBIC))  # ... 4:1 gestreckt
+    if kind == "drift":           # Schneeverwehungen: in Windrichtung 4:1 gestreckte, leicht verwehte Flecken
+        n = _fbm(res, res / 10, 4, seed, False, warp=0.25, stretch=5.0)
         return np.clip((n - 0.56) * 5, 0, 1)
     if kind == "cracks_hi":       # helle Bruchkante, leicht versetzt neben dem Riss
         shift = max(1, int(round(1.2 * s)))
         return np.roll(_detail("cracks", res, s, seed), (-shift, -shift), axis=(0, 1))
-    if kind == "cracks":          # Felsrisse: Grate eines vorzeichenbehafteten Rauschens
+    if kind == "cracks":          # Felsrisse: Nulllinien eines Simplex-Rauschens - lange, mäandernde Linien
         n = _fbm(res, 45 * s, 5, seed, False)
         ridged = 1 - np.abs(n - n.mean()) / (n.std() * 3)
         mask = np.clip((_fbm(res, 220 * s, 2, seed + 1, False) - 0.45) * 6, 0, 1)   # Risse nur stellenweise

@@ -200,6 +200,7 @@ Im Nachtmodus leuchten Fenster einzelner Häuser der Häuserzeilen.
   Hütten im Armenviertel, die auch in den Hinterhöfen stehen
 - jeder Platz hat einen Laufbrunnen, große Plätze zusätzlich einen Wochenmarkt; an breiten Straßenstellen stehen Ziehbrunnen
 - größere leere Flächen (Höfe, freie Grundstücke) bekommen einzelne Bäume
+- Gelände und Bodentexturen beruhen auf Simplex-Rauschen: Küsten, Flussläufe, Landstraßen und Umrisse (1D), Bodenflecken und Nebel (verzerrt, fließend), Felsrisse (Nulllinien), Schneeverwehungen (in Windrichtung gestreckt) und Sandrippel; ohne Kästchen-Muster und auf jedem Prozessor bitgleich
 
 ## Beschriftung verschieben
 

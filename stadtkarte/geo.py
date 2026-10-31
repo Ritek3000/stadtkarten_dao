@@ -7,19 +7,11 @@ from shapely.geometry import LineString, MultiPoint, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import split, unary_union
 
+from .simplex import Simplex1
 
-class Noise1D:
-    """Glattes 1D-Wertrauschen; bei period=n ist fbm(x) periodisch mit Periode n."""
 
-    def __init__(self, rng, period=256):
-        self.vals = [rng.random() * 2 - 1 for _ in range(period)]
-        self.n = period
-
-    def value(self, x):
-        i = math.floor(x)
-        f = x - i
-        a, b = self.vals[i % self.n], self.vals[(i + 1) % self.n]
-        return a + (b - a) * f * f * (3 - 2 * f)
+class Noise1D(Simplex1):
+    """Glattes 1D-Simplex-Rauschen (Gradientenrauschen); bei period=n ist fbm(x) periodisch mit Periode n."""
 
     def fbm(self, x, octaves=4):
         total, amp, freq, norm = 0.0, 1.0, 1.0, 0.0
