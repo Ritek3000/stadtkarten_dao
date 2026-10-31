@@ -17,7 +17,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
-from . import noise, umgebung
+from . import noise, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .city import ship_footprint
 from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -529,6 +529,36 @@ def umgebung_daten(m):
         "moss": col("moss", _hls(B["forest_floor"], 0.82, 1.1)),
         "shore": B.get("shore") if coastal else None,
     }
+
+
+def wasser_daten(m):
+    """Flächen und Farben für das Wasser mit Tiefe (wasser.image): das Meer nur an echten Küsten (nicht Fels
+    oder Plateaustufe), Flüsse nicht in der Klamm."""
+    B = m["biome"]
+
+    def rings(g):
+        return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
+    coastal = m["sea"] is not None and not B["mountain"] and not m.get("plateau")
+    river = m["river"] is not None and not B["chasm"]
+    return {"sea": rings(m["sea"]) if coastal else [], "river": rings(m["river"]) if river else [],
+            "deep": B["sea_deep"], "sea_col": B["sea"], "shallow": B["shallow"], "river_col": B["river"], "foam": "#ffffff"}
+
+
+def coast_lines(m):
+    """Klassische Küstenlinien: zwei, drei gestrichelte Linien parallel zur Küste, nach außen blasser."""
+    s, sea = m["s"], m["sea"]
+    if sea is None or m["biome"]["mountain"] or m.get("plateau"):
+        return ""
+    open_sea = sea if m["river"] is None else sea.difference(m["river"].buffer(12 * s))
+    land = m["land"].simplify(1.2 * s)
+    out = []
+    for dist, op, dash in ((7, 0.55, (16, 4, 5, 4)), (16, 0.38, (10, 6, 22, 6)), (28, 0.22, (6, 9, 14, 9))):
+        ln = land.buffer(dist * s, quad_segs=4).boundary.intersection(open_sea)
+        d = line_d(ln)
+        if d:
+            out.append(f'<path d="{d}" fill="none" stroke="#ffffff" stroke-opacity="{op}" stroke-width="{f(1.1 * s)}" '
+                       f'stroke-dasharray="{" ".join(f(v * s) for v in dash)}" stroke-linecap="round"/>')
+    return "".join(out)
 
 
 def noise_open(m, *keys, extras=(), base=None, palette=None, shading=None):
@@ -1120,10 +1150,16 @@ def render_svg(m):
         o.append(f'<rect width="{W}" height="{W}" fill="url(#seaGrad)"/>')
     if m["river"] is not None:
         o.append(f'<path d="{path_d(m["river"])}" fill="{"#1e1c19" if B["chasm"] else B["river"]}"/>')
+    wd = wasser_daten(m)
+    if wd["sea"] or wd["river"]:   # Wasser mit Tiefe: Flach- und Tiefwasser, Brandung, Kräusel, Flussufer
+        tex = m.setdefault("_tex", {})
+        tex["wasser"] = _tex_pool().submit(wasser.image, W, s, wd)
+        wet = unary_union(([m["sea"]] if wd["sea"] else []) + ([m["river"]] if wd["river"] else []))
+        o.append(f'<clipPath id="waterClip"><path d="{path_d(wet)}"/></clipPath>'
+                 f'<g clip-path="url(#waterClip)"><use href="#tex_wasser"/></g>')
     if not B["mountain"] and not m.get("plateau"):
-        o.append(f'<path d="{path_d(m["land"])}" fill="none" stroke="{B["shallow"]}" stroke-width="{f(34 * s)}" '
-                 f'filter="url(#blur)" clip-path="url(#seaClip)"/>')
-        o.append(f'<g clip-path="url(#seaClip)" opacity="0.55">{noise_open(m, "fog")}/></g>')
+        o.append(coast_lines(m))
+        o.append(f'<g clip-path="url(#seaClip)" opacity="0.45">{noise_open(m, "fog")}/></g>')
     if m["floes"]:
         fd = "".join(path_d(fl) for fl in m["floes"])
         o.append(f'<path d="{fd}" fill="#f2f6f8" stroke="#8fb0c4" stroke-width="{f(1.2 * s)}"/>')
