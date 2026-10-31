@@ -303,7 +303,7 @@ Für die eigene Webseite: Der Knopf „Web-Paket“ lädt eine ZIP-Datei herunte
 |---|---|
 | `karte.webp` | Karte ohne Beschriftung und ohne Raster, genau so groß wie die Karte (Bildgröße × Bildgröße) |
 | `beschriftung.svg` | die Beschriftung (Stadtname, Viertel, Orte, Legende; `viewBox` wie das Bild, Verschiebungen schon angewendet). Die Schrift ist nicht eingebettet: die Webseite muss EB Garamond (`stadtkarte/fonts/`) unter dem Namen `EB Garamond` bereitstellen |
-| `orte.json` | Orte und Viertel mit Name, Kürzel, Typ, Viertel und Lage im Bild (Pixel, Ursprung oben links; bei Orten die Mitte des Gebäudes), dazu `key` = `data-key` der Beschriftung in `beschriftung.svg`. `nicht_platziert` nennt Orte, für die kein Platz war |
+| `orte.json` | Orte und Viertel mit Name, Kürzel, Typ, Viertel und Lage im Bild (Pixel, Ursprung oben links; bei Orten die Mitte des Gebäudes), dazu `key` = `data-key` der Beschriftung in `beschriftung.svg`. `art` ist `ort`, `festung` oder `leuchtturm` (der Leuchtturm einer Küstenstadt entsteht von selbst). `nicht_platziert` nennt Orte, für die kein Platz war |
 | `stadt.yaml` | die Stadtbeschreibung mit Seed, Kennung und Beschriftungs-Verschiebungen, lässt sich wieder in der Werkstatt öffnen |
 
 Die **Kennung** ist der feste Name der Stadt auf der Webseite. Steht in der Stadtbeschreibung `kennung: rabenfurt`

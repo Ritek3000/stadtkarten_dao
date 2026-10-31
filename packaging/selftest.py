@@ -76,9 +76,11 @@ def check_web_package(data, cfg):
     assert size == (orte["breite"], orte["hoehe"]) == vb, (size, orte["breite"], orte["hoehe"], vb)
     # 3. keine eingebettete Schrift
     assert "@font-face" not in svg and "base64" not in svg, "Schrift in beschriftung.svg eingebettet"
-    # 4. jeder Ort der Stadtbeschreibung ist platziert oder als nicht platziert gemeldet
-    assert len(orte["orte"]) + len(orte["nicht_platziert"]) == len(cfg["orte"]), \
-        (len(orte["orte"]), orte["nicht_platziert"], len(cfg["orte"]))
+    # 4. jeder Ort der Stadtbeschreibung ist platziert oder als nicht platziert gemeldet (der Leuchtturm einer
+    #    Küstenstadt entsteht von selbst und steht zusätzlich in der Liste)
+    beschrieben = [o for o in orte["orte"] if o["art"] != "leuchtturm"]
+    assert len(beschrieben) + len(orte["nicht_platziert"]) == len(cfg["orte"]), \
+        (len(beschrieben), orte["nicht_platziert"], len(cfg["orte"]))
     assert b"kennung:" in z.read(f"{folder}/stadt.yaml")
     return orte
 

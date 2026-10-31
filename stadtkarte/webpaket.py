@@ -46,7 +46,8 @@ def places(m):
         if "ort" in lb:
             o = lb["ort"]
             orte.append({"key": key, "name": o["name"], "kuerzel": o["kuerzel"], "typ": o["typ"],
-                         "art": "festung" if lb["kind"] == "festung" else "ort", "viertel": o["viertel"],
+                         "art": ("festung" if lb["kind"] == "festung"   # Leuchtturm: von selbst gesetzt, nicht beschrieben
+                                 else "leuchtturm" if o["typ"] == "leuchtturm" else "ort"), "viertel": o["viertel"],
                          "x": round(x, 1), "y": round(y, 1)})
         elif "viertel" in lb:
             viertel.append({"key": key, "name": lb["viertel"]["name"], "typ": lb["viertel"]["typ"],
