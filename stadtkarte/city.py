@@ -155,6 +155,52 @@ def fit_into_map(shape, center, W, s, top=None):
     return shape, (cx, cy)
 
 
+SETTLE_SHARE = 2 / 3   # so viel vom Umriss soll nach einer Verschiebung auf Land liegen
+
+
+def settle_on_land(shape, land, W, s):
+    """Verschiebung (dx, dy), mit der ein Stadtumriss, der (fast) ganz im Wasser läge, ans Ufer rückt - oder None,
+    wenn auf der ganzen Karte kein Land für eine Stadt ist. Gesucht wird ringförmig um die Ausgangslage (Ringabstand
+    ein Viertel Stadtradius) die erste Entfernung, in der der Umriss mit Rand auf die Karte passt und zu mindestens
+    SETTLE_SHARE auf Land liegt; unter den Lagen eines Rings gewinnt die mit dem meisten Land. Gibt es nirgends
+    so viel Land (sehr große Stadt, sehr breites Wasser), gilt die Lage mit dem meisten Land."""
+    area = shape.area
+    h = math.sqrt(area / math.pi) / 4
+    m = 70 * s
+    minx, miny, maxx, maxy = shape.bounds
+    lo_x, hi_x = m - minx, W - m - maxx
+    lo_y, hi_y = m - miny, W - m - maxy
+    if lo_x > hi_x:   # breiter (bzw. höher) als die Karte mit Rand: in dieser Richtung nicht verschieben
+        lo_x = hi_x = 0.0
+    if lo_y > hi_y:
+        lo_y = hi_y = 0.0
+    best = None   # (Landanteil, Verschiebung) der besten Lage überhaupt
+    seen = set()
+    for k in range(1, int(math.hypot(hi_x - lo_x, hi_y - lo_y) / h) + 2):
+        d = k * h
+        n = max(8, math.ceil(2 * math.pi * d / h))
+        offsets = []
+        for j in range(n):
+            a = 2 * math.pi * j / n
+            off = (min(max(d * math.cos(a), lo_x), hi_x), min(max(d * math.sin(a), lo_y), hi_y))   # Kartenrand
+            key = (round(off[0], 6), round(off[1], 6))
+            if key not in seen:
+                seen.add(key)
+                offsets.append(off)
+        if not offsets:
+            continue
+        moved = [shapely.affinity.translate(shape, dx, dy) for dx, dy in offsets]
+        got = shapely.area(shapely.intersection(moved, land)) / area
+        i = max(range(len(offsets)), key=lambda q: got[q])   # bei Gleichstand die erste Lage des Rings
+        if got[i] >= SETTLE_SHARE:
+            return offsets[i]
+        if best is None or got[i] > best[0]:
+            best = (got[i], offsets[i])
+    if best is not None and best[0] * area >= 3000 * s * s:
+        return best[1]
+    return None
+
+
 def bezier(p0, p1, rng, bend=0.2, n=30):
     p0, p1 = np.array(p0, float), np.array(p1, float)
     d = p1 - p0
@@ -227,9 +273,29 @@ class CityBuilder:
             base = city_radius(self.W, self.cfg["einwohner"])
             self.spread = min(self.spread, max(1.0, self.shape.area / (math.pi * base * base)))
         land = box(0, 0, self.W, self.W).difference(t["water"])
-        self.city_land = self.shape.intersection(land)
-        self.sides = sorted(clean(self.city_land, 3000 * self.s ** 2), key=lambda p: -p.area)
+        self.sides = self.land_sides(self.shape, land)
+        if not self.sides:   # der Umriss liegt ganz im Wasser (kleine Stadt, sehr breiter Fluss oder Küste)
+            self.settle_on_shore(land)
         self.city_land = unary_union(self.sides)
+
+    def land_sides(self, shape, land):
+        """Landstücke eines Stadtumrisses (Teilflächen unter 3000 s² fallen weg), das größte zuerst."""
+        return sorted(clean(shape.intersection(land), 3000 * self.s ** 2), key=lambda p: -p.area)
+
+    def settle_on_shore(self, land):
+        """Bleibt vom Umriss kein Land übrig, rückt die Stadt so wenig wie möglich ans Ufer (Umriss und Mittelpunkt
+        wandern mit). Eine gezeichnete Mauer ist Absicht des Zeichners und bleibt, wo sie ist."""
+        if self.t.get("custom"):
+            raise ValueError("Die gezeichnete Mauer liegt ganz im Wasser - bitte die Punkte auf Land neu setzen.")
+        move = settle_on_land(self.shape, land, self.W, self.s)
+        moved = shapely.affinity.translate(self.shape, *move) if move is not None else None
+        sides = self.land_sides(moved, land) if moved is not None else []
+        if not sides:
+            raise ValueError("Auf der Karte ist kein Land für die Stadt - bitte den Fluss schmaler wählen.")
+        self.shape, self.sides = moved, sides
+        self.center = (self.center[0] + move[0], self.center[1] + move[1])
+        print("Hinweis: Der Stadtumriss läge ganz im Wasser (kleine Stadt, sehr breiter Fluss oder Küste) - "
+              "die Stadt wird ans Ufer verschoben.")
 
     def side_of(self, p):
         p = p if isinstance(p, Point) else Point(p)
