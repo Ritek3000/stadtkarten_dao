@@ -17,10 +17,11 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, vlen
-from . import noise, papier, staub, umgebung, wasser
+from . import noise, papier, parallel, staub, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .city import ship_footprint
-from .styles import COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
+from .config import ROTATION
+from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
 
 
 def f(v):
@@ -473,8 +474,7 @@ def _texture_limited(W, *args, **kw):
     n = max(1, min(4, int(32e6 // (W * W))))
     with _TEX_LOCK:
         sem = _TEX_LIMITS.setdefault(n, threading.Semaphore(n))
-    with sem:
-        return noise.texture(W, *args, **kw)
+    return noise.texture(W, *args, gate=sem, **kw)   # nur wer rechnet, belegt die Grenze; Wartende nicht
 
 
 def _tex_pool():
@@ -563,10 +563,9 @@ def coast_lines(m):
     return "".join(out)
 
 
-def noise_open(m, *keys, extras=(), base=None, palette=None, shading=None):
-    """Öffnendes <use>-Tag einer vorberechneten Rauschtextur (Attribute und '/>' folgen im Aufrufer).
-    keys: Texturname oder (Name, Deckkraft); mehrere werden zu einem Bild zusammengelegt.
-    palette: Farbverlauf als Untergrund, shading: Relief (Stärke, Wellenlänge) - Licht aus Nordwesten."""
+def _noise_request(m, keys, extras, base, palette, shading):
+    """(Name, Schichten, Beleuchtung) einer Rauschtextur. Nur von m["biome"], m["rot"] und den Argumenten abhängig,
+    daher auch vor dem Generator berechenbar (prewarm)."""
     layers = []
     for k in keys:
         name, op = (k, 1.0) if isinstance(k, str) else k
@@ -579,11 +578,85 @@ def noise_open(m, *keys, extras=(), base=None, palette=None, shading=None):
         shading = (shading[0], shading[1], *light_dir(m), 71)
     if base and base != m["biome"]["land"]:   # andere Grundfarbe (z.B. zweite Stufe am Hochplateau): eigene Textur
         tid += base.lstrip("#")
+    return tid, layers, shading
+
+
+def noise_open(m, *keys, extras=(), base=None, palette=None, shading=None):
+    """Öffnendes <use>-Tag einer vorberechneten Rauschtextur (Attribute und '/>' folgen im Aufrufer).
+    keys: Texturname oder (Name, Deckkraft); mehrere werden zu einem Bild zusammengelegt.
+    palette: Farbverlauf als Untergrund, shading: Relief (Stärke, Wellenlänge) - Licht aus Nordwesten."""
+    tid, layers, shading = _noise_request(m, keys, extras, base, palette, shading)
     tex = m.setdefault("_tex", {})
     if tid not in tex:   # im Hintergrund berechnen; render_svg wartet erst beim Einbetten am Ende
         tex[tid] = _tex_pool().submit(_texture_limited, m["W"], m["s"], layers, extras=tuple(extras), base=base,
                                       palette=palette, shading=shading)
     return f'<use href="#tex_{tid}"'
+
+
+# Rezepte der Texturen, die nur vom Biotop abhängen. Der SVG-Aufbau und der Vorlauf (prewarm) benutzen dieselben,
+# damit beide immer dieselbe Textur meinen (sonst gäbe es keinen Treffer im Zwischenspeicher).
+FELD_TEXTUR = (("mottleDark", 0.8), ("mottleLight", 0.5))
+
+
+def boden_args(B, base):
+    """Bodentextur auf der Grundfarbe base: Flecken, Gekritzel, Körnung, Farbverlauf und Relief."""
+    return ((("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35)),
+            dict(extras=B["ground_detail"], base=base, palette=ground_palette(base), shading=(B["relief"], 480)))
+
+
+def noise_boden(m, base):
+    keys, kw = boden_args(m["biome"], base)
+    return noise_open(m, *keys, **kw)
+
+
+def prewarm(cfg):
+    """Startet in Render-Prozessen die Texturen, die nicht von der Stadt abhängen (Boden, Nebel, Felder, Papier),
+    schon vor dem Generator. Der Generator läuft in einem einzigen Kern; so ist der längste Teil des SVG-Aufbaus (das
+    Warten auf die Bodentextur) erledigt, wenn render_svg beginnt. Eigene Prozesse statt Threads, damit der Generator
+    die GIL nicht mit den Texturen teilt (Threads bremsten ihn um mehr als ihr Vorlauf einbrachte). Die Ergebnisse
+    sind dieselben wie sonst und landen im Zwischenspeicher; wer sie früher braucht, wartet auf sie (noise.memoized).
+    Ohne Wirkung (und ohne Schaden) bei anderem Maßstab (Ausschnitt nicht „weit“), bei Gebirge und Hochplateau (dort
+    kommen Fels- und Schneetexturen hinzu, die hier nicht vorhergesagt werden), bei weniger als 3 Kernen und wenn kein
+    Render-Prozess zur Verfügung steht: dann rechnet render_svg wie früher selbst."""
+    try:
+        if (os.cpu_count() or 1) < 3:   # sonst nähmen die Texturen dem Generator nur die Rechenzeit
+            return
+        g, aus = cfg["gelaende"], cfg["ausgabe"]
+        if aus.get("ausschnitt", "weit") != "weit":   # anderer Maßstab (m["s"]): Schlüssel nicht vorhersagbar
+            return
+        B = BIOMES[g["biotop"]]
+        if B["mountain"] or B["plateau"]:
+            return
+        W = int(aus["bildgroesse"])
+        s = W / 2000
+        m = {"biome": B, "W": W, "s": s, "rot": ROTATION[g["kueste"]]}
+        wanted = [boden_args(B, B["land"]), (("fog",), {})]
+        if g.get("felder"):
+            wanted.append((FELD_TEXTUR, {}))
+        jobs = []   # (Gewicht, Speicher, Schlüssel, Auftrag) je Textur; das Gewicht ist die ungefähre Rechenzeit
+        for (keys, kw), weight in zip(wanted, (4.0, 1.5, 1.0)):   # Boden, Nebel, Felder
+            extras, base, palette, shading = kw.get("extras", ()), kw.get("base"), kw.get("palette"), kw.get("shading")
+            _, layers, shading = _noise_request(m, keys, extras, base, palette, shading)
+            extras = tuple(extras)
+            jobs.append((weight, noise._CACHE, noise.texture_key(W, s, layers, None, extras, base, palette, shading),
+                         ("textur", (W, s, layers, W, extras, base, palette, shading))))
+        if aus.get("stil") == "pergament":
+            jobs.append((0.5, papier._CACHE, papier.cache_key(W, s), ("papier", papier.job(W, s))))
+        jobs = [j for j in jobs if not noise.pending(j[1], j[2])]   # schon gerechnet oder in Arbeit: nichts neu starten
+        # höchstens zwei Prozesse (bei sehr großen Bildern nur einer: eine Textur braucht rund 70 Byte je Pixel);
+        # die langen Aufträge zuerst, jeder an den bisher kürzeren Prozess
+        groups = [[] for _ in range(2 if W * W <= 16e6 else 1)]
+        load = [0.0] * len(groups)
+        for job in sorted(jobs, key=lambda j: -j[0]):
+            k = load.index(min(load))
+            groups[k].append(job); load[k] += job[0]
+        for grp in groups:
+            if grp:
+                fut = parallel.submit_texturen([spec for _, _, _, spec in grp])
+                if fut is not None:
+                    noise.remote([(cache, key) for _, cache, key, _ in grp], fut)
+    except Exception:   # ein Vorlauf darf nie etwas kaputt machen: dann rechnet render_svg wie früher selbst
+        pass
 
 
 def shadow_layer(shapes, dx, dy, opacity, s):
@@ -725,7 +798,7 @@ def plateau_level_svg(o, m):
     o.append(f'<rect width="{W}" height="{W}" fill="{col}"/>'
              f'<clipPath id="levelClip"><path d="{path_d(lvl)}"/></clipPath>'
              f'<g clip-path="url(#levelClip)">'
-             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=col, palette=ground_palette(col), shading=(B["relief"], 480))}/>'
+             f'{noise_boden(m, col)}/>'
              f'{haze}</g>')
 
 
@@ -1203,7 +1276,7 @@ def render_svg(m):
     # Land
     o.append(f'<path d="{path_d(m["land"])}" fill="{B["land"]}"/>')
     o.append(f'<g clip-path="url(#landClip)">'
-             f'{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5), ("scribble", 0.35), extras=B["ground_detail"], base=B["land"], palette=ground_palette(B["land"]), shading=(B["relief"], 480))}/>'
+             f'{noise_boden(m, B["land"])}/>'
              f'<use href="#tex_umgebung"/></g>')
     tex = m.setdefault("_tex", {})
     tex["umgebung"] = _tex_pool().submit(umgebung.image, W, s, umgebung_daten(m))
@@ -1244,7 +1317,7 @@ def render_svg(m):
         # Bodenflecken über den Feldern (nicht jedes Feld gleichmäßig) und Hecken an den Gewanngrenzen
         fu = unary_union([fl["poly"] for fl in m["fields"]])
         o.append(f'<clipPath id="fieldClip"><path d="{path_d(fu)}"/></clipPath>'
-                 f'<g clip-path="url(#fieldClip)" opacity="0.55">{noise_open(m, ("mottleDark", 0.8), ("mottleLight", 0.5))}/></g>')
+                 f'<g clip-path="url(#fieldClip)" opacity="0.55">{noise_open(m, *FELD_TEXTUR)}/></g>')
         groups = {}
         for fl in m["fields"]:
             groups.setdefault(fl.get("furlong", 0), []).append(fl["poly"])

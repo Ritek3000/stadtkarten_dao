@@ -6,7 +6,9 @@ Flecken, Nebelschwaden), als Nulllinien (Felsrisse) und gestreckt (Schneeverwehu
 entsprechen den früheren Filtern, Filterfarben gelten wie dort im linearen Farbraum.
 """
 import base64
+import contextlib
 import io
+import threading
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -16,6 +18,78 @@ from .simplex import grid
 # gemessene Verteilung des feTurbulence-Kanals (linearer Farbraum)
 STATS = {"fractalNoise": (0.516, 0.105), "turbulence": (0.309, 0.141)}
 _CACHE = {}
+_LOCK = threading.Lock()
+_INFLIGHT = {}   # laufende Berechnungen: (Speicher, Schlüssel) -> {"fertig": Event, "wert": Ergebnis}
+
+
+def pending(cache, key):
+    """Gibt es den Eintrag schon (oder wird er gerade gerechnet)? Dann lohnt kein neuer Auftrag."""
+    with _LOCK:
+        return key in cache or (id(cache), key) in _INFLIGHT
+
+
+def remote(entries, future, limit=40):
+    """Trägt Ergebnisse ein, die ein anderer Prozess rechnet (future liefert die Werte in der Reihenfolge von entries =
+    [(Speicher, Schlüssel), ...]). Wer sie früher braucht, wartet in memoized darauf. Scheitert der Prozess, rechnet
+    jeder Wartende selbst. Schon gespeicherte oder laufende Einträge bleiben unberührt."""
+    jobs = []
+    with _LOCK:
+        for cache, key in entries:
+            if key in cache or (id(cache), key) in _INFLIGHT:
+                jobs.append(None)
+                continue
+            job = _INFLIGHT[(id(cache), key)] = {"fertig": threading.Event(), "wert": None}
+            jobs.append((cache, key, job))
+
+    def done(f):
+        try:
+            values = f.result()
+        except Exception:
+            values = [None] * len(jobs)
+        for item, value in zip(jobs, values):
+            if item is None:
+                continue
+            cache, key, job = item
+            job["wert"] = value
+            with _LOCK:
+                if value is not None:
+                    if len(cache) > limit:
+                        cache.clear()
+                    cache[key] = value
+                _INFLIGHT.pop((id(cache), key), None)
+            job["fertig"].set()
+    future.add_done_callback(done)
+
+
+def memoized(cache, key, compute, gate=None, limit=40):
+    """Ergebnis aus dem Zwischenspeicher. Rechnet gerade ein anderer Thread dasselbe (z.B. ein Vorlauf, der die
+    Texturen schon während des Generators startet), wird auf ihn gewartet statt doppelt gerechnet. gate: Kontext,
+    den nur der Rechnende hält (z.B. Speichergrenze); Wartende belegen ihn nicht."""
+    with _LOCK:
+        if key in cache:
+            return cache[key]
+        job = _INFLIGHT.get((id(cache), key))
+        owner = job is None
+        if owner:
+            job = _INFLIGHT[(id(cache), key)] = {"fertig": threading.Event(), "wert": None}
+    if not owner:
+        job["fertig"].wait()
+        if job["wert"] is not None:
+            return job["wert"]
+        return compute()   # der andere Thread ist gescheitert: selbst rechnen (und den Fehler selbst bekommen)
+    try:
+        with (gate if gate is not None else contextlib.nullcontext()):
+            value = compute()
+        job["wert"] = value
+        with _LOCK:
+            if len(cache) > limit:
+                cache.clear()
+            cache[key] = value
+        return value
+    finally:
+        with _LOCK:
+            _INFLIGHT.pop((id(cache), key), None)
+        job["fertig"].set()
 
 
 def _fbm(size, period, octaves, seed, turbulence, warp=0.0, stretch=1.0):
@@ -147,17 +221,26 @@ def relief(res, s, period, seed, light):
     return np.clip(sh / (np.std(sh) * 2.5 + 1e-9), -1, 1).astype(np.float32)
 
 
-def texture(W, s, layers, res=None, extras=(), base=None, palette=None, shading=None):
+def texture_key(W, s, layers, res=None, extras=(), base=None, palette=None, shading=None):
+    """Schlüssel im Zwischenspeicher: dieselben Eingaben, dieselbe Textur."""
+    res = res or W
+    return (W, round(s, 4), res, tuple((tuple(map(str, sp)), op) for sp, op in layers), tuple(map(tuple, extras)), base,
+            tuple(palette or ()), tuple(shading or ()))
+
+
+def texture(W, s, layers, res=None, extras=(), base=None, palette=None, shading=None, gate=None):
     """Data-URI eines RGBA-Bildes aus einer oder mehreren übereinandergelegten Rauschschichten.
     layers: Liste aus (Parameter, Deckkraft); Parameter = (baseFrequency, Oktaven, Seed, Farbe linear,
     Verstärkung, Versatz, Turbulenz[, Verzerrung]). Mehrere Schichten in einem Bild sparen Renderzeit.
     palette: Farbverlauf statt einfarbigem Untergrund (nur mit base); shading: Relief als
-    (Stärke, Wellenlänge bei 2000 px, Licht-x, Licht-y, Seed) - zuletzt aufgetragen, wie Licht über allem."""
+    (Stärke, Wellenlänge bei 2000 px, Licht-x, Licht-y, Seed) - zuletzt aufgetragen, wie Licht über allem.
+    gate: siehe memoized (hält nur, wer die Textur wirklich berechnet)."""
     res = res or W
-    key = (W, round(s, 4), res, tuple((tuple(map(str, sp)), op) for sp, op in layers), tuple(map(tuple, extras)), base,
-           tuple(palette or ()), tuple(shading or ()))
-    if key in _CACHE:
-        return _CACHE[key]
+    key = texture_key(W, s, layers, res, extras, base, palette, shading)
+    return memoized(_CACHE, key, lambda: _texture(W, s, layers, res, extras, base, palette, shading), gate)
+
+
+def _texture(W, s, layers, res, extras, base, palette, shading):
     out_rgb = np.zeros((res, res, 3), np.float32)   # vormultipliziert
     out_a = np.zeros((res, res), np.float32)
     if base:   # deckender Untergrund: Bild ohne Transparenz, komprimiert viel besser
@@ -188,8 +271,4 @@ def texture(W, s, layers, res=None, extras=(), base=None, palette=None, shading=
         Image.fromarray(img[..., :3], "RGB").save(buf, "WEBP", quality=82, method=0)
     else:
         Image.fromarray(img, "RGBA").save(buf, "WEBP", quality=82, alpha_quality=70, method=0)
-    uri = "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
-    if len(_CACHE) > 40:
-        _CACHE.clear()
-    _CACHE[key] = uri
-    return uri
+    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
