@@ -16,8 +16,8 @@ import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
-from .geo import axes, lines, polys, vlen
-from . import noise, papier, parallel, staub, umgebung, wasser
+from .geo import axes, lines, polys, unit, vlen
+from . import gebirge, noise, papier, parallel, staub, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .city import ship_footprint
 from .config import ROTATION
@@ -988,14 +988,23 @@ def lift_svg(o, lift, s):
              f'<circle cx="{f(tx)}" cy="{f(ty)}" r="{f(3 * s)}" fill="#6a4a2c" stroke="#2a1d10" stroke-width="{f(0.9 * s)}"/>')
 
 
+def berg_daten(m):
+    """Felsfläche, Licht und Farben für das Gebirge mit Höhe (gebirge.image)."""
+    B = m["biome"]
+    rings = [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(m["sea"])]
+    return {"rock": rings, "light": light_dir(m), "rock_col": B["rock"], "rock_dark": B["rock_dark"], "snow": "#f4f6f8"}
+
+
 def mountain_svg(o, m, rng):
-    """Felsmassiv: Grundton, Felstextur, Hangschraffur, Grate und Schneefelder."""
+    """Felsmassiv mit Höhe: Schummerung, Färbung nach Höhe, Schnee und Höhenlinien (gebirge.image), darüber Hangschraffur."""
     s, W, B = m["s"], m["W"], m["biome"]
     rock = m["sea"]
-    o.append(f'<rect width="{W}" height="{W}" fill="{B["rock"]}"/>'
-             f'{noise_open(m, "rockTex", extras=B["rock_detail"], shading=(0.45, 140))} opacity="0.7"/>')
+    o.append(f'<rect width="{W}" height="{W}" fill="{B["rock"]}"/>')
     if rock is None or rock.is_empty:
         return
+    tex = m.setdefault("_tex", {})
+    tex["gebirge"] = _tex_pool().submit(gebirge.image, W, s, berg_daten(m))
+    o.append('<use href="#tex_gebirge"/>')
     # Hangschraffur: kurze Striche bergab (intern liegt das Land im Süden)
     minx, miny, maxx, maxy = rock.bounds
     n = int(min(3500, rock.area / (260 * s * s)))
@@ -1008,33 +1017,9 @@ def mountain_svg(o, m, rng):
         ln = rng.uniform(7, 16) * s
         seg = f"M{f(x)},{f(y)}l{f(math.cos(a) * ln)},{f(math.sin(a) * ln)}"
         (dark if rng.random() < 0.7 else light).append(seg)
-    o.append(f'<path d="{"".join(dark)}" stroke="{B["rock_dark"]}" stroke-opacity="0.45" stroke-width="{f(1.1 * s)}" '
+    o.append(f'<path d="{"".join(dark)}" stroke="{B["rock_dark"]}" stroke-opacity="0.22" stroke-width="{f(1.0 * s)}" '
              f'stroke-linecap="round"/>'
-             f'<path d="{"".join(light)}" stroke="#d8d3c8" stroke-opacity="0.35" stroke-width="{f(1.1 * s)}" stroke-linecap="round"/>')
-    # Grate: lange gezackte Linien weit im Fels
-    inner = rock.buffer(-70 * s)
-    if not inner.is_empty:
-        ix0, iy0, ix1, iy1 = inner.bounds
-        crests = []
-        for _ in range(14):
-            x, y = rng.uniform(ix0, ix1), rng.uniform(iy0, iy1)
-            pts, a = [(x, y)], rng.choice([0, math.pi]) + rng.uniform(-0.4, 0.4)
-            for _ in range(rng.randint(6, 14)):
-                a += rng.uniform(-0.7, 0.7)
-                x, y = x + math.cos(a) * 22 * s, y + math.sin(a) * 22 * s
-                pts.append((x, y))
-            crests += lines(LineString(pts).intersection(inner))
-        cd = "".join(line_d(c) for c in crests)
-        if cd:
-            o.append(f'<path d="{cd}" fill="none" stroke="#2c2924" stroke-opacity="0.6" stroke-width="{f(3 * s)}" '
-                     f'stroke-linejoin="round" transform="translate({f(1.5 * s)},{f(2 * s)})"/>'
-                     f'<path d="{cd}" fill="none" stroke="#e6e1d6" stroke-opacity="0.75" stroke-width="{f(1.6 * s)}" stroke-linejoin="round"/>')
-    # Schneefelder: abhängig vom Abstand zum Tal (nicht vom Kartenrand), fleckig über eine Rauschmaske
-    snow = rock.difference(m["land"].buffer(260 * s))
-    if not snow.is_empty:
-        o.append(f'<clipPath id="snowClip"><path d="{path_d(snow.buffer(30 * s).intersection(rock))}"/></clipPath>'
-                 f'<path d="{path_d(snow)}" fill="#f4f6f7" fill-opacity="0.55" filter="url(#blur)"/>'
-                 f'<g clip-path="url(#snowClip)">{noise_open(m, "snowTex")}/></g>')
+             f'<path d="{"".join(light)}" stroke="#d8d3c8" stroke-opacity="0.18" stroke-width="{f(1.0 * s)}" stroke-linecap="round"/>')
 
 
 def slope_svg(o, m, rng):
@@ -1135,14 +1120,38 @@ def cliff_svg(o, m, rng):
         o.append(f'<path d="{"".join(ticks)}" stroke="#34312b" stroke-opacity="0.8" stroke-width="{f(1.2 * s)}" stroke-linecap="round"/>')
 
 
+def hachures(lines_, area, step, length, s, toward=None):
+    """Schraffen (kurze Striche) senkrecht zu Linien, im Abstand step. toward = (dx, dy): die Striche zeigen auf die Seite
+    dieser Richtung; area: Fläche, in die sie zeigen sollen (z.B. die Klamm). Ohne Zufall, damit die übrige Karte gleich bleibt."""
+    segs = []
+    for ln in lines_:
+        n = max(1, int(ln.length / step))
+        for i in range(n):
+            d0 = (i + 0.5) * ln.length / n
+            p, q = ln.interpolate(max(0, d0 - 1.5 * s)), ln.interpolate(min(ln.length, d0 + 1.5 * s))
+            tx, ty = unit((q.x - p.x, q.y - p.y))
+            c = ln.interpolate(d0)
+            nx, ny = -ty, tx
+            if area is not None:
+                if not area.contains(shapely.Point(c.x + nx * 2 * s, c.y + ny * 2 * s)):
+                    nx, ny = -nx, -ny
+            elif toward is not None and nx * toward[0] + ny * toward[1] < 0:
+                nx, ny = -nx, -ny
+            ln_len = length * (0.55 + 0.45 * ((i * 7) % 5) / 4)   # abwechselnd lange und kurze Striche
+            segs.append(f"M{f(c.x)},{f(c.y)}l{f(nx * ln_len)},{f(ny * ln_len)}")
+    return "".join(segs)
+
+
 def chasm_svg(o, m):
-    """Klamm: helle Felskante innen, Wildbach mit Gischt am Grund."""
+    """Klamm: helle Felskante innen, steile Felswände mit Schraffen, Wildbach mit Gischt am Grund."""
     s, B = m["s"], m["biome"]
     d = path_d(m["river"])
     o.append(f'<clipPath id="chasmClip"><path d="{d}"/></clipPath>'
              f'<g clip-path="url(#chasmClip)"><path d="{d}" fill="none" stroke="#7a7468" stroke-width="{f(26 * s)}"/>'
              f'<path d="{d}" fill="none" stroke="#5a554c" stroke-width="{f(16 * s)}"/>'
-             f'<path d="{d}" fill="none" stroke="#3a3631" stroke-width="{f(8 * s)}"/></g>')
+             f'<path d="{d}" fill="none" stroke="#3a3631" stroke-width="{f(8 * s)}"/>'
+             f'<path d="{hachures([ring for g in polys(m["river"]) for ring in [g.exterior, *g.interiors]], m["river"], 4.2 * s, 11 * s, s)}" '
+             f'stroke="#15130f" stroke-opacity="0.62" stroke-width="{f(1.1 * s)}" stroke-linecap="round"/></g>')
     if m.get("river_line") is not None:
         brook = m["river_line"].intersection(m["river"].buffer(-4 * s))
         bd = line_d(brook)
@@ -1484,6 +1493,9 @@ def render_svg(m):
                      f'<path d="{path_d(st["poly"])}" fill="none" stroke="{C["outline"]}" stroke-width="{f(0.8 * s)}"/>')
     if m["terrace_walls"]:
         tw = "".join(line_d(ln) for ln in m["terrace_walls"])
+        hd = hachures(m["terrace_walls"], None, 4.5 * s, 7 * s, s, toward=(0, 1))
+        o.append(f'<path d="{hd}" fill="none" stroke="#1c1914" stroke-opacity="0.55" stroke-width="{f(1.0 * s)}" '
+                 f'stroke-linecap="round" transform="translate(0,{f(3 * s)})"/>')
         o.append(f'<path d="{tw}" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="{f(9 * s)}" '
                  f'filter="url(#softblur)" transform="translate(0,{f(3 * s)})"/>'
                  f'<path d="{tw}" fill="none" stroke="#2f2c28" stroke-width="{f(6 * s)}" stroke-linecap="round"/>'
