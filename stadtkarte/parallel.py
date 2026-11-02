@@ -1,9 +1,12 @@
-"""Rendern (SVG -> PNG) in eigenen Prozessen.
+"""Rendern (SVG -> PNG) und Rauschtexturen in eigenen Prozessen.
 
 resvg hält während des Renderns die GIL, Threads helfen daher nicht. Mehrere voneinander unabhängige Bilder
 (Vorschau, volle Ansicht, PNG mit Beschriftung, Bild der interaktiven Karte) entstehen so gleichzeitig auf
 mehreren Kernen, und der Hauptprozess bleibt frei. Das Modul ist absichtlich schlank: ein Render-Prozess lädt
 nur resvg, nicht numpy, Shapely oder den Generator.
+
+Dieselben Prozesse rechnen vorab die Texturen, die nicht von der Stadt abhängen (render.prewarm), während der Generator
+im Hauptprozess läuft. Threads statt Prozesse bremsten den Generator durch die gemeinsame GIL stärker, als sie einbrachten.
 
 Klappt der Prozess-Pool nicht (z.B. eingeschränkte Umgebung), wird wie bisher im eigenen Prozess gerendert.
 """
@@ -71,6 +74,31 @@ class _Job:
         except Exception:   # z.B. BrokenProcessPool, abgestürzter oder blockierter Prozess
             _give_up()
             return _render(*self._args)
+
+
+def _texturen(specs):
+    """Läuft im Render-Prozess: Rauschtexturen und Papier nacheinander. specs: [("textur" | "papier", Argumente), ...]."""
+    out = []
+    for kind, args in specs:
+        if kind == "textur":
+            from .noise import _texture
+            out.append(_texture(*args))
+        else:
+            from .papier import _image
+            out.append(_image(*args))
+    return out
+
+
+def submit_texturen(specs):
+    """Rechnet Texturen in einem Render-Prozess; liefert ein Future mit den Data-URIs oder None, wenn kein Pool da ist."""
+    pool = _pool()
+    if pool is None:
+        return None
+    try:
+        return pool.submit(_texturen, specs)
+    except Exception:
+        _give_up()
+        return None
 
 
 def mode():

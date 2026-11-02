@@ -9,7 +9,7 @@ from . import config, webpaket
 from .generator import generate
 from .interaktiv import interactive_html
 from .parallel import png_async
-from .render import render_svg, split_labels, to_pdf
+from .render import prewarm, render_svg, split_labels, to_pdf
 
 
 def main():
@@ -28,6 +28,7 @@ def main():
     if args.nacht:
         cfg["ausgabe"]["nacht"] = True
     t0 = time.time()
+    prewarm(cfg)   # Texturen, die nicht von der Stadt abhängen, rechnen schon während des Generators
     m = generate(cfg)
     svg = render_svg(m)
     out = pathlib.Path(args.ausgabe)

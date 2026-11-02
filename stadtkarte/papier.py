@@ -7,7 +7,9 @@ import io
 import numpy as np
 from PIL import Image
 
-from .noise import _fbm, _hex_rgb
+from .noise import _fbm, _hex_rgb, memoized
+
+_CACHE = {}
 
 
 def _unit(n):
@@ -15,9 +17,23 @@ def _unit(n):
     return np.clip((n - lo) / (hi - lo + 1e-6), 0, 1)
 
 
+def cache_key(W, s, tint="#efe0bf", edge="#8a6a3c", res=None):
+    return (W, round(s, 4), tint, edge, res or max(256, W // 2))
+
+
+def job(W, s):
+    """Argumente von _image für die Standardfarben (für einen Render-Prozess)."""
+    return (W, s, "#efe0bf", "#8a6a3c", max(256, W // 2))
+
+
 def image(W, s, tint="#efe0bf", edge="#8a6a3c", res=None):
-    """Papierstruktur als Data-URI (WebP, deckend, zum Multiplizieren)."""
+    """Papierstruktur als Data-URI (WebP, deckend, zum Multiplizieren). Hängt nur von Größe und Farben ab und wird
+    daher gemerkt (auch für den Vorlauf während des Generators)."""
     res = res or max(256, W // 2)
+    return memoized(_CACHE, cache_key(W, s, tint, edge, res), lambda: _image(W, s, tint, edge, res), limit=6)
+
+
+def _image(W, s, tint, edge, res):
     k = res / W
     rng = np.random.default_rng(1307)
     clouds = _unit(_fbm(res, 420 * s * k, 4, 201, False, warp=0.8))             # wolkige Vergilbung

@@ -24,7 +24,7 @@ from .. import __version__, config, webpaket
 from ..generator import generate
 from ..interaktiv import interactive_html
 from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
-from ..render import font_face_css, move_labels, render_svg, split_labels, to_pdf
+from ..render import font_face_css, move_labels, prewarm, render_svg, split_labels, to_pdf
 from ..styles import BIOMES, DISTRICT_TYPES
 
 def documents_dir():
@@ -96,6 +96,7 @@ def build(raw):
     out = io.StringIO()
     t0 = time.time()
     with GEN_LOCK, contextlib.redirect_stdout(out):
+        prewarm(cfg)   # Texturen, die nicht von der Stadt abhängen, rechnen schon während des Generators
         m = generate(cfg)
         svg = render_svg(m)
         base, labels = split_labels(svg)   # die Ansicht zeigt die Beschriftung als verschiebbare Ebene darüber
