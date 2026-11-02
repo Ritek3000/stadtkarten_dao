@@ -180,11 +180,20 @@ def _generate(cfg, W):
         if islands:
             sea = sea.difference(unary_union(islands))
     river, river_line = (None, None)
+    gorge = None   # Gebirge: Klamm bis ins Tal, dort läuft sie aus und fließt als kleiner Bach weiter
+    if biome["mountain"] and g.get("fluss") and city_shape is not None:
+        # das Tal beginnt, wo die Felsflanken neben der Stadt enden; die Klamm läuft dort aus (und nicht erst im offenen Land)
+        strip = box(cx - 1.7 * r, -W, cx + 1.7 * r, 2 * W)
+        flanks = sea.intersection(strip) if sea is not None and not sea.is_empty else None
+        valley = flanks.bounds[3] if flanks is not None and not flanks.is_empty else city_shape.bounds[3] - 0.3 * r
+        y_a = min(max(valley, cy + 0.3 * r), city_shape.bounds[3] + 40 * s)
+        gorge = {"y_a": y_a, "y_b": y_a + 440 * s, "seed": cfg["seed"]}
     if g.get("fluss"):
         river, river_line = make_river(rng, W, s, (cx, cy), r, coast_y, float(g.get("flussbreite", 60)),
                                        estuary=not (biome["mountain"] or plateau),
                                        end_y=(cy - 1.35 * r - 80 * s if biome["mountain"] and has_coast
-                                              else -60 if plateau else None))   # Hochplateau: über die Kante hinweg
+                                              else -60 if plateau else None),   # Hochplateau: über die Kante hinweg
+                                       gorge=gorge)
     if plateau:   # die Stufe ist eine geschlossene Fläche: keine Löcher und keine abgetrennten Splitter
         parts = polys(sea)
         sea = Polygon(max(parts, key=lambda q: q.area).exterior) if parts else sea
@@ -432,6 +441,7 @@ def _generate(cfg, W):
         "forts": forts, "biome": biome, "pools": pools, "reeds": reeds, "lilies": lilies,
         "oases": oases, "rocks": rocks, "dunes": dunes, "floes": floes,
         "river_line": river_line, "mines": mines, "paths": paths,
+        "klamm_fade": (gorge["y_a"], gorge["y_b"]) if gorge and river is not None else None,
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         "lighthouse": light,
         "dust": staub.areas(cfg, W, s, (cx, cy), r, rot),
