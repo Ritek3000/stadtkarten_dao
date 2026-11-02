@@ -386,16 +386,20 @@ Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [nordhafen.yaml](beispiel
 
 ## Weitergeben
 
-Im Ordner `verteilung/` liegen nach dem Bauen zwei Dateien zum Weitergeben. Die Empfänger brauchen **kein Python**:
+Im Ordner `verteilung/` liegt nach dem Bauen die Datei zum Weitergeben (unter Windows die ZIP, unter Linux das `tar.gz`).
+Die Empfänger brauchen **kein Python**:
 
 | Datei | Verwendung |
 |---|---|
-| `Stadtkarten-Werkstatt-Setup.exe` | Doppelklick installiert das Programm für den aktuellen Benutzer (ohne Adminrechte) nach `%LOCALAPPDATA%\Programs\Stadtkarten-Werkstatt`, mit Verknüpfungen auf dem Desktop und im Startmenü. Deinstallation über das Startmenü oder „Apps & Features“. |
 | `Stadtkarten-Werkstatt-portable.zip` | Entpacken und `Stadtkarten-Werkstatt.exe` starten, z.B. vom USB-Stick. |
+
+Ein Setup mit Installation gibt es nicht mehr: Eine selbstentpackende Setup.exe, die ein PowerShell-Skript startet, hat bei
+Browsern und Virenscannern Fehlalarme ausgelöst („Gefährlicher Download blockiert“). Wer eine ältere Version mit dem Setup
+installiert hat, kann sie weiter über das Startmenü oder „Apps & Features“ deinstallieren.
 
 Das Programm öffnet die Werkstatt im Browser; gespeicherte Karten landen in `Dokumente\Stadtkarten`. Zum Beenden das schwarze Fenster schließen.
 
-Da das Setup nicht digital signiert ist, warnt Windows SmartScreen beim ersten Start („Der Computer wurde durch Windows geschützt“) – über „Weitere Informationen“ → „Trotzdem ausführen“ geht es weiter.
+Da das Programm nicht digital signiert ist, warnt Windows SmartScreen beim ersten Start („Der Computer wurde durch Windows geschützt“) – über „Weitere Informationen“ → „Trotzdem ausführen“ geht es weiter. Auch ein Browser kann den Download als unbekannt beanstanden; in Chrome unter `chrome://downloads` bei dem Eintrag „Behalten“ wählen.
 
 **Neu bauen** (z.B. nach Änderungen am Programm):
 
@@ -404,7 +408,7 @@ Da das Setup nicht digital signiert ist, warnt Windows SmartScreen beim ersten S
 .venv\Scripts\python packaging\build.py
 ```
 
-Die Version steht in `packaging/build.py` (`VERSION`). Ein neues Setup ersetzt eine ältere Installation automatisch.
+Die Version wird aus `stadtkarte/__init__.py` übernommen. Zum Aktualisieren den alten Ordner löschen und die neue ZIP entpacken.
 
 ### Automatisch auf GitHub bauen (Windows und Linux)
 
@@ -414,7 +418,7 @@ beide Versionen, startet sie zur Probe (Tag- und Nachtkarte) und stellt sie bere
 - **Download:** Repository → „Actions“ → „Pakete bauen“ → letzter Lauf → unten „Artifacts“
   (`stadtkarten-werkstatt-windows`, `stadtkarten-werkstatt-linux`, je 30 Tage verfügbar)
 - **Release:** Einen Versions-Tag hochladen, z.B. `git tag v1.8.0` und `git push origin v1.8.0` – dann entsteht
-  zusätzlich ein GitHub-Release mit Setup, portabler ZIP und Linux-Paket
+  zusätzlich ein GitHub-Release mit portabler ZIP und Linux-Paket
 - **Von Hand:** „Actions“ → „Pakete bauen“ → „Run workflow“
 
 Linux-Paket: `Stadtkarten-Werkstatt-linux-x86_64.tar.gz` entpacken, `./Stadtkarten-Werkstatt` starten; optional

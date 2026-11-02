@@ -4,10 +4,11 @@ Aufruf (im Projektordner):  Windows: .venv\\Scripts\\python packaging\\build.py
                              Linux:   .venv/bin/python packaging/build.py
 
 Ergebnis im Ordner 'verteilung':
-  Windows: Stadtkarten-Werkstatt-Setup.exe            Setup mit Verknüpfungen und Deinstallation (ohne Adminrechte)
-           Stadtkarten-Werkstatt-portable.zip         zum Entpacken und direkt Starten
+  Windows: Stadtkarten-Werkstatt-portable.zip         zum Entpacken und direkt Starten
+           (kein Setup: eine selbstentpackende Setup.exe mit PowerShell-Skript löst bei Browsern und Virenscannern
+           Fehlalarme aus)
   Linux:   Stadtkarten-Werkstatt-linux-x86_64.tar.gz  zum Entpacken und direkt Starten
-Benötigt: PyInstaller (pip install pyinstaller); IExpress ist in Windows enthalten.
+Benötigt: PyInstaller (pip install pyinstaller).
 PyInstaller baut nur für das eigene System - die Linux-Version entsteht unter Linux (z.B. per GitHub Actions).
 """
 import os
@@ -68,59 +69,6 @@ def build_app():
     return DIST / NAME
 
 
-def zip_dir(src, dest):
-    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        for f in sorted(src.rglob("*")):
-            if f.is_file():
-                z.write(f, f.relative_to(src))
-
-
-def build_setup(app_dir):
-    stage = BUILD / "setup"
-    if stage.exists():
-        shutil.rmtree(stage)
-    stage.mkdir(parents=True)
-    zip_dir(app_dir, stage / "app.zip")
-    (stage / "install.ps1").write_text(
-        (PKG / "install.ps1").read_text(encoding="utf-8").replace("__VERSION__", VERSION), encoding="utf-8-sig")
-    shutil.copy(PKG / "uninstall.ps1", stage / "uninstall.ps1")
-    (stage / "install.cmd").write_text(
-        '@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"\r\n'
-        'if errorlevel 1 pause\r\n', encoding="ascii")
-    # PowerShell 5 liest Skripte ohne BOM als ANSI: Umlaute brauchen UTF-8 mit BOM
-    for ps in ("uninstall.ps1",):
-        (stage / ps).write_text((stage / ps).read_text(encoding="utf-8"), encoding="utf-8-sig")
-    target = OUT / f"{NAME}-Setup.exe"
-    files = ["app.zip", "install.cmd", "install.ps1", "uninstall.ps1"]
-    sed = "\r\n".join([
-        "[Version]", "Class=IEXPRESS", "SEDVersion=3",
-        "[Options]", "PackagePurpose=InstallApp", "ShowInstallProgramWindow=0", "HideExtractAnimation=0",
-        "UseLongFileName=1", "InsideCompressed=0", "CAB_FixedSize=0", "CAB_ResvCodeSigning=0", "RebootMode=N",
-        "InstallPrompt=%InstallPrompt%", "DisplayLicense=%DisplayLicense%", "FinishMessage=%FinishMessage%",
-        "TargetName=%TargetName%", "FriendlyName=%FriendlyName%", "AppLaunched=%AppLaunched%",
-        "PostInstallCmd=%PostInstallCmd%", "AdminQuietInstCmd=%AdminQuietInstCmd%",
-        "UserQuietInstCmd=%UserQuietInstCmd%", "SourceFiles=SourceFiles",
-        "[Strings]",
-        f"InstallPrompt={NAME} {VERSION} installieren?", "DisplayLicense=", "FinishMessage=",
-        f"TargetName={target}", f"FriendlyName={NAME} {VERSION}",
-        "AppLaunched=cmd.exe /c install.cmd", "PostInstallCmd=<None>", "AdminQuietInstCmd=", "UserQuietInstCmd=",
-        *[f'FILE{i}="{fn}"' for i, fn in enumerate(files)],
-        "[SourceFiles]", f"SourceFiles0={stage}\\",
-        "[SourceFiles0]", *[f"%FILE{i}%=" for i in range(len(files))], ""])
-    sed_path = BUILD / "setup.sed"
-    sed_path.write_text(sed, encoding="mbcs")
-    if target.exists():
-        target.unlink()
-    iexpress = pathlib.Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "iexpress.exe"
-    if not iexpress.exists():
-        print("Hinweis: IExpress nicht gefunden - kein Setup, nur die portable ZIP.")
-        return None
-    run([str(iexpress), "/N", "/Q", str(sed_path)])
-    if not target.exists():
-        raise SystemExit("IExpress hat kein Setup erzeugt.")
-    return target
-
-
 LINUX_README = """Stadtkarten-Werkstatt {version} für Linux
 =========================================
 
@@ -175,7 +123,7 @@ def main():
             for f in sorted(app.rglob("*")):
                 if f.is_file():
                     z.write(f, pathlib.Path(NAME) / f.relative_to(app))
-        results = [build_setup(app), portable]
+        results = [portable]
     else:
         results = [build_linux_archive(app)]
     for p in results:
