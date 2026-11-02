@@ -240,6 +240,11 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 #labels.edit [data-key]:hover, #labels [data-key].moving { filter: drop-shadow(0 0 4px var(--gold-hi)); }
 .btn.on { color: var(--on-gold); }
 .btn.on::before { transform: translateY(0); }
+.viewswitch { display: inline-flex; }
+.viewswitch[hidden] { display: none; }
+.viewswitch .btn + .btn { margin-left: -1px; }
+.viewswitch .btn { padding: .35rem .8rem; }
+.viewswitch .btn:disabled { cursor: progress; }
 
 #empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 2rem; }
 #empty .sun { width: 96px; aspect-ratio: 800/1035; margin: 0 auto 1.6rem; background: url(/static/sor-symbol.png) center/contain no-repeat; opacity: .5;
@@ -333,6 +338,10 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
       <button class="btn ghost" id="zoomFit" title="Ganze Karte">Ganz</button>
       <button class="iconbtn" id="zoomIn" title="Vergrößern" aria-label="Vergrößern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
       <span id="zoomLbl" class="hint"></span>
+      <span class="viewswitch" id="viewSwitch" role="group" aria-label="Tag oder Nacht" hidden>
+        <button type="button" class="btn on" id="btnTag" aria-pressed="true" title="Tagkarte anzeigen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg>Tag</button>
+        <button type="button" class="btn" id="btnNacht" aria-pressed="false" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4a8.3 8.3 0 1 0 10.5 10.5z"/></svg>Nacht</button>
+      </span>
       <button class="btn" id="btnMove" disabled title="Beschriftungen mit der Maus verschieben; Doppelklick setzt eine Beschriftung zurück"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9.5 5.5L12 3l2.5 2.5M9.5 18.5L12 21l2.5-2.5M5.5 9.5L3 12l2.5 2.5M18.5 9.5L21 12l-2.5 2.5"/></svg>Beschriftung verschieben</button>
       <button class="btn ghost" id="btnResetLabels" disabled title="Alle Beschriftungen wieder an ihren automatischen Platz setzen">Zurücksetzen</button>
       <span class="sp"></span>
@@ -344,7 +353,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
       <button class="btn" data-fmt="svg" disabled>SVG</button>
       <button class="btn" data-fmt="html" disabled title="interaktive Karte für den Browser: zoomen, Beschriftung ein-/ausblenden">Interaktiv</button>
       <button class="btn" data-fmt="web" disabled title="für die eigene Webseite: Kartenbild ohne Beschriftung (WebP), Beschriftung (SVG), Ortsliste (JSON) und Stadtbeschreibung als ZIP">Web-Paket</button>
-      <button class="btn ghost" id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) in den Kartenordner schreiben">Alle Formate speichern</button>
+      <button class="btn ghost" id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) der gerade angezeigten Karte (Tag oder Nacht) in den Kartenordner schreiben">Alle Formate speichern</button>
       <button class="btn ghost" id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern – auf der Startseite mit „Stadtkarte öffnen“ wieder zu laden">Als .yaml speichern</button>
     </div>
     <div id="hints"></div>
@@ -407,7 +416,7 @@ function norm(c) {
   g.biotop ??= "gemaessigt"; g.kueste ??= "nord"; g.fluss ??= true; g.flussbreite ??= 60; g.inseln ??= 2;
   g.wald = [].concat(g.wald ?? []); g.felder = [].concat(g.felder ?? []);
   c.mauer.vorhanden ??= true; c.mauer.tore ??= 4;
-  c.ausgabe.bildgroesse ??= 2000; c.ausgabe.raster ??= 0; c.ausgabe.legende ??= true; c.ausgabe.dachdetails ??= true; c.ausgabe.nacht ??= false;
+  c.ausgabe.bildgroesse ??= 2000; c.ausgabe.raster ??= 0; c.ausgabe.legende ??= true; c.ausgabe.dachdetails ??= true; c.ausgabe.nachtkarte ??= true;
   c.ausgabe.formate ??= ["svg", "png"];
   if (!c.beschriftung || typeof c.beschriftung !== "object") c.beschriftung = {};
   c.name ??= "Neue Stadt"; c.seed ??= 1; c.einwohner ??= 5000; c.stadtform ??= "zufall";
@@ -650,8 +659,8 @@ function formPages(side) {
       "Wie viel der Karte die Stadt einnimmt. Näher heißt größere, detailreichere Häuser; Schrift bleibt gleich groß."),
     field("Raster", num(cfg.ausgabe, "raster", {min: 0, step: 10}), "Pixel pro Feld, 0 = kein Raster"),
     field("Legende", el("div", {class: "row"}, chk(cfg.ausgabe, "legende"))),
-    field("Nachtmodus", el("div", {class: "row"}, chk(cfg.ausgabe, "nacht"),
-      el("span", {class: "hint"}, "Dunkle Karte mit Laternen und hellen Fenstern; Dörfer haben weniger Licht"))),
+    field("Nachtkarte mitberechnen", el("div", {class: "row"}, chk(cfg.ausgabe, "nachtkarte"),
+      el("span", {class: "hint"}, "Nach der Tagkarte entsteht im Hintergrund die Nachtkarte (Laternen, helle Fenster; Dörfer haben weniger Licht), zum Umschalten in der Ansicht. Abschalten spart Rechenzeit."))),
     field("Dachdetails", el("div", {class: "row"}, chk(cfg.ausgabe, "dachdetails"),
       el("span", {class: "hint"}, "Ziegel, Schiefer, Reet, Schornsteine (SVG wird etwas größer)"))),
   ];
@@ -732,6 +741,7 @@ function showView(v) {
 // Ansicht leeren, bevor eine andere Karte beginnt (sonst blitzt kurz die alte auf)
 function resetViewer() {
   resultId = null; zoom = null; lastNatural = 0; mapW = 0; terrainOnly = false;
+  resetAnsicht();
   $("#mapWrap").hidden = true; $("#empty").hidden = false; $("#map").removeAttribute("src");
   $("#emptyMsg").textContent = EMPTY_MSG;
   $("#labels").innerHTML = ""; $("#labels").classList.remove("edit"); $("#btnMove").classList.remove("on");
@@ -740,6 +750,64 @@ function resetViewer() {
   drawEnd(true); wallHist = []; updateResetButton(); drawWall();
 }
 const EMPTY_MSG = "Prüfe links die Angaben und klicke auf „Karte erzeugen“.";
+
+// Tag und Nacht: zu jeder Karte gehören zwei Bilder (erst die Vorschau, später die volle Auflösung). Die Tagkarte
+// erscheint zuerst; die Nachtkarte wird danach im Hintergrund geholt, der Schalter wird aktiv, sobald sie da ist.
+let ansicht = "tag", bilder = {tag: {}, nacht: {}}, nachtZustand = "aus", nachtFehler = "";   // aus | rechnen | bereit | fehler
+let mapInfo = "", tagVollOffen = false, nachtVollOffen = false;
+function resetAnsicht() {
+  for (const v of ["tag", "nacht"]) for (const k of ["preview", "full"]) { const u = bilder[v][k]; if (u?.startsWith("blob:")) URL.revokeObjectURL(u); }
+  ansicht = "tag"; bilder = {tag: {}, nacht: {}}; nachtZustand = "aus"; nachtFehler = "";
+  tagVollOffen = nachtVollOffen = false; mapInfo = ""; syncAnsicht();
+}
+function syncAnsicht() {
+  $("#viewSwitch").hidden = nachtZustand === "aus";
+  for (const [id, v] of [["#btnTag", "tag"], ["#btnNacht", "nacht"]]) {
+    $(id).classList.toggle("on", ansicht === v); $(id).setAttribute("aria-pressed", String(ansicht === v));
+  }
+  const n = $("#btnNacht");
+  n.disabled = nachtZustand !== "bereit";
+  n.title = nachtZustand === "bereit" ? "Nachtkarte anzeigen" : nachtZustand === "rechnen" ? "Die Nachtkarte wird noch berechnet …"
+    : nachtZustand === "fehler" ? (nachtFehler || "Die Nachtkarte ist nicht verfügbar.") : "";
+}
+function mapStatus() {
+  if (!mapInfo) return;
+  const nacht = nachtZustand === "rechnen";
+  const voll = tagVollOffen || (nachtZustand === "bereit" && nachtVollOffen);
+  let t = mapInfo;
+  if (voll && nacht) t += " · volle Auflösung und Nachtkarte werden berechnet …";
+  else if (voll) t += " · volle Auflösung wird berechnet …";
+  else if (nacht) t += " · Nachtkarte wird berechnet …";
+  else if (nachtZustand === "fehler") t += " · Nachtkarte nicht verfügbar";
+  status(t);
+}
+function waehleAnsicht(v) {
+  if (!resultId || v === ansicht || (v === "nacht" && nachtZustand !== "bereit")) return;
+  ansicht = v; syncAnsicht();
+  showImage(bilder[v].full || bilder[v].preview);
+}
+async function holeNacht(id) {
+  const bild = async url => { const r = await fetch(url); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText); return URL.createObjectURL(await r.blob()); };
+  try {
+    const preview = await bild(`/api/nacht?id=${id}`);   // wartet, bis der Server die Nachtkarte gezeichnet hat
+    if (resultId !== id) { URL.revokeObjectURL(preview); return; }
+    bilder.nacht.preview = preview; nachtZustand = "bereit"; nachtVollOffen = true;
+    syncAnsicht(); mapStatus();
+    if (ansicht === "nacht") showImage(preview);
+    try {   // volle Auflösung im Hintergrund nachladen und still austauschen, wie bei der Tagkarte
+      const full = await bild(`/api/full?id=${id}&version=nacht`);
+      if (resultId !== id) { URL.revokeObjectURL(full); return; }
+      bilder.nacht.full = full;
+      if (ansicht === "nacht") showImage(full);
+    } catch (e) { /* bleibt bei der Vorschau */ }
+    nachtVollOffen = false; mapStatus();
+  } catch (e) {
+    if (resultId !== id) return;
+    nachtZustand = "fehler"; nachtFehler = e.message; syncAnsicht(); mapStatus();
+  }
+}
+$("#btnTag").onclick = () => waehleAnsicht("tag");
+$("#btnNacht").onclick = () => waehleAnsicht("nacht");
 
 function randomSeed() { return Math.floor(Math.random() * 99999) + 1; }
 
@@ -788,20 +856,23 @@ async function generateMap(from) {
     resultId = res.id; mapW = res.W;
     const lab = $("#labels");
     lab.setAttribute("viewBox", `0 0 ${res.W} ${res.W}`); lab.innerHTML = res.labels;
+    resetAnsicht(); bilder.tag.preview = res.preview;
+    nachtZustand = res.nacht ? "rechnen" : "aus"; syncAnsicht();
     showImage(res.preview);
     terrainOnly = !!res.gelaende_nur; drawWall();
     if (terrainOnly) $("#hints").append(el("div", {}, "Gelände ohne Stadt: jetzt links unter „Allgemein“ die Mauer zeichnen und dann „Stadt erzeugen“."));
     for (const h of res.hints) $("#hints").append(el("div", {}, h));
     document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = false);
     updateResetButton();
-    const info = `${cfg.name}: ${res.stats.gebaeude} Gebäude, ${res.stats.baeume} Bäume – ${res.stats.sekunden} s`;
-    status(info + " · volle Auflösung wird berechnet …");
+    mapInfo = `${cfg.name}: ${res.stats.gebaeude} Gebäude, ${res.stats.baeume} Bäume – ${res.stats.sekunden} s`;
+    tagVollOffen = true; mapStatus();
     // Vorschau ist halb so groß; die volle Auflösung im Hintergrund holen und still austauschen
     fetch(`/api/full?id=${res.id}`).then(r => r.ok ? r.blob() : Promise.reject()).then(b => {
       if (resultId !== res.id) return;
-      showImage(URL.createObjectURL(b));
-      status(info);
-    }).catch(() => { if (resultId === res.id) status(info); });
+      bilder.tag.full = URL.createObjectURL(b);
+      if (ansicht === "tag") showImage(bilder.tag.full);
+    }).catch(() => {}).finally(() => { if (resultId === res.id) { tagVollOffen = false; mapStatus(); } });
+    if (res.nacht) holeNacht(res.id);   // erst die Tagkarte, dann im Hintergrund die Nachtkarte
     ok = true;
   } catch (e) {
     status("Fehler: " + e.message, true);
@@ -897,7 +968,7 @@ function randomCfg() {
     gelaende: g,
     mauer: {vorhanden: chance(0.85), tore: 2 + rnd(5)},
     viertel: [], orte: [],
-    ausgabe: {bildgroesse: 2000, raster: 0, legende: true, dachdetails: true, nacht: chance(0.15),
+    ausgabe: {bildgroesse: 2000, raster: 0, legende: true, dachdetails: true, nachtkarte: true,
               stil: chance(0.7) ? "pergament" : "standard",
               ausschnitt: wpick(wasser ? [["weit", 70], ["fuellend", 30]] : [["weit", 50], ["normal", 25], ["nah", 15], ["fuellend", 10]])},
   };
@@ -1262,11 +1333,11 @@ $("#btnResetLabels").onclick = () => {
 
 // Downloads
 document.querySelectorAll("[data-fmt]").forEach(b => b.onclick = () => {
-  if (resultId) window.location.href = `/api/download?id=${resultId}&format=${b.dataset.fmt}`;
+  if (resultId) window.location.href = `/api/download?id=${resultId}&format=${b.dataset.fmt}&version=${ansicht}`;
 });
 $("#btnSaveOut").onclick = async () => {
   try {
-    const res = await api("/api/save", {method: "POST", body: JSON.stringify({id: resultId})});
+    const res = await api("/api/save", {method: "POST", body: JSON.stringify({id: resultId, version: ansicht})});
     status("Gespeichert in " + res.folder + ": " + res.paths.map(p => p.split(/[\\/]/).pop()).join(", "));
   } catch (e) { status("Fehler: " + e.message, true); }
 };
@@ -1318,7 +1389,7 @@ $("#btnHome").onclick = () => showView("home");
 (async () => {
   try { OPT = await api("/api/options"); }
   catch (e) { homeStatus("Die Werkstatt konnte nicht gestartet werden: " + e.message, true); return; }
-  $("#btnSaveOut").title = "SVG, PNG und PDF speichern nach " + OPT.output_dir;
+  $("#btnSaveOut").title = "SVG, PNG, PDF und interaktive Karte der gerade angezeigten Karte (Tag oder Nacht) speichern nach " + OPT.output_dir;
   if (OPT.version) $("#ver").textContent = "v" + OPT.version;
   for (const ex of OPT.examples)
     $("#exList").append(el("button", {type: "button", class: "btn", on: {click: () => loadExample(ex)}}, ex[0].toUpperCase() + ex.slice(1)));

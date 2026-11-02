@@ -1298,7 +1298,11 @@ def mines_svg(o, m):
                  f'<circle cx="{f(-4 * s)}" cy="{f(-10 * s)}" r="{f(2 * s)}" fill="#ffd27a"/></g>')
 
 
-def render_svg(m):
+def render_svg(m, nacht=None):
+    """Zeichnet die Karte als SVG. nacht=None richtet sich nach ausgabe.nacht; True/False erzwingt Nacht bzw. Tag.
+    Dasselbe Ergebnis des Generators (m) lässt sich mehrfach zeichnen, so entstehen Tag- und Nachtkarte aus einer Stadt;
+    die zweite Zeichnung ist schneller, weil die Texturen schon im Zwischenspeicher liegen."""
+    nacht = bool(m["cfg"]["ausgabe"].get("nacht")) if nacht is None else bool(nacht)
     s, W = m["s"], m["W"]
     rng = random.Random(m["cfg"]["seed"])
     B = m["biome"]
@@ -1619,7 +1623,7 @@ def render_svg(m):
                  f'<g fill="#8b877c" stroke="#2e2c27" stroke-width="{f(1 * s)}">{rk}</g>'
                  f'<g fill="#ffffff" fill-opacity="0.35">{hl}</g>')
     if m.get("lighthouse"):
-        lighthouse_svg(o, m["lighthouse"], s, night=bool(m["cfg"]["ausgabe"].get("nacht")), glow=False)
+        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=False)
     # Gebäude
     stilts_svg(o, m)
     # Schattenwurf als versetzte Silhouette (statt teurem feDropShadow über die ganze Karte)
@@ -1707,10 +1711,10 @@ def render_svg(m):
         frame = f"M{f(-W)},{f(-W)}H{f(2 * W)}V{f(2 * W)}H{f(-W)}Z"
         o.append(f'<clipPath id="slipBow{i}"><path clip-rule="evenodd" d="{frame}{path_d(sh["hall"])}"/></clipPath>'
                  f'<g clip-path="url(#slipBow{i})">{ship_svg(sh, s)}</g>')
-    if m["cfg"]["ausgabe"].get("nacht"):
+    if nacht:
         night_svg(o, m, lamps, forge_glow)
     if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
-        lighthouse_svg(o, m["lighthouse"], s, night=bool(m["cfg"]["ausgabe"].get("nacht")), glow=True)
+        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=True)
     patches, overall = m.get("dust") or ([], None)
     if patches or overall:   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
         tex = m.setdefault("_tex", {})

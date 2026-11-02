@@ -101,4 +101,6 @@ ausgabe:
   raster: 0           # >0 zeichnet ein Quadratraster (Pixel pro Feld), z.B. für Foundry/Roll20
   legende: true
   dachdetails: true  # Dachmaterial (Ziegel, Schiefer, Reet, Schnee), Licht und Schornsteine
-  nacht: false       # true = Nachtkarte mit Laternen und erleuchteten Fenstern
+  nacht: false       # true = diese Karte als Nachtkarte mit Laternen und erleuchteten Fenstern zeichnen
+                     # (Kommandozeile; die Werkstatt zeigt immer beide und braucht es nicht)
+  nachtkarte: true   # Werkstatt: zusätzlich zur Tagkarte die Nachtkarte berechnen (zum Umschalten in der Ansicht)
