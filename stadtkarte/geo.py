@@ -57,6 +57,24 @@ def clean(g, min_area=1.0):
     return [p for p in polys(g) if p.area >= min_area]
 
 
+def merge_polys(a, b, tol=0.01):
+    """Vereinigt zwei Flächen zu einem einzelnen Polygon; Haarspalte unter 2*tol werden dabei geschlossen.
+    None, wenn daraus kein einzelnes Polygon wird (die Flächen berühren sich nicht oder nur an einem Punkt).
+    Aufweiten und wieder Schrumpfen liefert in GEOS bei manchen Formen 'leer', etwa wenn die Vereinigung neben dem
+    Polygon noch Linienreste enthält. Ein leeres Polygon gilt aber als 'Polygon' und fiele erst viel später auf
+    (min_width/axes), deshalb wird dann ohne die Linienreste neu gerechnet und im Zweifel die Vereinigung selbst
+    genommen, sofern sie schon ein einzelnes Polygon ist."""
+    union = a.union(b)
+    joined = union.buffer(tol).buffer(-tol)
+    if joined.is_empty:
+        parts = polys(union)
+        if parts:
+            joined = unary_union(parts).buffer(tol).buffer(-tol)
+            if joined.is_empty and len(parts) == 1:
+                joined = parts[0]
+    return joined if joined.geom_type == "Polygon" and not joined.is_empty else None
+
+
 def blob(rng, cx, cy, r, rough=0.25, n=72, stretch=(1.0, 1.0)):
     """Unregelmäßige rundliche Fläche."""
     noise = Noise1D(rng, period=8)

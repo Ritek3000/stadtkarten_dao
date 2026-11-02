@@ -11,8 +11,8 @@ from shapely.ops import nearest_points, polylabel, substring, unary_union
 
 from .config import MAX_EINWOHNER, place_info, to_canonical
 from .shapes import cross_in_rect, house_shape
-from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, min_width, points, polys, roof, subdivide,
-                  unit, vlen)
+from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, merge_polys, min_width, points, polys, roof,
+                  subdivide, unit, vlen)
 from .roofs import shade as shade_hex
 from .styles import BIG_LANDMARKS, BIOMES, DISTRICT_TYPES, FORT_TYPES, LANDMARK_COLORS
 
@@ -772,10 +772,31 @@ class CityBuilder:
         limit_y = (min(e[1] for e in ends) if ends else self.center[1]) - 60 * s
         # Größe des Hafens: Breite des Kai-Streifens (groß = bisheriger Hafen)
         depth = {"klein": 65, "mittel": 105}.get(dl[hi].get("groesse"), 150) * s
-        harbor = self.sides[side].intersection(self.t["water"].buffer(depth))
-        if ends:   # Hafen nur flussabwärts der Brücke
-            harbor = harbor.intersection(box(-W, -W, 2 * W, limit_y))
-        harbor = unary_union(clean(harbor, 2000 * s * s))
+
+        def quay(d):
+            kai = self.sides[side].intersection(self.t["water"].buffer(d))
+            if ends:   # Hafen nur flussabwärts der Brücke
+                kai = kai.intersection(box(-W, -W, 2 * W, limit_y))
+            return unary_union(clean(kai, 2000 * s * s))
+
+        harbor = quay(depth)
+        if not harbor.is_empty and self.city_land.difference(harbor).is_empty and \
+                any(not d["outside"] for i, d in enumerate(dl) if i != hi):
+            # Sehr kleine Stadt (oft liegt der Großteil ihres Umrisses unter Wasser): der Kai reicht über das ganze
+            # Land, für die übrigen Viertel bliebe nichts (districts() fände dann keinen Platz für ihre Saatpunkte).
+            # Dann wird er schmaler, bis mindestens ein Drittel des Landes übrig ist.
+            name = dl[hi]["name"]
+            for _ in range(20):
+                depth *= 0.8
+                harbor = quay(depth)
+                if harbor.is_empty or self.city_land.difference(harbor).area >= self.city_land.area / 3:
+                    break
+            if harbor.is_empty or self.city_land.difference(harbor).is_empty:
+                print(f"Hinweis: Neben den anderen Vierteln ist am Wasser kein Platz für den Kai von '{name}' - "
+                      "der Hafen wird ohne eigenen Kai gebaut.")
+                return None
+            print(f"Hinweis: Der Hafen '{name}' würde die ganze Stadt einnehmen - der Kai wird schmaler, "
+                  "damit für die anderen Viertel Land bleibt.")
         if harbor.is_empty:
             return None
         # Saatpunkt in den Hafen legen, damit die Uferseiten-Logik stimmt
@@ -984,14 +1005,14 @@ class CityBuilder:
                 continue
             grow = piece.buffer(0.2 * s)
             best = max((j for j in range(len(segs)) if j != i), key=lambda j: grow.intersection(segs[j][0]).area)
-            joined = segs[best][0].union(piece).buffer(0.01).buffer(-0.01)
-            if joined.geom_type != "Polygon" or grow.intersection(segs[best][0]).area <= 0:
+            joined = merge_polys(segs[best][0], piece)
+            if joined is None or grow.intersection(segs[best][0]).area <= 0:
                 # berührt der Splitter den Nachbarn nur an einem Punkt oder über einen Haarspalt: den Spalt im
                 # Ring mit auffüllen (ohne in andere Häuser zu wachsen)
                 others = unary_union([sg for j, (sg, _, _) in enumerate(segs) if j not in (i, best)] or [Polygon()])
                 bridge = piece.buffer(0.8 * s).intersection(ring).difference(others)
-                joined = segs[best][0].union(bridge).buffer(0.01).buffer(-0.01)
-                if joined.geom_type != "Polygon":
+                joined = merge_polys(segs[best][0], bridge)
+                if joined is None:
                     if piece.area < (MIN_HOUSE * s) ** 2:   # winziger, nirgends anschließbarer Rest: weglassen
                         segs.pop(i)
                         i = 0
