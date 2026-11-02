@@ -57,6 +57,8 @@ header.bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; pad
 .brand { display: flex; gap: .7rem; align-items: center; }
 .brand .mark { width: 20px; height: 26px; background: url(/static/sor-symbol.png) center/contain no-repeat; flex: none; }
 .brand h1 { font-size: 1.45rem; }
+.brand .ver { font-family: var(--font-body); font-size: .8rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; letter-spacing: .02em; margin-left: .35rem; white-space: nowrap; }
+.brand .ver:empty { display: none; }
 .brand .eyebrow { display: block; font-family: var(--font-display); font-style: italic; color: var(--gold); font-size: .95rem; line-height: 1.2; }
 header .sp { flex: 1; }
 header .tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
@@ -73,7 +75,21 @@ header .tools label { display: flex; align-items: center; gap: .5rem; color: var
 [hidden] { display: none !important; }
 main { flex: 1; display: flex; min-height: 0; }
 #home, #wizard { flex: 1; min-width: 0; overflow-y: auto; }
-section.viewer { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#viewer { flex: 1; display: flex; min-width: 0; min-height: 0; }
+.vmain { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+aside { width: 440px; min-width: 340px; overflow-y: auto; border-right: 1px solid var(--line); padding: .4rem 1.4rem 6rem; }
+
+/* Abschnitte der Seitenleiste */
+details { border-bottom: 1px solid var(--line); }
+summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .7rem; padding: 1rem 0 .9rem;
+  font-family: var(--font-display); font-size: 1.45rem; line-height: 1.1; color: var(--ink); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: ""; width: .45rem; height: .45rem; border-right: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold);
+  transform: rotate(-45deg); transition: transform .3s var(--ease-klinge); flex: none; margin-left: .1rem; }
+details[open] > summary::before { transform: rotate(45deg); }
+summary .count { font-family: var(--font-body); font-size: .95rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+aside .box { padding: 0 0 1.4rem; }
+.generate { position: sticky; bottom: -6rem; padding: 1.2rem 0 1.4rem; background: linear-gradient(transparent, var(--bg) 35%); }
 
 /* Startseite: vier Wege zur Karte */
 #home { display: flex; padding: 2rem clamp(1rem, 3vw, 1.8rem) 3rem; }
@@ -197,8 +213,6 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 .item .row > * { flex: 1; }
 .item .row > .iconbtn, .item .row > input[type=checkbox] { flex: 0 0 auto; }
 
-#wallbar { padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
-#wallbar .sp { flex: 1; }
 
 /* Ansicht */
 .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
@@ -244,8 +258,10 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 
 @media (max-width: 900px) {
   html, body { height: auto; }
-  main { flex-direction: column; }
+  main, #viewer { flex-direction: column; }
   #home, #wizard { overflow: visible; }
+  aside { width: auto; min-width: 0; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 0; }
+  .generate { bottom: 0; }
   #stage { flex: none; height: 75vh; }
 }
 @media (max-width: 640px) {
@@ -263,7 +279,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 <header class="bar">
   <div class="brand">
     <span class="mark" role="img" aria-label="Symbol des Sor"></span>
-    <div><span class="eyebrow">Die Alte Ordnung</span><h1>Stadtkarten-Werkstatt</h1></div>
+    <div><span class="eyebrow">Die Alte Ordnung</span><h1>Stadtkarten-Werkstatt <span class="ver" id="ver" title="Programmversion"></span></h1></div>
   </div>
   <span class="sp"></span>
   <div class="tools">
@@ -307,9 +323,10 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
     </div>
   </section>
   <section id="wizard" aria-label="Einstellungen" hidden><div class="wiz" id="form"></div></section>
-  <section class="viewer" id="viewer" hidden>
+  <section id="viewer" hidden>
+  <aside id="side" aria-label="Einstellungen"></aside>
+  <div class="vmain">
     <div class="toolbar">
-      <button class="btn" id="btnBack" type="button" title="Zurück in den Assistenten – die Angaben bleiben erhalten">‹ Einstellungen ändern</button>
       <button class="iconbtn" id="zoomOut" title="Verkleinern" aria-label="Verkleinern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
       <button class="btn ghost" id="zoomFit" title="Ganze Karte">Ganz</button>
       <button class="iconbtn" id="zoomIn" title="Vergrößern" aria-label="Vergrößern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
@@ -328,13 +345,6 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
       <button class="btn ghost" id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) in den Kartenordner schreiben">Alle Formate speichern</button>
       <button class="btn ghost" id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern – auf der Startseite mit „Stadtkarte öffnen“ wieder zu laden">Als .yaml speichern</button>
     </div>
-    <div id="wallbar" class="drawbar" hidden>
-      <button type="button" class="btn" id="btnDraw">Mauer zeichnen</button>
-      <button type="button" class="btn ghost" id="btnWallClear" disabled>Mauer löschen</button>
-      <span class="hint" id="wallInfo"></span>
-      <span class="sp"></span>
-      <button type="button" class="btn" id="btnGenWall" disabled title="Erst mindestens drei Punkte setzen">Stadt erzeugen</button>
-    </div>
     <div id="hints"></div>
     <div id="stage">
       <div id="empty"><div>
@@ -346,6 +356,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
       <div id="mapWrap" hidden><img id="map" alt="Erzeugte Stadtkarte"><svg id="labels" xmlns="http://www.w3.org/2000/svg"></svg><svg id="wallDraw" viewBox="0 0 100 100" preserveAspectRatio="none" hidden></svg></div>
       <div id="busy"><div style="text-align:center"><div class="sun" aria-hidden="true"></div><div class="msg">Die Karte wird gezeichnet …</div><div class="hint" id="busyTime"></div></div></div>
     </div>
+  </div>
   </section>
 </main>
 
@@ -444,7 +455,7 @@ const INTRO = [
   "Name, Größe und Umriss der Stadt.",
   "Küste, Fluss, Wald, Felder und Staub rund um die Stadt.",
   "Stadtmauer, Tore und Vorstädte.",
-  "Stadtviertel mit eigenem Charakter. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet.",
+  "Stadtviertel mit eigenem Charakter.",
   "Gasthäuser, Tempel, Festungen und andere Orte, die auf der Karte benannt werden.",
   "Bildgröße, Stil und weitere Optionen der fertigen Karte.",
 ];
@@ -468,8 +479,9 @@ function stepper() {
       el("span", {class: "n"}, String(i + 1)), el("span", {class: "st"}, STEPS_KURZ[i])))));
 }
 
-function renderForm() {
-  const f = $("#form"); f.innerHTML = "";
+// Die Seiten des Formulars. Der Assistent zeigt sie einzeln (side = false), die Seitenleiste neben der Karte alle
+// untereinander (side = true).
+function formPages(side) {
   const g = cfg.gelaende;
   const num = (obj, key, attrs = {}) => el("input", {type: "number", value: obj[key], ...attrs,
     on: {input: e => { obj[key] = e.target.value === "" ? "" : Number(e.target.value); }}});
@@ -490,11 +502,21 @@ function renderForm() {
       field("Größe", el("div", {}, pop, popOut)),
       field("Stadtform", select(Object.entries(FORM), cfg.stadtform, v => { cfg.stadtform = v; if (v !== "eigene") drawEnd(); renderForm(); drawWall(); }),
             "Umriss der Stadt; „Zufall“ wählt je Seed eine Form."),
-      eigene ? field("Mauer", el("div", {class: "hint"},
+      eigene && !side ? field("Mauer", el("div", {class: "hint"},
         "Auf der letzten Seite erzeugst du zuerst nur das Gelände. Darauf zeichnest du die Mauer: Linksklick setzt einen Turm, " +
         "Taste T ein Tor an der Maus, Rücktaste nimmt den letzten Punkt zurück, Rechtsklick beendet. Beginnt und endet die Mauer " +
         "an der Küste (bzw. an der Plateaukante), ist die Stadt dort offen – Küste und Felswand sind dann die Mauer. " +
         "Danach „Stadt erzeugen“.")) : null,
+      eigene && side ? field("Mauer", el("div", {class: "drawbar"},
+        el("button", {type: "button", class: "btn" + (drawMode ? " on" : ""), id: "btnDraw",
+          on: {click: () => drawMode ? drawEnd() : drawStart()}}, drawMode ? "Zeichnen beenden" : "Mauer zeichnen"),
+        el("button", {type: "button", class: "btn ghost", disabled: !wallPts().length,
+          on: {click: () => { cfg.mauer.punkte = []; drawWall(); renderForm(); }}}, "Mauer löschen"),
+        el("span", {class: "hint", id: "wallInfo"}, wallInfo())),
+        "Erst „Gelände erzeugen“, dann zeichnen: Linksklick setzt einen Turm, Taste T ein Tor an der Maus, " +
+        "Rücktaste nimmt den letzten Punkt zurück, Rechtsklick beendet. Beginnt und endet die Mauer an der Küste " +
+        "(bzw. an der Plateaukante), ist die Stadt dort offen – Küste und Felswand sind dann die Mauer. " +
+        "Danach „Stadt erzeugen“.") : null,
       field("Bebauung", select([["dicht", "Dicht (wie bisher)"], ["locker", "Locker (+40 % Fläche)"],
                                 ["weitlaeufig", "Weitläufig (fast doppelte Fläche)"]],
         cfg.bebauung ?? "dicht", v => { if (v === "dicht") delete cfg.bebauung; else cfg.bebauung = v; }),
@@ -575,7 +597,8 @@ function renderForm() {
     )));
     return [
       vList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "Viertel hinzufügen")),
-      el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Armenviertel liegen immer am Stadtrand, nie im Kern."),
+      el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Armenviertel liegen immer am Stadtrand, nie im Kern. " +
+         "Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
     ];
   };
 
@@ -625,9 +648,16 @@ function renderForm() {
       el("span", {class: "hint"}, "Ziegel, Schiefer, Reet, Schornsteine (SVG wird etwas größer)"))),
   ];
 
-  const pages = [pageAllgemein, pageGelaende, pageBefestigung, pageViertel, pageOrte, pageAusgabe];
+  return [pageAllgemein, pageGelaende, pageBefestigung, pageViertel, pageOrte, pageAusgabe];
+}
+
+function genLabel() { return cfg.stadtform !== "eigene" ? "Karte erzeugen" : wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen"; }
+
+// Neue Karte: der Assistent zeigt eine Seite nach der anderen
+function renderWizard() {
+  const f = $("#form"); f.innerHTML = "";
+  const pages = formPages(false);
   const last = step === STEPS.length - 1;
-  const genLabel = !eigene ? "Karte erzeugen" : wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen";
   const count = step === 3 ? cfg.viertel.length : step === 4 ? cfg.orte.length : null;
   f.append(...[
     stepper(),
@@ -639,9 +669,30 @@ function renderForm() {
     el("div", {class: "wiznav"},
       el("button", {type: "button", class: "btn ghost", on: {click: () => step === 0 ? showView("home") : goStep(step - 1)}},
         step === 0 ? "‹ Startseite" : "‹ Zurück"),
-      last ? el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: () => generateMap("wizard")}}, genLabel)
+      last ? el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: () => generateMap("wizard")}}, genLabel())
            : el("button", {type: "button", class: "btn", on: {click: () => goStep(step + 1)}}, "Weiter ›")),
   ].filter(Boolean));   // append() würde ein null als Text „null“ einfügen
+}
+
+// Erzeugte Karte: die Seitenleiste zeigt alle Abschnitte untereinander; welche offen sind, bleibt beim Neuaufbau erhalten
+const SIDE_OPEN = {"Allgemein": true, "Gelände": true, "Befestigung": false, "Viertel": true, "Besondere Orte": true, "Ausgabe": false};
+function renderSidebar() {
+  const f = $("#side"); f.innerHTML = "";
+  const pages = formPages(true);
+  const counts = [null, null, null, cfg.viertel.length, cfg.orte.length, null];
+  STEPS.forEach((t, i) => {
+    const d = el("details", {open: SIDE_OPEN[t]},
+      el("summary", {}, t, counts[i] != null ? el("span", {class: "count"}, `(${counts[i]})`) : null),
+      el("div", {class: "box"}, ...pages[i]()));
+    d.addEventListener("toggle", () => { SIDE_OPEN[t] = d.open; });
+    f.append(d);
+  });
+  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: () => generateMap("seite")}}, genLabel())));
+}
+
+// baut das Formular dort auf, wo es gerade gezeigt wird
+function renderForm() {
+  if (view === "wizard") renderWizard(); else if (view === "viewer") renderSidebar();
 }
 
 async function api(path, opts = {}) {
@@ -657,9 +708,15 @@ function status(text, err = false) { const s = $("#status"); s.textContent = tex
 let view = "home";
 function showView(v) {
   if (v !== "viewer") drawEnd();
+  const wechsel = v !== view;
   view = v;
   for (const id of ["home", "wizard", "viewer"]) $("#" + id).hidden = id !== v;
   $("#btnHome").hidden = v === "home";
+  if (wechsel) {   // das Formular gibt es nur einmal (Assistent oder Seitenleiste), sonst wären Schaltflächen doppelt
+    $("#form").innerHTML = ""; $("#side").innerHTML = "";
+    renderForm();
+    if (v === "wizard") $("#wizard").scrollTop = 0;
+  }
   if (v === "viewer" && zoom !== null && $("#map").naturalWidth) applyZoom();
   window.scrollTo(0, 0);
 }
@@ -674,7 +731,7 @@ function resetViewer() {
   document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = true);
   drawEnd(); updateResetButton(); drawWall();
 }
-const EMPTY_MSG = "Über „Einstellungen ändern“ kommst du zurück zu den Angaben.";
+const EMPTY_MSG = "Prüfe links die Angaben und klicke auf „Karte erzeugen“.";
 
 function randomSeed() { return Math.floor(Math.random() * 99999) + 1; }
 
@@ -682,13 +739,14 @@ function randomSeed() { return Math.floor(Math.random() * 99999) + 1; }
 function startNew() {
   cfg = norm({name: "Neue Stadt", seed: randomSeed(), einwohner: 5000, gelaende: {wald: ["west"], felder: ["ost", "sued"]}});
   step = 0; wizError = "";
-  resetViewer(); renderForm(); showView("wizard");
+  resetViewer(); showView("wizard");
 }
 
 // Geladene oder gewürfelte Stadt: sofort zeichnen
 async function openCfg(c) {
   cfg = c; step = 0; wizError = "";
   resetViewer();
+  if (view === "viewer") renderForm();   // z.B. neu gewürfelt: die Seitenleiste zeigt sonst die alten Angaben
   return generateMap("direkt");
 }
 
@@ -705,11 +763,13 @@ async function loadExample(name) {
 
 function homeStatus(text, err = false) { const s = $("#homeMsg"); s.textContent = text; s.className = "hint homemsg" + (err ? " err" : ""); }
 
+let generating = false;
 async function generateMap(from) {
-  const btn = $("#btnGen"); if (btn) btn.disabled = true;
-  $("#btnGenWall").disabled = true;
+  if (generating) return false;   // ein Klick genügt; die Seitenleiste lässt sich währenddessen weiter bedienen
+  generating = true;
   drawEnd();
   showView("viewer");
+  const btn = $("#btnGen"); if (btn) btn.disabled = true;
   $("#busy").classList.add("on"); $("#hints").innerHTML = "";
   const t0 = Date.now();
   const tick = setInterval(() => $("#busyTime").textContent = `${Math.round((Date.now() - t0) / 1000)} s – meist 5–15 s`, 500);
@@ -721,7 +781,7 @@ async function generateMap(from) {
     lab.setAttribute("viewBox", `0 0 ${res.W} ${res.W}`); lab.innerHTML = res.labels;
     showImage(res.preview);
     terrainOnly = !!res.gelaende_nur; drawWall();
-    if (terrainOnly) $("#hints").append(el("div", {}, "Gelände ohne Stadt: wähle oben „Mauer zeichnen“, setze die Mauer auf der Karte und klicke dann auf „Stadt erzeugen“."));
+    if (terrainOnly) $("#hints").append(el("div", {}, "Gelände ohne Stadt: jetzt links unter „Allgemein“ die Mauer zeichnen und dann „Stadt erzeugen“."));
     for (const h of res.hints) $("#hints").append(el("div", {}, h));
     document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = false);
     updateResetButton();
@@ -737,12 +797,12 @@ async function generateMap(from) {
   } catch (e) {
     status("Fehler: " + e.message, true);
     if (from === "wizard") {   // Angaben stimmen nicht: zurück zur letzten Seite, dort steht die Meldung
-      wizError = e.message; step = STEPS.length - 1; renderForm(); showView("wizard");
+      wizError = e.message; step = STEPS.length - 1; showView("wizard");
     } else $("#emptyMsg").textContent = "Die Karte konnte nicht gezeichnet werden: " + e.message;
   } finally {
     clearInterval(tick); $("#busy").classList.remove("on");
+    generating = false;
     const b = $("#btnGen"); if (b) b.disabled = false;
-    updateWallBar();
   }
   return ok;
 }
@@ -940,7 +1000,6 @@ function drawWall() {
   const svg = $("#wallDraw"), p = wallPts();
   const show = cfg && cfg.stadtform === "eigene" && (drawMode || terrainOnly) && !$("#mapWrap").hidden;
   svg.toggleAttribute("hidden", !show);   // SVG-Elemente kennen die Eigenschaft .hidden nicht
-  updateWallBar();
   if (!show) return;
   const pts = p.map(q => `${q[0]},${q[1]}`).join(" ");
   let h = "";
@@ -954,37 +1013,24 @@ function drawWall() {
       : `<circle cx="${q[0]}" cy="${q[1]}" r="0.6" fill="#d9a441" stroke="#2a2018" style="stroke-width:1.5px" vector-effect="non-scaling-stroke"/>`;
   }
   svg.innerHTML = h;
+  const info = $("#wallInfo"); if (info) info.textContent = wallInfo();
 }
 function addPoint(kind) {
   if (!lastPos) return;
   cfg.mauer.punkte = [...wallPts(), [lastPos[0], lastPos[1], kind]];
-  drawWall();
+  drawWall(); refreshGen();
 }
-// Leiste über der Karte (nur bei „Eigene Stadtform“): Mauer zeichnen, löschen, Stadt erzeugen
-function updateWallBar() {
-  const bar = $("#wallbar"); if (!bar) return;
-  const on = !!cfg && cfg.stadtform === "eigene";
-  bar.hidden = !on;
-  if (!on) return;
-  const n = wallPts().length;
-  $("#btnDraw").textContent = drawMode ? "Zeichnen beenden" : "Mauer zeichnen";
-  $("#btnDraw").classList.toggle("on", drawMode);
-  $("#btnWallClear").disabled = !n;
-  $("#wallInfo").textContent = wallInfo();
-  const gen = $("#btnGenWall"); gen.disabled = n < 3 || $("#busy").classList.contains("on");
-  gen.title = n < 3 ? "Erst mindestens drei Punkte setzen" : "";
+function refreshGen() {
+  const b = $("#btnGen"); if (b) b.textContent = genLabel();
 }
-$("#btnDraw").onclick = () => drawMode ? drawEnd() : drawStart();
-$("#btnWallClear").onclick = () => { cfg.mauer.punkte = []; drawWall(); };
-$("#btnGenWall").onclick = () => generateMap("wand");
 function drawStart() {
   if ($("#mapWrap").hidden) { status("Zuerst „Gelände erzeugen“ – darauf wird die Mauer gezeichnet.", true); return; }
-  drawMode = true; stage.classList.add("draw"); drawWall();
+  drawMode = true; stage.classList.add("draw"); renderForm(); drawWall();
   status("Mauer zeichnen: Linksklick = Turm, T = Tor, Rücktaste = zurück, Rechtsklick = fertig");
 }
 function drawEnd() {
   if (!drawMode) return;
-  drawMode = false; stage.classList.remove("draw"); drawWall();
+  drawMode = false; stage.classList.remove("draw"); renderForm(); drawWall();
   status(wallPts().length >= 3 ? "Mauer fertig – jetzt „Stadt erzeugen“." : "Zeichnen beendet.");
 }
 stage.addEventListener("pointerdown", e => {
@@ -997,7 +1043,7 @@ stage.addEventListener("contextmenu", e => { if (drawMode) { e.preventDefault();
 document.addEventListener("keydown", e => {
   if (!drawMode || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
   if (e.key === "t" || e.key === "T") { e.preventDefault(); addPoint("tor"); }
-  else if (e.key === "Backspace") { e.preventDefault(); cfg.mauer.punkte = wallPts().slice(0, -1); drawWall(); }
+  else if (e.key === "Backspace") { e.preventDefault(); cfg.mauer.punkte = wallPts().slice(0, -1); drawWall(); refreshGen(); }
   else if (e.key === "Escape") drawEnd();
 });
 
@@ -1121,12 +1167,12 @@ $("#chExample").onclick = () => {
   if (!p.hidden) p.scrollIntoView({block: "nearest"});
 };
 $("#btnHome").onclick = () => showView("home");
-$("#btnBack").onclick = () => { step = 0; wizError = ""; renderForm(); showView("wizard"); $("#wizard").scrollTop = 0; };
 
 (async () => {
   try { OPT = await api("/api/options"); }
   catch (e) { homeStatus("Die Werkstatt konnte nicht gestartet werden: " + e.message, true); return; }
   $("#btnSaveOut").title = "SVG, PNG und PDF speichern nach " + OPT.output_dir;
+  if (OPT.version) $("#ver").textContent = "v" + OPT.version;
   for (const ex of OPT.examples)
     $("#exList").append(el("button", {type: "button", class: "btn", on: {click: () => loadExample(ex)}}, ex[0].toUpperCase() + ex.slice(1)));
   document.querySelectorAll(".choice").forEach(b => b.disabled = false);

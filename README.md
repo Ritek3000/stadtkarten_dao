@@ -10,15 +10,18 @@ Stadtkarten-Werkstatt im Browser:
 - die **Startseite** bietet vier Wege: **Neue Stadtkarte**, **Zufällige Stadtkarte**, **Stadtkarte öffnen** und **Beispiel laden**
 - **Neue Stadtkarte** führt Schritt für Schritt durch die Angaben, jede auf einer eigenen Seite: Allgemein, Gelände,
   Befestigung, Viertel, Besondere Orte und Ausgabe (Himmelsrichtungen per Kompass). Oben zeigt eine Schrittleiste, wo man ist,
-  und springt auf Klick zu jeder Seite. Auf der letzten Seite steht „Karte erzeugen“ (bei der eigenen Stadtform „Gelände erzeugen“)
+  und springt auf Klick zu jeder Seite. Auf der letzten Seite steht „Karte erzeugen“ (bei der eigenen Stadtform „Gelände erzeugen“).
+  Nur eine neue Karte nutzt den Assistenten
 - **Zufällige Stadtkarte** würfelt alle Angaben (auch Name, Stil, Ausschnitt, Nachtmodus und Staub; nur stimmige Kombinationen,
   etwa Hafen nur mit Wasser) und zeichnet die Karte sofort. Die eigene Stadtform wird nicht gewürfelt, sie braucht das Zeichnen
 - **Stadtkarte öffnen** lädt eine gespeicherte Stadtbeschreibung (`.yaml`) und zeichnet die Karte sofort; mit „Als .yaml speichern“
   in der Kartenansicht entsteht sie. Gleicher Seed und gleiche Angaben ergeben dieselbe Karte. Fertige Bilder (PNG, SVG, PDF) lassen
   sich nicht öffnen, sie enthalten die Angaben nicht; im Web-Paket liegt aber eine `stadt.yaml`
 - **Beispiel laden** zeichnet eine der mitgelieferten Städte
-- die Kartenansicht zeigt die Karte vollflächig (Mausrad zoomt, Ziehen verschiebt); „Einstellungen ändern“ führt zurück in den
-  Assistenten, die Angaben bleiben erhalten; „Startseite“ oben rechts beendet die Karte
+- sobald eine Karte erzeugt ist (neu, gewürfelt, geöffnet oder als Beispiel), steht links die Einstellungsleiste mit allen
+  Abschnitten untereinander und rechts die Karte (Mausrad zoomt, Ziehen verschiebt). Angaben ändern und „Karte erzeugen“
+  zeichnet sie neu; „Startseite“ oben rechts beendet die Karte
+- die Programmversion steht oben neben dem Titel
 - Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF, SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`
 - Gestaltung nach dem Design System „Die Alte Ordnung“ (wie Webseite, Heldenmaschine und IniTracker): Pergament (hell)
   und Finsternis (dunkel), umschaltbar oben rechts mit Sonne/Mond
@@ -218,8 +221,8 @@ Der Umriss der Stadt (`stadtform`, in der Werkstatt unter „Allgemein“):
 
 In der Werkstatt unter Allgemein „Stadtform: Eigene“ wählen, die weiteren Seiten ausfüllen, dann:
 
-1. **Gelände erzeugen** (Button auf der letzten Seite) – die Karte zeigt nur Land, Küste, Inseln, Fluss und Tümpel, noch ohne Stadt.
-2. **Mauer zeichnen** (Leiste über der Karte) – Linksklick setzt einen Turm, die Taste **T** ein Tor an der Mausposition, dazwischen
+1. **Gelände erzeugen** (Button auf der letzten Seite des Assistenten) – die Karte zeigt nur Land, Küste, Inseln, Fluss und Tümpel, noch ohne Stadt.
+2. **Mauer zeichnen** (links in der Einstellungsleiste unter „Allgemein“) – Linksklick setzt einen Turm, die Taste **T** ein Tor an der Mausposition, dazwischen
    entsteht die Mauer; die Rücktaste nimmt den letzten Punkt zurück, Rechtsklick (oder Esc) beendet das Zeichnen
    und schließt den Ring. „Mauer löschen“ fängt von vorn an.
 3. **Stadt erzeugen** – innerhalb der Mauer entstehen Viertel, Straßen und Häuser, außen Landstraßen ab den Toren,
