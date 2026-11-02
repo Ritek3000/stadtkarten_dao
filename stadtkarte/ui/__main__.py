@@ -20,7 +20,7 @@ from urllib.parse import parse_qs, quote, urlparse
 import yaml
 from PIL import Image
 
-from .. import config, webpaket
+from .. import __version__, config, webpaket
 from ..generator import generate
 from ..interaktiv import interactive_html
 from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
@@ -72,6 +72,7 @@ def options():
         "biomes": list(BIOMES),
         "examples": sorted(p.stem for p in EXAMPLES.glob("*.yaml")),
         "output_dir": str(OUTPUT),
+        "version": __version__,
     }
 
 
