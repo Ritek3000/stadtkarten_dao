@@ -227,6 +227,14 @@ In der Werkstatt unter Allgemein „Stadtform: Eigene“ wählen, die weiteren S
    und schließt den Ring. „Mauer löschen“ fängt von vorn an.
 3. **Stadt erzeugen** – innerhalb der Mauer entstehen Viertel, Straßen und Häuser, außen Landstraßen ab den Toren,
    Felder, Wald und Höfe. Türme und Tore stehen genau dort, wo sie gesetzt wurden.
+4. **Mauer bearbeiten** – Türme und Tore lassen sich nachträglich ändern, ohne die Mauer neu zu zeichnen. Jeder Punkt
+   ist eine Ecke der Mauer, ein Verschieben formt die Mauer also um. Punkt mit der Maus ziehen; Doppelklick auf einen
+   Punkt schaltet zwischen Turm und Tor um; Doppelklick auf eine Mauerseite fügt einen Turm ein (die Taste **T** über der
+   Mauer ein Tor, über einem Punkt schaltet sie um); **Entf** oder Rechtsklick löscht den Punkt unter der Maus;
+   **Strg+Z** macht den letzten Schritt rückgängig (auch nach „Mauer löschen“); Esc oder Rechtsklick daneben beendet.
+   Sich kreuzende Mauerseiten werden rot gezeichnet. Die Stadt ändert sich erst mit **Stadt erzeugen** (der Modus
+   bleibt dabei an, man kann gleich weiter feilen). Dann entstehen Straßen, Viertel und Häuser neu nach der geänderten
+   Mauer; das Gelände bleibt gleich.
 
 Beginnt und endet die Mauer an der Küste (bzw. am Hochplateau an der Kante), ist die Stadt dort offen: Küste
 und Felswand sind die Mauer, es wird kein Mauerstück übers Wasser gezogen. Der Fluss zählt nicht als Mauer.

@@ -310,12 +310,21 @@ class CityBuilder:
         if custom:   # gezeichnete Mauer: Tore und Türme genau dort, wo sie gesetzt wurden
             c = np.array(self.center)
             self.gates = []
+            wet = 0
             for p in custom["gates"]:
                 if p.distance(t["water"]) < 8 * s:
-                    print("Hinweis: Ein Tor liegt im Wasser und entfällt.")
+                    wet += 1
                     continue
                 d = unit((p.x - c[0], p.y - c[1]))
                 self.gates.append((math.atan2(d[1], d[0]), p, np.array(d)))
+            if wet and self.gates:   # eine Meldung für alle (bei mehreren Toren im Wasser sonst identische Zeilen)
+                print("Hinweis: Ein Tor liegt im Wasser und entfällt." if wet == 1
+                      else f"Hinweis: {wet} Tore liegen im Wasser und entfallen.")
+            elif wet:   # kein Tor übrig: die Stadt wäre ohne Zugang
+                print("Hinweis: Das einzige Tor liegt im Wasser und entfällt - die Stadt hat kein Tor. "
+                      "Bitte ein Tor an Land setzen." if wet == 1 else
+                      f"Hinweis: Alle {wet} Tore liegen im Wasser und entfallen - die Stadt hat kein Tor. "
+                      "Bitte ein Tor an Land setzen.")
             self.walled = walled
             if not walled:
                 return
