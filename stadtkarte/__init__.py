@@ -1,2 +1,2 @@
 """Stadtkarten-Werkstatt: Stadtkarten für das Rollenspiel „Die Alte Ordnung“."""
-__version__ = "1.30.0"
+__version__ = "1.31.0"

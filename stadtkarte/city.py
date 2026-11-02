@@ -240,7 +240,7 @@ class CityBuilder:
         return {
             "buildings": [], "streets": [], "paved": [], "internal_roads": [], "plazas": [],
             "grounds": [], "graves": [], "fountains": [], "deferred": [],
-            "great_gate": None, "terrace_walls": [], "stairs": [], "wells": [], "stalls": [],
+            "great_gate": None, "terrace_walls": [], "terrace_levels": [], "stairs": [], "wells": [], "stalls": [],
             "towers": [], "gates": [], "wall": [], "yard_trees": [], "labels": [], "piers": [],
             "ships": [], "legend": [], "districts": [], "wheels": [], "windmills": [], "haystacks": [],
             "old_wall": [], "old_gates": [], "faubourg": Polygon(), "slum_outside": Polygon(),
@@ -883,13 +883,24 @@ class CityBuilder:
         """Gebirge: Stützmauern quer zum Hang (Berg liegt intern im Norden), Treppen an den Hauptstraßen."""
         s, rng = self.s, self.rng
         minx, miny, maxx, maxy = self.city_land.bounds
-        n = 3 if (maxy - miny) < 550 * s else 4
+        n = 3 if (maxy - miny) < 550 * s else 4 if (maxy - miny) < 800 * s else 5   # hohe Städte: eine Stufe mehr
         noise = Noise1D(rng)
         rows = []
         for k in range(1, n + 1):
             y0 = miny + (maxy - miny) * k / (n + 1)
             rows.append(LineString([(x, y0 + 22 * s * noise.fbm(x / (180 * s) + k * 7))
                                     for x in np.arange(minx - 20 * s, maxx + 20 * s, 15 * s)]))
+        # Höhenstufen: die Bänder zwischen den Mauern, von der höchsten (Norden, am Berg) bis zur tiefsten
+        big = 4 * (maxy - miny) + 2000 * s
+        edges = [LineString([(minx - 20 * s, miny - big), (maxx + 20 * s, miny - big)])] + rows \
+            + [LineString([(minx - 20 * s, maxy + big), (maxx + 20 * s, maxy + big)])]
+        levels = []
+        for upper, lower in zip(edges, edges[1:]):
+            band = Polygon(list(upper.coords) + list(lower.coords)[::-1]).buffer(0)
+            parts = polys(band.intersection(self.city_land))   # nur Flächen (der Schnitt kann auch Linien liefern)
+            if parts:
+                levels.append(unary_union(parts))
+        self.out["terrace_levels"] = levels
         terr = unary_union(rows).intersection(self.city_land.buffer(-2 * s))
         self.out["terrace_walls"] = [ln for ln in lines(terr.difference(main.buffer(1 * s))) if ln.length > 8 * s]
         for ln, w in self.out["internal_roads"]:

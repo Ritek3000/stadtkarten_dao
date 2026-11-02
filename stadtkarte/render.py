@@ -1120,6 +1120,16 @@ def cliff_svg(o, m, rng):
         o.append(f'<path d="{"".join(ticks)}" stroke="#34312b" stroke-opacity="0.8" stroke-width="{f(1.2 * s)}" stroke-linecap="round"/>')
 
 
+def terrace_tint(o, m, strength):
+    """Höhenstufen der Terrassenstadt: oben (am Berg) heller, unten dunkler, damit man die Stufen sieht."""
+    levels = m.get("terrace_levels") or []
+    for i, lv in enumerate(levels):
+        b = (0.5 - i / max(1, len(levels) - 1)) * 2   # +1 höchste Stufe .. -1 tiefste
+        col, op = ("#fff6e0", 0.17 * b * strength) if b > 0 else ("#1a1712", 0.15 * -b * strength)
+        if op > 0.004:
+            o.append(f'<path d="{path_d(lv)}" fill="{col}" fill-opacity="{op:.3f}"/>')
+
+
 def hachures(lines_, area, step, length, s, toward=None):
     """Schraffen (kurze Striche) senkrecht zu Linien, im Abstand step. toward = (dx, dy): die Striche zeigen auf die Seite
     dieser Richtung; area: Fläche, in die sie zeigen sollen (z.B. die Klamm). Ohne Zufall, damit die übrige Karte gleich bleibt."""
@@ -1491,18 +1501,22 @@ def render_svg(m):
                      f'<path d="{stripes}" stroke="{c2}" stroke-width="{f(w / 6)}"/>'
                      f'<path d="M{xy(p0 + v * dd / 2)}L{xy(p0 + u * w + v * dd / 2)}" stroke="#000" stroke-opacity="0.35" stroke-width="{f(0.6 * s)}"/>'
                      f'<path d="{path_d(st["poly"])}" fill="none" stroke="{C["outline"]}" stroke-width="{f(0.8 * s)}"/>')
+    terrace_tint(o, m, 1.0)   # Boden und Straßen
     if m["terrace_walls"]:
         tw = "".join(line_d(ln) for ln in m["terrace_walls"])
-        hd = hachures(m["terrace_walls"], None, 4.5 * s, 7 * s, s, toward=(0, 1))
-        o.append(f'<path d="{hd}" fill="none" stroke="#1c1914" stroke-opacity="0.55" stroke-width="{f(1.0 * s)}" '
-                 f'stroke-linecap="round" transform="translate(0,{f(3 * s)})"/>')
-        o.append(f'<path d="{tw}" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="{f(9 * s)}" '
-                 f'filter="url(#softblur)" transform="translate(0,{f(3 * s)})"/>'
-                 f'<path d="{tw}" fill="none" stroke="#2f2c28" stroke-width="{f(6 * s)}" stroke-linecap="round"/>'
-                 f'<path d="{tw}" fill="none" stroke="#b3ac9c" stroke-width="{f(3.2 * s)}" stroke-linecap="round" '
-                 f'transform="translate(0,{f(-1.4 * s)})"/>'
-                 f'<path d="{tw}" fill="none" stroke="#6f6a5f" stroke-width="{f(3.2 * s)}" '
-                 f'stroke-dasharray="{f(0.8 * s)} {f(4 * s)}" transform="translate(0,{f(-1.4 * s)})"/>')
+        hd = hachures(m["terrace_walls"], None, 4.5 * s, 5.5 * s, s, toward=(0, 1))
+        # Licht kommt aus Nordwesten: die Mauer wirft ihren Schatten nach Süden auf die tiefere Stufe
+        o.append(f'<path d="{tw}" fill="none" stroke="#000" stroke-opacity="0.42" stroke-width="{f(15 * s)}" '
+                 f'stroke-linecap="round" filter="url(#softblur)" transform="translate({f(2 * s)},{f(9 * s)})"/>')
+        # Mauerfläche (schräg von oben): Streifen unter der Kante, Steinlagen, dunkler Fuß, heller Rand oben
+        o.append(f'<path d="{tw}" fill="none" stroke="#6d675b" stroke-width="{f(6.5 * s)}" stroke-linecap="round" '
+                 f'transform="translate(0,{f(3.5 * s)})"/>'
+                 f'<path d="{hd}" fill="none" stroke="#2a2621" stroke-opacity="0.55" stroke-width="{f(0.9 * s)}" '
+                 f'stroke-linecap="round" transform="translate(0,{f(1.5 * s)})"/>'
+                 f'<path d="{tw}" fill="none" stroke="#24211c" stroke-width="{f(1.8 * s)}" stroke-linecap="round" '
+                 f'transform="translate(0,{f(6.8 * s)})"/>'
+                 f'<path d="{tw}" fill="none" stroke="#d9d2c0" stroke-width="{f(2.6 * s)}" stroke-linecap="round" '
+                 f'transform="translate(0,{f(-0.2 * s)})"/>')
     for seg, w in m["stairs"]:
         d = line_d(seg)
         o.append(f'<path d="{d}" fill="none" stroke="#4a4740" stroke-width="{f(w + 1 * s)}"/>'
@@ -1606,6 +1620,7 @@ def render_svg(m):
                          f'stroke-width="{f(0.7 * s)}"/>' for x, y in forge_glow))
     if m["great_gate"]:
         great_gate_svg(o, m)
+    terrace_tint(o, m, 0.55)   # dieselbe Tönung schwächer über den Dächern
     # Mauer, Türme, Tore
     wd = "".join(line_d(ln) for ln in m["wall"])
     if wd and B["wall"] == "palisade":
