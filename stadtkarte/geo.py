@@ -222,6 +222,12 @@ def vlen(v):
     return math.sqrt(x * x + y * y)
 
 
+def vlen3(v):
+    """Länge eines 3D-Vektors, auf jedem Prozessor bitgleich (siehe vlen; z.B. für die Lichtrichtung)."""
+    x, y, z = float(v[0]), float(v[1]), float(v[2])
+    return math.sqrt(x * x + y * y + z * z)
+
+
 def vdot(a, b):
     """Skalarprodukt zweier 2D-Vektoren, auf jedem Prozessor bitgleich (siehe vlen)."""
     return float(a[0]) * float(b[0]) + float(a[1]) * float(b[1])

@@ -12,6 +12,7 @@ import io
 import numpy as np
 from PIL import Image, ImageFilter
 
+from .geo import vlen3
 from .noise import _fbm, _hex_rgb
 from .simplex import grid
 from .umgebung import _mask
@@ -78,7 +79,7 @@ def image(W, s, data, res=None):
     gy, gx = np.gradient(z.astype(np.float64))
     lx, ly = data["light"]
     L = np.array([lx * 0.7, ly * 0.7, 0.8])
-    L /= np.linalg.norm(L)
+    L /= vlen3(L)   # nicht np.linalg.norm: OpenBLAS rundet je nach Prozessor anders
     lit = (-gx * L[0] - gy * L[1] + L[2]) / np.sqrt(gx * gx + gy * gy + 1)
     shade = np.clip((lit - L[2]) * 2.0, -1, 1).astype(np.float32)   # -1 Schatten .. 1 Licht, 0 = eben
     slope = np.clip(np.sqrt(gx * gx + gy * gy) / 1.4, 0, 1).astype(np.float32)
