@@ -180,10 +180,14 @@ def _generate(cfg, W):
         if islands:
             sea = sea.difference(unary_union(islands))
     river, river_line = (None, None)
-    gorge = None   # Gebirge: Klamm bis hinter die Stadt, dann glatter Übergang in einen breiteren Fluss
+    gorge = None   # Gebirge: Klamm bis ins Tal, dort läuft sie aus und fließt als kleiner Bach weiter
     if biome["mountain"] and g.get("fluss") and city_shape is not None:
-        city_bottom = city_shape.bounds[3]
-        gorge = {"y_a": city_bottom + 90 * s, "y_b": city_bottom + 560 * s, "seed": cfg["seed"]}
+        # das Tal beginnt, wo die Felsflanken neben der Stadt enden; die Klamm läuft dort aus (und nicht erst im offenen Land)
+        strip = box(cx - 1.7 * r, -W, cx + 1.7 * r, 2 * W)
+        flanks = sea.intersection(strip) if sea is not None and not sea.is_empty else None
+        valley = flanks.bounds[3] if flanks is not None and not flanks.is_empty else city_shape.bounds[3] - 0.3 * r
+        y_a = min(max(valley, cy + 0.3 * r), city_shape.bounds[3] + 40 * s)
+        gorge = {"y_a": y_a, "y_b": y_a + 440 * s, "seed": cfg["seed"]}
     if g.get("fluss"):
         river, river_line = make_river(rng, W, s, (cx, cy), r, coast_y, float(g.get("flussbreite", 60)),
                                        estuary=not (biome["mountain"] or plateau),

@@ -6,7 +6,8 @@ render.py als Vektor darüber).
 Abwechslung statt Maserung: Wandbreite und Wandart wechseln im Verlauf und von Wand zu Wand (gestufte Wand mit
 Absätzen, glatte steile Wand, flacherer Geröllhang), die Absätze wandern und ihre Kanten sind unterbrochen. Wo die
 Klamm breiter ist, bleibt zwischen den Wänden ein flacher Grund mit helleren Schotterbänken. Flussabwärts (hinter
-der Stadt) werden die Wände glatt niedriger und das Bild blendet aus: die Klamm geht in einen Fluss über.
+der Stadt, wo das Tal beginnt) werden die Wände glatt niedriger und das Bild blendet aus: die Klamm läuft aus und
+geht in einen kleinen Bach über.
 
 Die Klamm ist schmal; ein halb aufgelöstes Bild wirkt hier grob. Deshalb wird in voller Auflösung gerechnet, aber nur im
 Rechteck um die Klamm."""
@@ -32,7 +33,7 @@ def _mask(shape, off, rings):
 
 
 def fade(y, y_a, y_b):
-    """1 in der Klamm (y <= y_a), 0 im Fluss (y >= y_b), dazwischen glatt (y wächst flussabwärts)."""
+    """1 in der Klamm (y <= y_a), 0 im Bach (y >= y_b), dazwischen glatt (y wächst flussabwärts)."""
     t = np.clip((y - y_a) / max(1e-6, y_b - y_a), 0, 1)
     return 1 - t * t * (3 - 2 * t)
 
@@ -122,8 +123,8 @@ def _relief(w, h, off, s, data):
     weak = (1 - 0.6 * _smooth(zn, 0.55, 1.0))[..., None]            # am Grund wirkt das Licht kaum noch
     col = col * (1 + 0.75 * np.clip(shade, 0, 1)[..., None] * weak * (sun[None, None, :] - 0.5))
     col = col * (1 - 0.62 * np.clip(-shade, 0, 1)[..., None] * (1 - cool[None, None, :] * 0.7))
-    # flussabwärts geht der Grund ins Blau des Wassers über und die Wände hellen auf (sonst wirkte das Ausblenden wie Ruß)
-    away = (1 - g)[..., None]   # (Zeilen, 1, 1): 0 in der Klamm, 1 im Fluss
+    # flussabwärts geht der Grund ins Blau des Baches über und die Wände hellen auf (sonst wirkte das Ausblenden wie Ruß)
+    away = (1 - g)[..., None]   # (Zeilen, 1, 1): 0 in der Klamm, 1 im Bach
     water_tone = np.array([0.20, 0.36, 0.44], np.float32)
     bank_tone = np.clip(rock * 0.95, 0, 1)
     col = col * (1 - 0.8 * away * t2) + water_tone[None, None, :] * (0.8 * away * t2)

@@ -71,10 +71,10 @@ def make_islands(rng, W, s, sea, coast_y, count):
 
 def make_river(rng, W, s, center, r, coast_y, width, estuary=True, end_y=None, gorge=None):
     """Fluss vom Süden durch das Stadtzentrum zur Küste (bzw. zum Nordrand).
-    gorge (Gebirge): {"y_a", "y_b", "seed"}. Der Fluss ist eine Klamm mit wechselnder Breite (hier und da breiter, in der
-    Stadt gleichmäßig) und geht flussabwärts (nach Süden) zwischen y_a und y_b glatt in einen breiteren Fluss über.
-    Das Rauschen für die Breite kommt aus einem eigenen, vom Seed abgeleiteten Zufallsgenerator: der übrige
-    Zufallsstrom der Karte bleibt unverändert."""
+    gorge (Gebirge): {"y_a", "y_b", "seed"}. Der Fluss ist eine Klamm mit leicht wechselnder Breite (in der Stadt
+    gleichmäßig, nie zu breit). Wo das Tal beginnt (y_a), läuft sie aus: bis y_b wird sie glatt schmaler und fließt als
+    kleiner Bach weiter. Das Rauschen für die Breite kommt aus einem eigenen, vom Seed abgeleiteten Zufallsgenerator: der
+    übrige Zufallsstrom der Karte bleibt unverändert."""
     cx, cy = center
     noise = Noise1D(rng)
     y0 = W + 40
@@ -97,12 +97,15 @@ def make_river(rng, W, s, center, r, coast_y, width, estuary=True, end_y=None, g
         vals = [gn.fbm(y / (W * 0.16)) for y in ys]
         lo, hi = min(vals), max(vals)
 
+        brook = min(20.0, max(12.0, 0.3 * width)) * s                   # Breite des Baches im Tal
+
         def w_at(y):
             v = (gn.fbm(y / (W * 0.16)) - lo) / (hi - lo + 1e-9)       # 0..1, schmal bis breit
             vary = smoothstep(r * 1.0, r * 1.5, abs(y - cy))            # in der Stadt gleichmäßig, außerhalb wechselnd
-            f = 1 + vary * (-0.18 + 0.45 * v + 0.55 * smoothstep(0.55, 0.92, v))   # 0,82 .. 1,82 (selten breit)
-            t = smoothstep(gorge["y_a"], gorge["y_b"], y)               # flussabwärts: Klamm -> breiter Fluss
-            return width * s * ((1 - t) * f + t * 1.5)
+            f = 1 + vary * (-0.18 + 0.38 * v)                           # 0,82 .. 1,2: leichte Schwankung, nie zu breit
+            gorge_w = min(width * s * f, 80 * s)                        # auch bei großer Flussbreite nicht über 80 px
+            t = smoothstep(gorge["y_a"], gorge["y_b"], y)               # flussabwärts: die Klamm läuft aus, wird zum Bach
+            return (1 - t) * gorge_w + t * min(brook, gorge_w)
     else:
         def w_at(y):
             return width * s * (1 + (1.8 if estuary else 0.3) * smoothstep(cy + 0.2 * r, mouth + 40 * s, y))
