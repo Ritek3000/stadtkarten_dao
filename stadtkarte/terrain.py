@@ -1,5 +1,6 @@
 """Meer, Küste, Inseln und Fluss."""
 import math
+import random
 
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
@@ -68,8 +69,12 @@ def make_islands(rng, W, s, sea, coast_y, count):
     return islands
 
 
-def make_river(rng, W, s, center, r, coast_y, width, estuary=True, end_y=None):
-    """Fluss vom Süden durch das Stadtzentrum zur Küste (bzw. zum Nordrand)."""
+def make_river(rng, W, s, center, r, coast_y, width, estuary=True, end_y=None, gorge=None):
+    """Fluss vom Süden durch das Stadtzentrum zur Küste (bzw. zum Nordrand).
+    gorge (Gebirge): {"y_a", "y_b", "seed"}. Der Fluss ist eine Klamm mit wechselnder Breite (hier und da breiter, in der
+    Stadt gleichmäßig) und geht flussabwärts (nach Süden) zwischen y_a und y_b glatt in einen breiteren Fluss über.
+    Das Rauschen für die Breite kommt aus einem eigenen, vom Seed abgeleiteten Zufallsgenerator: der übrige
+    Zufallsstrom der Karte bleibt unverändert."""
     cx, cy = center
     noise = Noise1D(rng)
     y0 = W + 40
@@ -86,8 +91,21 @@ def make_river(rng, W, s, center, r, coast_y, width, estuary=True, end_y=None):
         line.append((cx + amp * (noise.fbm(y / W * 3) - ref) * 2, y))
     mouth = coast_y(cx) if coast_y else -W
 
-    def w_at(y):
-        return width * s * (1 + (1.8 if estuary else 0.3) * smoothstep(cy + 0.2 * r, mouth + 40 * s, y))
+    if gorge:
+        gn = Noise1D(random.Random(f"klamm-{gorge['seed']}"))
+        ys = [min(y0, y1) + abs(y0 - y1) * i / 200 for i in range(201)]
+        vals = [gn.fbm(y / (W * 0.16)) for y in ys]
+        lo, hi = min(vals), max(vals)
+
+        def w_at(y):
+            v = (gn.fbm(y / (W * 0.16)) - lo) / (hi - lo + 1e-9)       # 0..1, schmal bis breit
+            vary = smoothstep(r * 1.0, r * 1.5, abs(y - cy))            # in der Stadt gleichmäßig, außerhalb wechselnd
+            f = 1 + vary * (-0.18 + 0.45 * v + 0.55 * smoothstep(0.55, 0.92, v))   # 0,82 .. 1,82 (selten breit)
+            t = smoothstep(gorge["y_a"], gorge["y_b"], y)               # flussabwärts: Klamm -> breiter Fluss
+            return width * s * ((1 - t) * f + t * 1.5)
+    else:
+        def w_at(y):
+            return width * s * (1 + (1.8 if estuary else 0.3) * smoothstep(cy + 0.2 * r, mouth + 40 * s, y))
 
     parts = []
     for (x0, y_0), (x1, y_1) in zip(line, line[1:]):

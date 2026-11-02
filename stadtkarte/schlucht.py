@@ -1,7 +1,12 @@
-"""Klamm als echte Schlucht: aus der Klammfläche entsteht ein Tiefenfeld (Rand oben, Grund unten) mit steilen Wänden und
-Felsbändern. Wie beim Gebirge (gebirge.py) kommt das Licht aus Nordwesten: die Wand, die zum Licht schaut, ist hell, die
-gegenüberliegende liegt im Schatten, der Grund ist dunkel. Ergebnis: ein Bild, das über der Klammfläche liegt (Rand und
-Wildbach zeichnet render.py als Vektor darüber).
+"""Klamm als echte Schlucht: aus der Klammfläche entsteht ein Tiefenfeld (Rand oben, Grund unten). Wie beim Gebirge
+(gebirge.py) kommt das Licht aus Nordwesten: die Wand, die zum Licht schaut, ist hell, die gegenüberliegende liegt im
+Schatten, der Grund ist dunkel. Ergebnis: ein Bild, das über der Klammfläche liegt (Rand und Wildbach zeichnet
+render.py als Vektor darüber).
+
+Abwechslung statt Maserung: Wandbreite und Wandart wechseln im Verlauf und von Wand zu Wand (gestufte Wand mit
+Absätzen, glatte steile Wand, flacherer Geröllhang), die Absätze wandern und ihre Kanten sind unterbrochen. Wo die
+Klamm breiter ist, bleibt zwischen den Wänden ein flacher Grund mit helleren Schotterbänken. Flussabwärts (hinter
+der Stadt) werden die Wände glatt niedriger und das Bild blendet aus: die Klamm geht in einen Fluss über.
 
 Die Klamm ist schmal; ein halb aufgelöstes Bild wirkt hier grob. Deshalb wird in voller Auflösung gerechnet, aber nur im
 Rechteck um die Klamm."""
@@ -26,9 +31,15 @@ def _mask(shape, off, rings):
     return img
 
 
+def fade(y, y_a, y_b):
+    """1 in der Klamm (y <= y_a), 0 im Fluss (y >= y_b), dazwischen glatt (y wächst flussabwärts)."""
+    t = np.clip((y - y_a) / max(1e-6, y_b - y_a), 0, 1)
+    return 1 - t * t * (3 - 2 * t)
+
+
 def image(W, s, data):
-    """data: river (Klammfläche als Ringe), light (Licht-x, Licht-y), Farben rock_col, rock_dark. Liefert eine Data-URI
-    (Bild in Kartengröße, außerhalb der Klamm durchsichtig)."""
+    """data: river (Klammfläche als Ringe), light (Licht-x, Licht-y), Farben rock_col, rock_dark, fade (y_a, y_b) oder
+    None. Liefert eine Data-URI (Bild in Kartengröße, außerhalb der Klamm durchsichtig)."""
     xs = [x for ext, _ in data["river"] for x, _ in ext]
     ys = [y for ext, _ in data["river"] for _, y in ext]
     out = np.zeros((W, W, 4), np.uint8)
@@ -55,32 +66,53 @@ def _relief(w, h, off, s, data):
         dist_h += (np.asarray(cur) > 127)
     dist = np.asarray(Image.fromarray(dist_h * 2, "F").resize((w, h), Image.BICUBIC)) * (mask > 0.5)
     dist = _blur(dist, 1.3)
-    half = float(np.percentile(dist[mask > 0.5], 92)) if (mask > 0.5).any() else 1.0   # halbe Klammbreite
-    # Wandprofil: steil am Rand, nach unten flacher; dazu Felsbänder (Stufen) mit unregelmäßigem Verlauf
-    u = 1 - np.exp(-dist / max(2.0, 0.42 * half))                # 0 am Rand .. 1 am Grund
     size = max(h, w)
-    wob = _fbm(size, 34 * s, 3, 321, False)[:h, :w]
-    wob = (wob - wob.mean()) / (wob.std() + 1e-6)
-    u = np.clip(u + 0.04 * wob * (1 - u), 0, 1)
-    steps = 6.0
-    band = np.floor(u * steps)
-    zn = np.clip((band + _smooth(u * steps - band, 0.0, 0.45)) / steps, 0, 1)   # je Stufe: steile Wand, dann Absatz
+
+    def field(period, seed, octaves=3):   # Rauschen mit Mittel 0 und Streuung 1 in Kartengröße (fest je Karte)
+        n = _fbm(size, period * s, octaves, seed, False, warp=0.3)[:h, :w]
+        return ((n - n.mean()) / (n.std() + 1e-6)).astype(np.float32)
+    n_width, n_kind, n_wob, n_gap, n_bar = field(75, 331), field(170, 332), field(42, 333), field(30, 334, 2), field(55, 335)
+    # Wandbreite und Wandart wechseln im Verlauf und von Wand zu Wand (die Felder sind schmaler als die Klamm lang)
+    ww = np.maximum(7 * s, (16 + 8 * np.tanh(n_width)) * s)
+    kind = 0.5 + 0.5 * np.tanh(n_kind)
+    w_scree = _smooth(kind, 0.62, 0.88)                          # flacherer Geröllhang
+    w_sheer = _smooth(kind, 0.30, 0.46) * (1 - w_scree)          # glatte steile Wand
+    w_step = np.clip(1 - w_scree - w_sheer, 0, 1)                # Wand mit Absätzen
+    t = np.clip(dist / ww, 0, 1)                                 # 0 am Rand .. 1 am Fuß der Wand
+    zn_sheer = 1 - (1 - t) ** 2.4
+    tw = np.clip(t + 0.11 * n_wob, 0, 1)                         # die Absätze wandern
+    steps = 4.0
+    band = np.floor(tw * steps)
+    zn_step = np.clip((band + _smooth(tw * steps - band, 0.0, 0.5)) / steps, 0, 1)
+    zn_scree = 0.8 * (1 - (1 - np.clip(dist / (ww * 1.7), 0, 1)) ** 1.6)
+    zn = w_step * zn_step + w_sheer * zn_sheer + w_scree * zn_scree
+    # flussabwärts werden die Wände glatt niedriger
+    rows = off[1] + np.arange(h, dtype=np.float32)
+    g = fade(rows, *data["fade"])[:, None] if data.get("fade") else np.ones((h, 1), np.float32)
     # Beleuchtung: Rand 0, Grund tief; Hangneigung aus dem Gefälle
-    z = -zn * 0.55 * half
+    z = -zn * 15 * s * g
     gy, gx = np.gradient(z.astype(np.float64))
     lx, ly = data["light"]
     L = np.array([lx * 0.75, ly * 0.75, 0.7])
     L /= np.linalg.norm(L)
     lit = (-gx * L[0] - gy * L[1] + L[2]) / np.sqrt(gx * gx + gy * gy + 1)
     shade = np.clip((lit - L[2]) * 1.5, -1, 1).astype(np.float32)
-    # Färbung in drei Stufen: heller Fels am Rand, Wand, dunkler (aber nicht schwarzer) Grund
+    # Färbung: heller Fels am Rand, Wand, dunkler (aber nicht schwarzer) Grund; Geröllhänge heller und warm
     rock, dark = _hex_rgb(data["rock_col"]), _hex_rgb(data["rock_dark"])
     c_rim = np.clip(rock * 1.10 + 0.02, 0, 1)
     c_wall = rock * 0.62 + dark * 0.2
-    c_floor = dark * 0.55 + np.array([0.00, 0.015, 0.03], np.float32)
+    c_floor = dark * 0.6 + np.array([0.00, 0.015, 0.03], np.float32)
+    c_gravel = np.clip(rock * 0.80 + 0.02, 0, 1)
     t1 = _smooth(zn, 0.0, 0.55)[..., None]
     t2 = _smooth(zn, 0.45, 1.0)[..., None]
-    col = (c_rim[None, None, :] * (1 - t1) + c_wall[None, None, :] * t1) * (1 - t2) + c_floor[None, None, :] * t2
+    wall = c_wall[None, None, :] * (1 - 0.55 * w_scree[..., None]) + np.clip(rock * 0.92, 0, 1)[None, None, :] * (0.55 * w_scree[..., None])
+    col = (c_rim[None, None, :] * (1 - t1) + wall * t1) * (1 - t2) + c_floor[None, None, :] * t2
+    # flacher Grund: am Fuß der Wände dunkel (Schatten), zur Mitte hin heller, dazu Fleckung und Schotterbänke; breite
+    # Abschnitte der Klamm bekommen so einen abwechslungsreichen Grund statt einer großen dunklen Fläche
+    wide = _smooth(dist - ww, 0.0, 34 * s)
+    col = col * (0.82 + 0.5 * wide[..., None] * t2) * (1 + 0.10 * n_bar[..., None] * t2)
+    bars = _smooth(n_bar, -0.1, 0.8) * _smooth(dist - ww, 2 * s, 12 * s)
+    col = col * (1 - 0.75 * bars[..., None]) + c_gravel[None, None, :] * (0.75 * bars[..., None])
     # feine Körnung in halber Auflösung erzeugen (Pixel für Pixel wäre teuer) und hochskalieren
     grit = _fbm(max(hh, hw), 5.5 * s, 3, 322, False)[:hh, :hw]
     grit = np.asarray(Image.fromarray(grit.astype(np.float32), "F").resize((w, h), Image.BICUBIC))
@@ -90,14 +122,22 @@ def _relief(w, h, off, s, data):
     weak = (1 - 0.6 * _smooth(zn, 0.55, 1.0))[..., None]            # am Grund wirkt das Licht kaum noch
     col = col * (1 + 0.75 * np.clip(shade, 0, 1)[..., None] * weak * (sun[None, None, :] - 0.5))
     col = col * (1 - 0.62 * np.clip(-shade, 0, 1)[..., None] * (1 - cool[None, None, :] * 0.7))
-    # Kanten der Felsbänder als dünne dunkle Linien (Schichtung)
-    q = u * steps
+    # flussabwärts geht der Grund ins Blau des Wassers über und die Wände hellen auf (sonst wirkte das Ausblenden wie Ruß)
+    away = (1 - g)[..., None]   # (Zeilen, 1, 1): 0 in der Klamm, 1 im Fluss
+    water_tone = np.array([0.20, 0.36, 0.44], np.float32)
+    bank_tone = np.clip(rock * 0.95, 0, 1)
+    col = col * (1 - 0.8 * away * t2) + water_tone[None, None, :] * (0.8 * away * t2)
+    col = col * (1 - 0.5 * away * (1 - t2)) + bank_tone[None, None, :] * (0.5 * away * (1 - t2))
+    # Kanten der Absätze als dünne dunkle Linien, nur an gestuften Wänden und immer wieder unterbrochen
+    q = tw * steps
     gq = np.hypot(*np.gradient(q.astype(np.float64))) + 1e-4
-    dd = np.abs(q - np.round(q)) / gq                              # Abstand zur nächsten Bandkante in Pixeln
-    ledge = np.clip(1 - (dd - 0.4) / 0.9, 0, 1) * 0.38 * (1 - _smooth(zn, 0.8, 1.0)) * _smooth(u, 0.06, 0.22)
+    dd = np.abs(q - np.round(q)) / gq                              # Abstand zur nächsten Kante in Pixeln
+    broken = _smooth(n_gap, -0.3, 0.5)                             # an manchen Stellen fehlt die Kante
+    ledge = np.clip(1 - (dd - 0.4) / 0.9, 0, 1) * 0.40 * w_step * broken * (1 - _smooth(zn, 0.8, 1.0)) * _smooth(t, 0.06, 0.22) * g
     col = col * (1 - ledge[..., None]) + np.array([0.07, 0.06, 0.05], np.float32)[None, None, :] * ledge[..., None]
     img = np.empty((h, w, 4), np.uint8)
     img[..., :3] = np.clip(col * 255, 0, 255).astype(np.uint8)
-    # auf die (genaue) Klammfläche zuschneiden; Maske um ein Pixel weiten, sonst bleibt am Rand ein Haarstrich
-    img[..., 3] = np.asarray(mask_img.filter(ImageFilter.MaxFilter(3)), np.uint8)
+    # auf die (genaue) Klammfläche zuschneiden (ein Pixel weiter, sonst bleibt ein Haarstrich); flussabwärts ausblenden
+    alpha = np.asarray(mask_img.filter(ImageFilter.MaxFilter(3)), np.float32) * np.clip(g * 1.1, 0, 1)
+    img[..., 3] = alpha.astype(np.uint8)
     return img

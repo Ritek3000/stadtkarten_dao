@@ -180,11 +180,16 @@ def _generate(cfg, W):
         if islands:
             sea = sea.difference(unary_union(islands))
     river, river_line = (None, None)
+    gorge = None   # Gebirge: Klamm bis hinter die Stadt, dann glatter Übergang in einen breiteren Fluss
+    if biome["mountain"] and g.get("fluss") and city_shape is not None:
+        city_bottom = city_shape.bounds[3]
+        gorge = {"y_a": city_bottom + 90 * s, "y_b": city_bottom + 560 * s, "seed": cfg["seed"]}
     if g.get("fluss"):
         river, river_line = make_river(rng, W, s, (cx, cy), r, coast_y, float(g.get("flussbreite", 60)),
                                        estuary=not (biome["mountain"] or plateau),
                                        end_y=(cy - 1.35 * r - 80 * s if biome["mountain"] and has_coast
-                                              else -60 if plateau else None))   # Hochplateau: über die Kante hinweg
+                                              else -60 if plateau else None),   # Hochplateau: über die Kante hinweg
+                                       gorge=gorge)
     if plateau:   # die Stufe ist eine geschlossene Fläche: keine Löcher und keine abgetrennten Splitter
         parts = polys(sea)
         sea = Polygon(max(parts, key=lambda q: q.area).exterior) if parts else sea
@@ -432,6 +437,7 @@ def _generate(cfg, W):
         "forts": forts, "biome": biome, "pools": pools, "reeds": reeds, "lilies": lilies,
         "oases": oases, "rocks": rocks, "dunes": dunes, "floes": floes,
         "river_line": river_line, "mines": mines, "paths": paths,
+        "klamm_fade": (gorge["y_a"], gorge["y_b"]) if gorge and river is not None else None,
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         "lighthouse": light,
         "dust": staub.areas(cfg, W, s, (cx, cy), r, rot),

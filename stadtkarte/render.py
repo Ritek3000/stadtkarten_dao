@@ -535,13 +535,13 @@ def umgebung_daten(m):
 
 def wasser_daten(m):
     """Flächen und Farben für das Wasser mit Tiefe (wasser.image): das Meer nur an echten Küsten (nicht Fels
-    oder Plateaustufe), Flüsse nicht in der Klamm."""
+    oder Plateaustufe). Im Gebirge liegt die Schlucht über dem Fluss und blendet flussabwärts aus (chasm_svg)."""
     B = m["biome"]
 
     def rings(g):
         return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
     coastal = m["sea"] is not None and not B["mountain"] and not m.get("plateau")
-    river = m["river"] is not None and not B["chasm"]
+    river = m["river"] is not None
     return {"sea": rings(m["sea"]) if coastal else [], "river": rings(m["river"]) if river else [],
             "deep": B["sea_deep"], "sea_col": B["sea"], "shallow": B["shallow"], "river_col": B["river"], "foam": "#ffffff"}
 
@@ -1153,45 +1153,59 @@ def hachures(lines_, area, step, length, s, toward=None):
 
 
 def chasm_svg(o, m):
-    """Klamm als Schlucht: steile Felswände mit Bändern und Licht aus Nordwesten (schlucht.image), dunkler Grund,
-    Felskante als Linie, Wildbach mit Gischt und Felsbrocken am Grund."""
-    s, B = m["s"], m["biome"]
+    """Klamm als Schlucht: steile Felswände mit Licht aus Nordwesten und wechselnder Gestalt (schlucht.image), dunkler
+    Grund, Felskante als Linie, Wildbach mit Gischt und Felsbrocken am Grund. Flussabwärts (klamm_fade) werden Wände,
+    Kante und Bach glatt ausgeblendet, darunter liegt der Fluss (wasser.image)."""
+    s, B, W = m["s"], m["biome"], m["W"]
+    fade = m.get("klamm_fade")
     rings = [(list(g.exterior.coords), [list(h.coords) for h in g.interiors]) for g in polys(m["river"])]
     tex = m.setdefault("_tex", {})
-    tex["schlucht"] = _tex_pool().submit(schlucht.image, m["W"], s, {"river": rings, "light": light_dir(m),
-                                                                     "rock_col": B["rock"], "rock_dark": B["rock_dark"]})
+    tex["schlucht"] = _tex_pool().submit(schlucht.image, W, s, {"river": rings, "light": light_dir(m), "fade": fade,
+                                                              "rock_col": B["rock"], "rock_dark": B["rock_dark"]})
     d = path_d(m["river"])
+    mask = ""
+    if fade:   # Verlauf von 1 (Klamm) auf 0 (Fluss) flussabwärts, in Kartenkoordinaten (y wächst nach Süden)
+        stops = "".join(f'<stop offset="{t:.2f}" stop-color="#fff" stop-opacity="{1 - t * t * (3 - 2 * t):.3f}"/>'
+                        for t in (0, 0.2, 0.4, 0.6, 0.8, 1))
+        o.append(f'<linearGradient id="klammFade" gradientUnits="userSpaceOnUse" x1="0" y1="{f(fade[0])}" x2="0" y2="{f(fade[1])}">'
+                 f'{stops}</linearGradient>'
+                 f'<mask id="klammMask" maskUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{W}">'
+                 f'<rect width="{W}" height="{W}" fill="url(#klammFade)"/></mask>')
+        mask = ' mask="url(#klammMask)"'
     o.append(f'<use href="#tex_schlucht"/>'
-             f'<path d="{d}" fill="none" stroke="#12100d" stroke-opacity="0.85" stroke-width="{f(1.6 * s)}" stroke-linejoin="round"/>')
+             f'<path d="{d}" fill="none" stroke="{C["coast"]}" stroke-opacity="0.55" stroke-width="{f(1.3 * s)}" stroke-linejoin="round"/>'
+             f'<path d="{d}" fill="none" stroke="#12100d" stroke-opacity="0.85" stroke-width="{f(1.6 * s)}" stroke-linejoin="round"{mask}/>')
     if m.get("river_line") is not None:
         brook = m["river_line"].intersection(m["river"].buffer(-5 * s))
         bd = line_d(brook)
         if bd:
-            # Wildbach: dunkles Bett, Wasser, Gischt in Streifen, dazu Felsbrocken im Wasser (ohne Zufall)
-            o.append(f'<path d="{bd}" fill="none" stroke="#0f1c22" stroke-width="{f(8 * s)}" stroke-linejoin="round" stroke-linecap="round"/>'
-                     f'<path d="{bd}" fill="none" stroke="#2f6578" stroke-width="{f(5.6 * s)}" stroke-linejoin="round" stroke-linecap="round"/>'
-                     f'<path d="{bd}" fill="none" stroke="{B["river"]}" stroke-width="{f(3.2 * s)}" stroke-linejoin="round" stroke-linecap="round"/>'
-                     f'<path d="{bd}" fill="none" stroke="#f2f7f8" stroke-opacity="0.85" stroke-width="{f(1.3 * s)}" '
-                     f'stroke-dasharray="{f(2.5 * s)} {f(6 * s)}"/>'
-                     f'<path d="{bd}" fill="none" stroke="#f2f7f8" stroke-opacity="0.55" stroke-width="{f(0.9 * s)}" '
-                     f'stroke-dasharray="{f(1.5 * s)} {f(11 * s)}" stroke-dashoffset="{f(4 * s)}"/>')
+            # Wildbach: schmales dunkles Bett mit gedämpftem Wasser, wenig Gischt, kleine Felsbrocken im Wasser
+            o.append(f'<g{mask}>'
+                     f'<path d="{bd}" fill="none" stroke="#0b1418" stroke-opacity="0.8" stroke-width="{f(5.6 * s)}" stroke-linejoin="round" stroke-linecap="round"/>'
+                     f'<path d="{bd}" fill="none" stroke="#244b5c" stroke-width="{f(3.6 * s)}" stroke-linejoin="round" stroke-linecap="round"/>'
+                     f'<path d="{bd}" fill="none" stroke="#4d8294" stroke-width="{f(1.9 * s)}" stroke-linejoin="round" stroke-linecap="round"/>'
+                     f'<path d="{bd}" fill="none" stroke="#f2f7f8" stroke-opacity="0.6" stroke-width="{f(0.9 * s)}" '
+                     f'stroke-dasharray="{f(2.2 * s)} {f(7 * s)}"/>'
+                     f'<path d="{bd}" fill="none" stroke="#f2f7f8" stroke-opacity="0.35" stroke-width="{f(0.7 * s)}" '
+                     f'stroke-dasharray="{f(1.3 * s)} {f(12 * s)}" stroke-dashoffset="{f(4 * s)}"/>')
             rocks = []
             for ln in lines(brook):
-                n = int(ln.length / (24 * s))
+                n = int(ln.length / (34 * s))
                 for i in range(n):
                     d0 = (i + 0.5) * ln.length / n
                     a, b = ln.interpolate(max(0, d0 - 1.5 * s)), ln.interpolate(min(ln.length, d0 + 1.5 * s))
                     tx, ty = unit((b.x - a.x, b.y - a.y))
                     c = ln.interpolate(d0)
-                    off = math.sin(i * 2.3 + d0 * 0.01) * 2.4 * s   # seitlich versetzt, mal links, mal rechts
-                    r = (1.5 + 0.9 * ((i * 5) % 3) / 2) * s
+                    off = math.sin(i * 2.3 + d0 * 0.01) * 2.0 * s   # seitlich versetzt, mal links, mal rechts
+                    r = (1.0 + 0.8 * ((i * 5) % 3) / 2) * s
                     rocks.append((c.x - ty * off, c.y + tx * off, r))
             if rocks:
-                o.append("".join(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r + 1.3 * s)}" fill="none" stroke="#f2f7f8" '
-                                 f'stroke-opacity="0.7" stroke-width="{f(0.9 * s)}"/>'
-                                 f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r)}" fill="#7d786d" stroke="#1b1915" stroke-width="{f(0.8 * s)}"/>'
-                                 f'<circle cx="{f(x - r * 0.3)}" cy="{f(y - r * 0.3)}" r="{f(r * 0.4)}" fill="#c9c3b5" fill-opacity="0.8"/>'
+                o.append("".join(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r + 1.1 * s)}" fill="none" stroke="#f2f7f8" '
+                                 f'stroke-opacity="0.5" stroke-width="{f(0.8 * s)}"/>'
+                                 f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r)}" fill="#716c62" stroke="#1b1915" stroke-width="{f(0.7 * s)}"/>'
+                                 f'<circle cx="{f(x - r * 0.3)}" cy="{f(y - r * 0.3)}" r="{f(r * 0.4)}" fill="#c9c3b5" fill-opacity="0.7"/>'
                                  for x, y, r in rocks))
+            o.append("</g>")
 
 
 def great_gate_svg(o, m):
