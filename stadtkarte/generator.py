@@ -229,6 +229,7 @@ def _generate(cfg, W):
 
     builder = CityBuilder(cfg, rng, W, s, terrain, (cx, cy), r, rot)
     city, ext_roads, internal = builder.build()
+    cx, cy = builder.center   # liegt der Umriss im Wasser, rückt die Stadt ans Ufer (sonst unverändert)
     shape = city["shape"]
     if not biome["stilts"]:
         pools = pools.difference(shape.buffer(25 * s))
