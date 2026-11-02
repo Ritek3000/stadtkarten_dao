@@ -1,7 +1,7 @@
 """Selbsttest des gebauten Programms (ohne Python-Umgebung des Projekts lauffähig).
 
 Startet dist/Stadtkarten-Werkstatt ohne Browser, erzeugt eine kleine Karte über die Oberfläche
-(Tag und Nacht), lädt PNG, SVG, die interaktive Karte (HTML) und das Web-Paket herunter und prüft sie, verschiebt eine Beschriftung. Unter Linux wird zusätzlich geprüft, dass
+(die Nachtkarte entsteht mit), lädt PNG, SVG, die interaktive Karte (HTML) und das Web-Paket herunter und prüft sie, verschiebt eine Beschriftung. Unter Linux wird zusätzlich geprüft, dass
 gestartete Hilfsprogramme (xdg-user-dir, xdg-open) nicht die mitgebrachten Bibliotheken laden.
 Exit-Code 0 = alles in Ordnung.
 
@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from collections import Counter
@@ -122,39 +123,68 @@ def main():
         for name, ctype in (("spectral-latin-400-normal.woff2", "font/woff2"), ("sor-symbol.png", "image/png")):
             status, got, _ = get(f"/static/{name}")
             assert status == 200 and got == ctype, (name, status, got)
-        for night in (False, True):
+        for run in (0, 1):
             _, _, raw = get("/api/example?name=hafenstadt")
             cfg = json.loads(raw)
             cfg["ausgabe"]["bildgroesse"] = 1000
-            cfg["ausgabe"]["nacht"] = night
-            if night:
+            if run:
                 cfg["seed"] = 1   # zweite Variante: Seed 1 erzeugte einmal Gassenflächen als GeometryCollection
             t = time.time()
-            res = post("/api/generate", cfg)
+            res = post("/api/generate", cfg)   # kommt zurück, sobald die Tagkarte da ist
             assert res["stats"]["rendern"] == "prozesse", "Render-Prozesse laufen nicht (Rückfall auf seriell)"
-            status, ctype, png = get(f"/api/download?id={res['id']}&format=png")
-            assert status == 200 and png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 100_000, (status, ctype, len(png))
-            _, _, svg = get(f"/api/download?id={res['id']}&format=svg")
-            assert b"font-family:'EB Garamond'" in svg, "Schrift ist nicht eingebettet"
-            if night:   # gleicher Seed muss dieselbe Karte liefern (Prozessor-Varianten prüft determinismus.py)
+            assert res["nacht"] is True, "Nachtkarte wird nicht mitberechnet"
+            dl = lambda fmt, ver: get(f"/api/download?id={res['id']}&format={fmt}&version={ver}")
+            versions = {}
+            for ver in ("tag", "nacht"):   # die Nachtkarte entsteht danach im Hintergrund; der Abruf wartet auf sie
+                if ver == "nacht":
+                    status, ctype, preview = get(f"/api/nacht?id={res['id']}")
+                    assert status == 200 and preview[:4] == b"RIFF", (status, ctype, len(preview))
+                    status, ctype, full = get(f"/api/full?id={res['id']}&version=nacht")
+                    assert status == 200 and ctype == "image/webp" and full != preview, (status, ctype)
+                status, ctype, png = dl("png", ver)
+                assert status == 200 and png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 100_000, (ver, status, ctype, len(png))
+                _, _, svg = dl("svg", ver)
+                assert b"font-family:'EB Garamond'" in svg, "Schrift ist nicht eingebettet"
+                _, _, page = dl("html", ver)
+                assert b"data:image/webp;base64," in page and b'<g id="b-viertel">' in page and b"<text" in page, \
+                    "interaktive Karte unvollständig"
+                versions[ver] = (svg, png)
+            assert versions["tag"][0] != versions["nacht"][0] and versions["tag"][1] != versions["nacht"][1], \
+                "Tag- und Nachtkarte sind gleich"
+            assert b'fill="#4a5c94"' in versions["nacht"][0] and b'fill="#4a5c94"' not in versions["tag"][0], \
+                "Nachtton fehlt in der Nachtkarte oder liegt auf der Tagkarte"
+            if run:   # gleicher Seed muss dieselbe Karte liefern (Prozessor-Varianten prüft determinismus.py)
                 again = post("/api/generate", cfg)
                 _, _, svg2 = get(f"/api/download?id={again['id']}&format=svg")
-                assert svg2 == svg, (f"gleicher Seed, andere Karte ({res['stats']['gebaeude']} gegen "
-                                     f"{again['stats']['gebaeude']} Gebäude)")
-                print("ok gleicher Seed, gleiche Karte")
-            _, _, page = get(f"/api/download?id={res['id']}&format=html")
-            assert b"data:image/webp;base64," in page and b'<g id="b-viertel">' in page and b"<text" in page, \
-                "interaktive Karte unvollständig"
-            if not night:
-                orte = check_web_package(get(f"/api/download?id={res['id']}&format=web")[2], cfg)
-                print(f"ok Web-Paket: {len(orte['orte'])} Orte, {len(orte['viertel'])} Viertel")
-            if not night:   # Beschriftung verschieben: landet ohne Neuerzeugen in der fertigen Karte
+                assert svg2 == versions["tag"][0], (f"gleicher Seed, andere Karte ({res['stats']['gebaeude']} gegen "
+                                                    f"{again['stats']['gebaeude']} Gebäude)")
+                _, _, svg2 = get(f"/api/download?id={again['id']}&format=svg&version=nacht")
+                assert svg2 == versions["nacht"][0], "gleicher Seed, andere Nachtkarte"
+                print("ok gleicher Seed, gleiche Karte (Tag und Nacht)")
+            else:
+                for ver in ("tag", "nacht"):
+                    orte = check_web_package(dl("web", ver)[2], cfg)
+                    assert orte["nacht"] is (ver == "nacht"), (ver, orte["nacht"])
+                print(f"ok Web-Paket (Tag und Nacht): {len(orte['orte'])} Orte, {len(orte['viertel'])} Viertel")
+                # Beschriftung verschieben: landet ohne Neuerzeugen in beiden fertigen Karten
                 assert '<g data-key="titel"' in res["labels"], "Beschriftung nicht verschiebbar"
                 post("/api/labels", {"id": res["id"], "beschriftung": {"titel": [-10, 0]}})
-                _, _, svg = get(f"/api/download?id={res['id']}&format=svg")
-                assert b'<g data-key="titel" transform="translate(-100.0,0.0)">' in svg, "Verschiebung fehlt in der Karte"
-            print(f"ok {'Nacht' if night else 'Tag'}: {res['stats']['gebaeude']} Gebäude, "
-                  f"{len(png) // 1024} KB PNG, {time.time() - t:.1f} s")
+                for ver in ("tag", "nacht"):
+                    _, _, svg = dl("svg", ver)
+                    assert b'<g data-key="titel" transform="translate(-100.0,0.0)">' in svg, f"Verschiebung fehlt ({ver})"
+            print(f"ok Tag und Nacht: {res['stats']['gebaeude']} Gebäude, "
+                  f"{len(versions['tag'][1]) // 1024} KB PNG Tag, {len(versions['nacht'][1]) // 1024} KB PNG Nacht, "
+                  f"{time.time() - t:.1f} s")
+        # ohne Nachtkarte (ausgabe.nachtkarte: false) entsteht nur die Tagkarte
+        cfg["ausgabe"]["nachtkarte"] = False
+        res = post("/api/generate", cfg)
+        assert res["nacht"] is False, "Nachtkarte trotz Abschaltung berechnet"
+        try:
+            get(f"/api/nacht?id={res['id']}")
+            raise AssertionError("Nachtkarte vorhanden, obwohl abgeschaltet")
+        except urllib.error.HTTPError as e:
+            assert e.code == 400, e.code
+        print("ok Nachtkarte abschaltbar")
         # Großstadt: Häuserblöcke statt Einzelhäuser (zählt die Häuser in den Blöcken)
         _, _, raw = get("/api/example?name=hauptstadt")
         cfg = json.loads(raw)

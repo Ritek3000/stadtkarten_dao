@@ -12,7 +12,7 @@ Stadtkarten-Werkstatt im Browser:
   Befestigung, Viertel, Besondere Orte und Ausgabe (Himmelsrichtungen per Kompass). Oben zeigt eine Schrittleiste, wo man ist,
   und springt auf Klick zu jeder Seite. Auf der letzten Seite steht „Karte erzeugen“ (bei der eigenen Stadtform „Gelände erzeugen“).
   Nur eine neue Karte nutzt den Assistenten
-- **Zufällige Stadtkarte** würfelt alle Angaben (auch Name, Stil, Ausschnitt, Nachtmodus und Staub; nur stimmige Kombinationen,
+- **Zufällige Stadtkarte** würfelt alle Angaben (auch Name, Stil, Ausschnitt und Staub; nur stimmige Kombinationen,
   etwa Hafen nur mit Wasser) und zeichnet die Karte sofort. Die eigene Stadtform wird nicht gewürfelt, sie braucht das Zeichnen
 - **Stadtkarte öffnen** lädt eine gespeicherte Stadtbeschreibung (`.yaml`) und zeichnet die Karte sofort; mit „Als .yaml speichern“
   in der Kartenansicht entsteht sie. Gleicher Seed und gleiche Angaben ergeben dieselbe Karte. Fertige Bilder (PNG, SVG, PDF) lassen
@@ -22,7 +22,11 @@ Stadtkarten-Werkstatt im Browser:
   Abschnitten untereinander und rechts die Karte (Mausrad zoomt, Ziehen verschiebt). Angaben ändern und „Karte erzeugen“
   zeichnet sie neu; „Startseite“ oben rechts beendet die Karte
 - die Programmversion steht oben neben dem Titel
-- Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF, SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`
+- **Tag und Nacht:** Zu jeder Karte entsteht auch die Nachtkarte (siehe [Nachtmodus](#nachtmodus)). Die Tagkarte erscheint zuerst,
+  die Nachtkarte wird danach im Hintergrund gezeichnet; sobald sie fertig ist, wird der Schalter „Tag | Nacht“ oben in der
+  Kartenansicht aktiv
+- Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF, SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`;
+  es gilt immer die Version, die gerade angezeigt wird (Nachtkarten tragen den Zusatz `_nacht`)
 - Gestaltung nach dem Design System „Die Alte Ordnung“ (wie Webseite, Heldenmaschine und IniTracker): Pergament (hell)
   und Finsternis (dunkel), umschaltbar oben rechts mit Sonne/Mond
 
@@ -394,10 +398,20 @@ dieselbe Stadt, im Detail (Lage einzelner Häuser, Stege, Schiffe) kann sie je n
 
 ## Nachtmodus
 
-`ausgabe: nacht: true` (Oberfläche: „Nachtmodus“, Kommandozeile: `--nacht`) dunkelt die Karte bläulich ab. Es leuchten
-Türme, Tore, Brückenlaternen, Essen, Minen, Laternen entlang der Hauptstraßen und an den Plätzen sowie die Fenster eines
-Teils der Häuser. Wie viel leuchtet, hängt von der Einwohnerzahl ab: Dörfer haben wenige Laternen, kaum helle Fenster
-und kleinere Wachfeuer. Dateien bekommen den Zusatz `_nacht`.
+Die Nachtkarte dunkelt die Karte bläulich ab. Es leuchten Türme, Tore, Brückenlaternen, Essen, Minen, Laternen entlang der
+Hauptstraßen und an den Plätzen sowie die Fenster eines Teils der Häuser. Wie viel leuchtet, hängt von der Einwohnerzahl ab:
+Dörfer haben wenige Laternen, kaum helle Fenster und kleinere Wachfeuer. Dateien bekommen den Zusatz `_nacht`.
+
+**In der Werkstatt** entsteht die Nachtkarte immer mit (Ausgabe: „Nachtkarte mitberechnen“, standardmäßig an,
+`ausgabe: nachtkarte: true`). Beide Karten zeigen dieselbe Stadt; nur die Darstellung unterscheidet sich, die Stadt selbst wird
+nur einmal berechnet. Die Tagkarte kommt ohne zusätzliche Wartezeit, die Nachtkarte folgt im Hintergrund (nach wenigen Sekunden
+die Vorschau, danach die volle Auflösung). Die Nachtkarte kostet etwas Rechenzeit im Hintergrund; wer sie nicht braucht, schaltet
+„Nachtkarte mitberechnen“ aus. Verschobene Beschriftungen gelten für beide Karten. Fordert man eine neue Karte an, bevor die
+Nachtkarte der alten fertig ist, wird sie nicht mehr gezeichnet. Downloads, „Alle Formate speichern“, interaktive Karte und
+Web-Paket enthalten jeweils die Version, die gerade angezeigt wird (das Web-Paket nennt sie in `orte.json` und `stadt.yaml`).
+
+**Kommandozeile und Stadtbeschreibung:** Dort entsteht weiter eine einzelne Karte. `ausgabe: nacht: true` (Kommandozeile:
+`--nacht`) zeichnet sie als Nachtkarte. In der Werkstatt hat `nacht` keine Wirkung mehr, weil dort immer beide Karten entstehen.
 
 ## Biotope
 

@@ -13,7 +13,7 @@ Klappt der Prozess-Pool nicht (z.B. eingeschränkte Umgebung), wird wie bisher i
 import multiprocessing
 import os
 import threading
-from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures import CancelledError, Future, ProcessPoolExecutor
 
 _POOL = None
 _BROKEN = False
@@ -68,9 +68,16 @@ class _Job:
     def __init__(self, fut, args):
         self._fut, self._args = fut, args
 
+    def cancel(self):
+        """Nimmt einen Auftrag zurück, der noch wartet (läuft er schon, läuft er zu Ende). Wird sein Ergebnis später
+        doch gebraucht, rendert result() selbst."""
+        return self._fut.cancel()
+
     def result(self):
         try:
             return self._fut.result()
+        except CancelledError:   # zurückgenommen und doch gebraucht: der Pool ist in Ordnung, nur selbst rendern
+            return _render(*self._args)
         except Exception:   # z.B. BrokenProcessPool, abgestürzter oder blockierter Prozess
             _give_up()
             return _render(*self._args)

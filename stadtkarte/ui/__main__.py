@@ -14,6 +14,7 @@ import time
 import traceback
 import uuid
 import webbrowser
+from concurrent.futures import Future
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -88,92 +89,188 @@ def webp(png, quality):
     return buf.getvalue()
 
 
+class Abgebrochen(Exception):
+    """Die Nachtkarte wurde nicht mehr gebraucht, weil eine neue Karte angefordert wurde."""
+
+
+def new_version(svg):
+    """Eine Ausgabe der Karte (Tag oder Nacht) mit ihren Bildern: Vorschau in halber Auflösung und volle Auflösung ohne
+    Beschriftung (für die Ansicht und die interaktive Karte). Das PNG mit Beschriftung entsteht erst auf Anfrage."""
+    base, labels = split_labels(svg)   # die Ansicht zeigt die Beschriftung als verschiebbare Ebene darüber
+    return {"svg": svg, "labels": labels, "png": None, "klein": png_async(base, zoom=0.5), "view": png_async(base)}
+
+
 def build(raw):
-    """Erzeugt die Karte und eine schnelle Vorschau in halber Auflösung. Die volle Auflösung (ohne
+    """Erzeugt die Tagkarte und eine schnelle Vorschau in halber Auflösung. Die volle Auflösung (ohne
     Beschriftung) entsteht gleichzeitig in einem eigenen Render-Prozess; die Oberfläche holt sie direkt nach der
-    Vorschau. Dasselbe Bild dient später auch der interaktiven Karte."""
+    Vorschau. Dasselbe Bild dient später auch der interaktiven Karte. Danach zeichnet ein Hintergrund-Thread aus
+    derselben Stadt die Nachtkarte (build_night), zum Umschalten in der Ansicht."""
     cfg = config.from_dict(raw)
     out = io.StringIO()
     t0 = time.time()
+    stop_night()   # eine noch nicht fertige Nachtkarte einer älteren Karte wird nicht mehr gebraucht
     with GEN_LOCK, contextlib.redirect_stdout(out):
         prewarm(cfg)   # Texturen, die nicht von der Stadt abhängen, rechnen schon während des Generators
         m = generate(cfg)
-        svg = render_svg(m)
-        base, labels = split_labels(svg)   # die Ansicht zeigt die Beschriftung als verschiebbare Ebene darüber
-        small_job = png_async(base, zoom=0.5)
-        view_job = png_async(base)
-        small = small_job.result()
+        tag = new_version(render_svg(m, nacht=False))   # die Tagkarte zuerst: nur auf sie wartet man
+        small = tag["klein"].result()
     rid = uuid.uuid4().hex[:12]
-    res = {"svg": svg, "base": base, "png": None, "view": view_job, "lock": threading.Lock(), "W": m["W"],
-                    "name": cfg["name"], "raw": raw, "cfg": cfg, "orte": webpaket.places(m),
-                    "raster": int(cfg["ausgabe"].get("raster") or 0) > 0,
-                    "stem": f"{config.slug(cfg['name'])}_{cfg['seed']}" + ("_nacht" if cfg["ausgabe"].get("nacht") else "")}
+    # Gelände ohne Stadt (Zwischenschritt beim Zeichnen der Mauer) braucht keine Nachtkarte
+    night = bool(cfg["ausgabe"].get("nachtkarte", True)) and not m.get("gelaende_nur")
+    res = {"v": {"tag": tag, "nacht": None}, "lock": threading.Lock(), "W": m["W"],
+           "name": cfg["name"], "raw": raw, "cfg": cfg, "orte": webpaket.places(m),
+           "raster": int(cfg["ausgabe"].get("raster") or 0) > 0,
+           "stem": f"{config.slug(cfg['name'])}_{cfg['seed']}",
+           "nacht": Future() if night else None,   # wird fertig, sobald die Nachtkarte gezeichnet ist
+           "abbruch": threading.Event(), "verschoben": None}   # verschoben: von Hand verschobene Beschriftungen
     with RESULTS_LOCK:
         while len(RESULTS) >= 4:
             RESULTS.pop(next(iter(RESULTS)))
         RESULTS[rid] = res
     if (os.cpu_count() or 1) >= 4:   # genug Kerne: PNG mit Beschriftung vorsorglich schon rendern
-        start_png(res)
+        start_png(res, tag)
+    if night:   # erst jetzt, damit die Aufträge der Tagkarte in der Warteschlange der Render-Prozesse vorn stehen
+        threading.Thread(target=build_night, args=(res, m), daemon=True, name="nachtkarte").start()
     return {
         "id": rid,
         "W": m["W"],
-        "labels": labels,
+        "labels": tag["labels"],
         "preview": "data:image/webp;base64," + base64.b64encode(webp(small, 88)).decode(),
         "hints": [ln.replace("Hinweis: ", "") for ln in out.getvalue().splitlines() if ln.strip()],
         "gelaende_nur": bool(m.get("gelaende_nur")),
+        "nacht": night,
         "stats": {"gebaeude": sum(len(b["segments"]) if b.get("form") == "block" else 1 for b in m["buildings"] + m["suburbs"]), "baeume": len(m["trees"]),
                   "sekunden": round(time.time() - t0, 1), "rendern": render_mode()},
     }
 
 
-def start_png(res):
+def build_night(res, m):
+    """Zeichnet die Nachtkarte aus demselben Ergebnis des Generators wie die Tagkarte (nur die Darstellung ist anders;
+    die Texturen liegen schon im Zwischenspeicher, das dauert nur wenige Sekunden) und reiht ihre Bilder hinter die der
+    Tagkarte ein. Läuft in einem eigenen Thread; wer auf die Nachtkarte wartet, wartet auf res["nacht"]."""
+    fut = res["nacht"]
+    many = (os.cpu_count() or 1) >= 4
+    try:
+        if not many:   # wenige Kerne: die Tagkarte soll nicht auf die Nachtkarte warten, also erst ihre Ansicht abwarten
+            res["v"]["tag"]["view"].result()
+        with GEN_LOCK:
+            if res["abbruch"].is_set():
+                raise Abgebrochen("eine neue Karte wurde angefordert")
+            with contextlib.redirect_stdout(io.StringIO()):
+                svg = render_svg(m, nacht=True)
+        with res["lock"]:
+            if res["abbruch"].is_set():
+                raise Abgebrochen("eine neue Karte wurde angefordert")
+            if res["verschoben"] is not None:   # inzwischen verschobene Beschriftungen gelten auch hier
+                svg = move_labels(svg, res["verschoben"], res["W"])
+            ver = new_version(svg)
+            res["v"]["nacht"] = ver
+        fut.set_result(ver)
+    except Abgebrochen as e:
+        fut.set_exception(e)
+        return
+    except Exception as e:  # noqa: BLE001 - an alle weiterreichen, die auf die Nachtkarte warten
+        traceback.print_exc()
+        fut.set_exception(e)
+        return
+    if many:   # wie bei der Tagkarte das PNG mit Beschriftung vorsorglich rendern, aber erst nach den Ansichten
+        try:
+            ver["view"].result()
+            if not res["abbruch"].is_set():
+                start_png(res, ver)
+        except Exception:  # noqa: BLE001 - nur ein Vorlauf, auf Anfrage rendert start_png wie sonst
+            pass
+
+
+def stop_night():
+    """Eine neue Karte wird angefordert: die Nachtkarte älterer Karten, die noch nicht fertig ist, wird nicht mehr
+    gebraucht. Ihre wartenden Render-Aufträge werden zurückgenommen, damit die neue Karte nicht dahinter wartet."""
+    with RESULTS_LOCK:
+        old = list(RESULTS.values())
+    for res in old:
+        with res["lock"]:
+            res["abbruch"].set()
+            ver = res["v"]["nacht"]
+            for key in ("klein", "view", "png"):
+                job = ver.get(key) if ver else None
+                if job is not None:
+                    job.cancel()
+
+
+def get_version(res, name):
+    """Tag- oder Nachtkarte einer Ergebnis-ID; die Nachtkarte wartet, bis sie gezeichnet ist."""
+    name = name or "tag"
+    if name == "tag":
+        return res["v"]["tag"]
+    if name != "nacht":
+        raise ValueError(f"Unbekannte Ansicht: {name}")
+    if res["nacht"] is None:
+        raise ValueError("Die Nachtkarte wurde nicht mitberechnet (Ausgabe: „Nachtkarte mitberechnen“).")
+    try:
+        return res["nacht"].result()
+    except Exception as e:  # noqa: BLE001
+        raise ValueError(f"Die Nachtkarte ist nicht verfügbar: {e}")
+
+
+def start_png(res, ver):
     """Startet das PNG mit Beschriftung im Hintergrund (nur einmal, auch wenn mehrere gleichzeitig fragen)."""
     with res["lock"]:
-        if res["png"] is None:
-            res["png"] = png_async(res["svg"])
-        return res["png"]
+        if ver["png"] is None:
+            ver["png"] = png_async(ver["svg"])
+        return ver["png"]
 
 
-def full_png(res):
-    return start_png(res).result()
+def full_png(res, ver):
+    return start_png(res, ver).result()
 
 
-def view_png(res):
+def view_png(ver):
     """Volle Auflösung ohne Beschriftung für die Ansicht und die interaktive Karte."""
-    return res["view"].result()
+    return ver["view"].result()
 
 
 def set_labels(res, moved):
-    """Übernimmt von Hand verschobene Beschriftungen in die fertige Karte (ohne sie neu zu erzeugen)."""
+    """Übernimmt von Hand verschobene Beschriftungen in die fertige Karte (ohne sie neu zu erzeugen), in Tag- und
+    Nachtkarte; eine Nachtkarte, die noch gezeichnet wird, bekommt sie, sobald sie fertig ist (build_night)."""
     moved = config.label_offsets(moved)
     with res["lock"]:
-        res["svg"] = move_labels(res["svg"], moved, res["W"])
+        res["verschoben"] = moved
+        for ver in res["v"].values():
+            if ver is not None:
+                ver["svg"] = move_labels(ver["svg"], moved, res["W"])
+                ver["png"] = None
         res["raw"] = dict(res["raw"], beschriftung=moved)   # für stadt.yaml im Web-Paket
-        res["png"] = None
 
 
-def web_files(res):
+def stem(res, name):
+    """Dateiname ohne Endung; die Nachtkarte trägt wie immer den Zusatz _nacht."""
+    return res["stem"] + ("_nacht" if name == "nacht" else "")
+
+
+def web_files(res, ver, name):
     """Dateien des Web-Pakets. Das Bild ohne Beschriftung ist meist schon für die Ansicht gerendert; nur mit Raster
-    entsteht es neu (das Paket bleibt ohne Raster)."""
-    base = png_async(webpaket.base_svg(res["svg"])).result() if res["raster"] else view_png(res)
-    return webpaket.files(res["svg"], res["orte"], res["raw"], res["cfg"], base)
+    entsteht es neu (das Paket bleibt ohne Raster). Das Paket nennt in orte.json und stadt.yaml seine Version."""
+    base = png_async(webpaket.base_svg(ver["svg"])).result() if res["raster"] else view_png(ver)
+    cfg = dict(res["cfg"], ausgabe=dict(res["cfg"]["ausgabe"], nacht=name == "nacht"))
+    return webpaket.files(ver["svg"], dict(res["orte"], nacht=name == "nacht"), res["raw"], cfg, base)
 
 
-def file_bytes(res, fmt):
+def file_bytes(res, fmt, name="tag"):
+    ver = get_version(res, name)
     if fmt == "svg":
-        return res["svg"].encode("utf-8"), "image/svg+xml"
+        return ver["svg"].encode("utf-8"), "image/svg+xml"
     if fmt == "png":
-        return full_png(res), "image/png"
+        return full_png(res, ver), "image/png"
     if fmt == "webp":
-        return webp(full_png(res), 92), "image/webp"
+        return webp(full_png(res, ver), 92), "image/webp"
     if fmt == "pdf":
         buf = io.BytesIO()
-        to_pdf(full_png(res), buf)
+        to_pdf(full_png(res, ver), buf)
         return buf.getvalue(), "application/pdf"
     if fmt == "web":
-        return webpaket.zip_bytes(webpaket.folder_name(res["cfg"]), web_files(res)), "application/zip"
+        return webpaket.zip_bytes(webpaket.folder_name(res["cfg"]), web_files(res, ver, name)), "application/zip"
     if fmt == "html":
-        return interactive_html(res["svg"], res["name"], base_png=view_png(res)).encode("utf-8"), "text/html; charset=utf-8"
+        return interactive_html(ver["svg"], res["name"], base_png=view_png(ver)).encode("utf-8"), "text/html; charset=utf-8"
     raise ValueError(f"Unbekanntes Format: {fmt}")
 
 
@@ -218,19 +315,27 @@ class Handler(BaseHTTPRequestHandler):
                 res = RESULTS.get(q.get("id", ""))
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher."})
-                self.send(200, webp(view_png(res), 88), "image/webp")
+                self.send(200, webp(view_png(get_version(res, q.get("version"))), 88), "image/webp")
+            elif url.path == "/api/nacht":   # Vorschau der Nachtkarte (wartet, bis sie gezeichnet ist)
+                res = RESULTS.get(q.get("id", ""))
+                if res is None:
+                    return self.send(404, {"error": "Karte nicht mehr im Speicher."})
+                self.send(200, webp(get_version(res, "nacht")["klein"].result(), 88), "image/webp")
             elif url.path == "/api/font.css":
                 self.send(200, font_face_css(), "text/css; charset=utf-8")
             elif url.path == "/api/download":
                 res = RESULTS.get(q.get("id", ""))
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher - bitte neu erzeugen."})
-                data, ctype = file_bytes(res, q.get("format", "png"))
-                fmt = q.get("format", "png")
-                name = f"{webpaket.folder_name(res['cfg'])}.zip" if fmt == "web" else f"{res['stem']}.{fmt}"
+                fmt, ver = q.get("format", "png"), q.get("version", "tag")
+                data, ctype = file_bytes(res, fmt, ver)
+                name = (f"{webpaket.folder_name(res['cfg'])}{'_nacht' if ver == 'nacht' else ''}.zip" if fmt == "web"
+                        else f"{stem(res, ver)}.{fmt}")
                 self.send(200, data, ctype, {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
             else:
                 self.send(404, {"error": "Nicht gefunden"})
+        except ValueError as e:
+            self.send(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001 - Fehler an die Oberfläche melden
             self.send(500, {"error": str(e)})
 
@@ -253,15 +358,17 @@ class Handler(BaseHTTPRequestHandler):
             elif url.path == "/api/parse":
                 self.send(200, yaml.safe_load(self.body()) or {})
             elif url.path == "/api/save":
-                res = RESULTS.get(json.loads(self.body()).get("id", ""))
+                data = json.loads(self.body())
+                res = RESULTS.get(data.get("id", ""))
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher - bitte neu erzeugen."})
+                ver = data.get("version") or "tag"   # gespeichert wird die Version, die gerade zu sehen ist
                 OUTPUT.mkdir(parents=True, exist_ok=True)
-                start_png(res)   # PNG mit Beschriftung rendert schon, während SVG geschrieben wird
+                start_png(res, get_version(res, ver))   # PNG mit Beschriftung rendert schon, während SVG geschrieben wird
                 paths = []
                 for fmt in ("svg", "png", "pdf", "html"):
-                    path = OUTPUT / f"{res['stem']}.{fmt}"
-                    path.write_bytes(file_bytes(res, fmt)[0])
+                    path = OUTPUT / f"{stem(res, ver)}.{fmt}"
+                    path.write_bytes(file_bytes(res, fmt, ver)[0])
                     paths.append(str(path))
                 self.send(200, {"paths": paths, "folder": str(OUTPUT)})
             else:

@@ -74,8 +74,13 @@ def description(raw, cfg):
             out["kennung"] = kennung(cfg)
     out.setdefault("kennung", kennung(cfg))
     out["seed"] = cfg["seed"]
+    aus = dict(out.get("ausgabe") or {})
     if cfg["ausgabe"].get("nacht"):
-        out["ausgabe"] = dict(out.get("ausgabe") or {}, nacht=True)
+        aus["nacht"] = True
+    elif "nacht" in aus:   # die Werkstatt liefert Tag- und Nachtkarte aus einer Beschreibung: das Paket nennt seine Version
+        aus["nacht"] = False
+    if aus:
+        out["ausgabe"] = aus
     return yaml.safe_dump(out, allow_unicode=True, sort_keys=False)
 
 

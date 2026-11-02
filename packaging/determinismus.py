@@ -126,7 +126,8 @@ def trace(beispiel, seed):
     with contextlib.redirect_stdout(io.StringIO()):
         m = generator.generate(cfg)
         _record("Ergebnis generate", None, {k: v for k, v in m.items() if k != "cfg"})
-        _record("render_svg", None, render_svg(m))
+        _record("render_svg", None, render_svg(m, nacht=False))
+        _record("render_svg_nacht", None, render_svg(m, nacht=True))   # die Werkstatt zeichnet beide aus einer Stadt
     _trace.append(["Anzahl Gebäude", "-", str(len(m["buildings"]) + len(m["suburbs"])), ""])
     return [list(t) for t in _trace]
 
@@ -137,8 +138,8 @@ def compare(name, runs):
     ok = True
     ref_label, ref_all, _ = runs[0]
     for label, tr, variant in runs[1:]:
-        ref = [t for t in ref_all if not (variant and t[0] == "render_svg")]
-        tr = [t for t in tr if not (variant and t[0] == "render_svg")]
+        ref = [t for t in ref_all if not (variant and t[0].startswith("render_svg"))]
+        tr = [t for t in tr if not (variant and t[0].startswith("render_svg"))]
         if tr == ref:
             continue
         ok = False

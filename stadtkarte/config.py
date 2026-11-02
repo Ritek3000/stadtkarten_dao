@@ -36,7 +36,9 @@ DEFAULTS = {
     "orte": [],
     "beschriftung": {},   # von Hand verschobene Beschriftungen: Schlüssel -> [dx, dy] in % der Kartenbreite
     "ausgabe": {"bildgroesse": 2000, "formate": ["svg", "png"], "raster": 0, "legende": True,
-                "dachdetails": True, "nacht": False},
+                "dachdetails": True, "nacht": False,
+                "nachtkarte": True},   # nacht: die einzelne Karte als Nacht zeichnen (Kommandozeile); nachtkarte: die
+                                       # Werkstatt berechnet zusätzlich zur Tagkarte die Nachtkarte zum Umschalten
 }
 
 
