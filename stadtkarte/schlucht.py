@@ -18,6 +18,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 from .gebirge import _blur, _smooth
+from .geo import vlen3
 from .noise import _fbm, _hex_rgb
 
 
@@ -95,7 +96,7 @@ def _relief(w, h, off, s, data):
     gy, gx = np.gradient(z.astype(np.float64))
     lx, ly = data["light"]
     L = np.array([lx * 0.75, ly * 0.75, 0.7])
-    L /= np.linalg.norm(L)
+    L /= vlen3(L)   # nicht np.linalg.norm: OpenBLAS rundet je nach Prozessor anders
     lit = (-gx * L[0] - gy * L[1] + L[2]) / np.sqrt(gx * gx + gy * gy + 1)
     shade = np.clip((lit - L[2]) * 1.5, -1, 1).astype(np.float32)
     # Färbung: heller Fels am Rand, Wand, dunkler (aber nicht schwarzer) Grund; Geröllhänge heller und warm
