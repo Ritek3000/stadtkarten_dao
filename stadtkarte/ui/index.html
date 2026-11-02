@@ -70,20 +70,59 @@ header .tools label { display: flex; align-items: center; gap: .5rem; color: var
 :root[data-theme="dark"] .theme .sonne { opacity: 0; transform: rotate(-90deg) scale(.6); }
 :root:not([data-theme="dark"]) .theme .mond { opacity: 0; transform: rotate(90deg) scale(.6); }
 
+[hidden] { display: none !important; }
 main { flex: 1; display: flex; min-height: 0; }
-aside { width: 440px; min-width: 340px; overflow-y: auto; border-right: 1px solid var(--line); padding: .4rem 1.4rem 6rem; }
+#home, #wizard { flex: 1; min-width: 0; overflow-y: auto; }
 section.viewer { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-/* Abschnitte des Formulars */
-details { border-bottom: 1px solid var(--line); }
-summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .7rem; padding: 1rem 0 .9rem;
-  font-family: var(--font-display); font-size: 1.45rem; line-height: 1.1; color: var(--ink); }
-summary::-webkit-details-marker { display: none; }
-summary::before { content: ""; width: .45rem; height: .45rem; border-right: 1.5px solid var(--gold); border-bottom: 1.5px solid var(--gold);
-  transform: rotate(-45deg); transition: transform .3s var(--ease-klinge); flex: none; margin-left: .1rem; }
-details[open] > summary::before { transform: rotate(45deg); }
-summary .count { font-family: var(--font-body); font-size: .95rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.box { padding: 0 0 1.4rem; display: grid; gap: .9rem; }
+/* Startseite: vier Wege zur Karte */
+#home { display: flex; padding: 2rem clamp(1rem, 3vw, 1.8rem) 3rem; }
+.home-in { width: min(100%, 780px); margin: auto; text-align: center; }
+.home-in .sun { width: 96px; aspect-ratio: 800/1035; margin: 0 auto 1.4rem; background: url(/static/sor-symbol.png) center/contain no-repeat; opacity: .5;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent 98%); mask-image: linear-gradient(#000 55%, transparent 98%); }
+.eyebrow { display: block; font-family: var(--font-display); font-style: italic; color: var(--gold); font-size: 1.15rem; }
+.home-in h2 { font-size: clamp(2rem, 4vw, 3rem); margin: .3rem 0 1.8rem; }
+.choices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; text-align: left; }
+.choice { position: relative; overflow: hidden; isolation: isolate; display: grid; gap: .45rem; align-content: start; padding: 1.2rem 1.35rem 1.3rem;
+  border: 1px solid var(--line); border-bottom-color: color-mix(in srgb, var(--gold) 60%, transparent); border-radius: 2px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent); color: var(--ink); cursor: pointer; text-align: left;
+  transition: border-color var(--t-kurz) ease; }
+.choice::before { content: ""; position: absolute; inset: 0; z-index: -1; background: color-mix(in srgb, var(--gold-hi) 16%, transparent);
+  transform: translateY(101%); transition: transform .45s var(--ease-staub); }
+.choice:hover:not(:disabled), .choice:focus-visible { border-color: var(--gold); }
+.choice:hover:not(:disabled)::before, .choice:focus-visible::before { transform: translateY(0); }
+.choice:active:not(:disabled) { transform: translateY(1px); }
+.choice:disabled { opacity: .5; cursor: default; }
+.choice .t { display: flex; align-items: center; gap: .7rem; font-family: var(--font-display); font-size: 1.5rem; line-height: 1.15; }
+.choice .t svg { width: 22px; height: 22px; color: var(--gold); flex: none; }
+.choice .d { color: var(--ink-soft); font-size: .95rem; line-height: 1.4; }
+.examples { margin-top: 1.2rem; padding: 1rem 1.2rem 1.1rem; border: 1px solid var(--line); text-align: left;
+  background: color-mix(in srgb, var(--surface) 45%, transparent); }
+.exlist { display: flex; flex-wrap: wrap; gap: .5rem; }
+.homemsg { margin-top: 1.2rem; min-height: 1.4em; }
+.homemsg.err { color: var(--err); }
+
+/* Assistent: eine Seite je Themenbereich */
+.wiz { width: min(100%, 760px); margin: 0 auto; padding: 1.4rem clamp(1rem, 3vw, 1.8rem) 3rem; }
+.steps { list-style: none; display: flex; align-items: center; margin: 0 0 1.8rem; padding: 0; }
+.steps li { display: flex; align-items: center; }
+.steps li + li { flex: 1 1 auto; }
+.steps li + li::before { content: ""; flex: 1 1 .5rem; min-width: .4rem; height: 1px; background: var(--line); margin: 0 .35rem; }
+.steps button { display: flex; align-items: center; gap: .4rem; padding: .2rem 0; background: none; border: 0; border-bottom: 1px solid transparent;
+  color: var(--ink-soft); font-size: .95rem; cursor: pointer; transition: color var(--t-kurz) ease, border-color var(--t-kurz) ease; }
+.steps button:hover { color: var(--ink); }
+.steps .n { width: 1.55rem; height: 1.55rem; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%;
+  font-size: .8rem; font-variant-numeric: tabular-nums; transition: background-color .25s ease, border-color .25s ease; }
+.steps .done .n { border-color: var(--gold); color: var(--gold); }
+.steps .cur button { color: var(--ink); border-bottom-color: var(--gold); }
+.steps .cur .n { background: var(--gold-hi); border-color: var(--gold-hi); color: var(--on-gold); }
+.wiz h2 { font-size: clamp(2rem, 4vw, 2.8rem); margin: .2rem 0 .5rem; }
+.wiz h2 .count { font-family: var(--font-body); font-size: 1rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.wiz .intro { margin: 0 0 1.6rem; }
+.wizerr { margin: 0 0 1.2rem; padding: .55rem 1rem; border-left: 2px solid var(--err); color: var(--err); background: color-mix(in srgb, var(--err) 8%, transparent); }
+.box { display: grid; gap: .9rem; }
+.wiznav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+.wiznav .btn.big { width: auto; min-width: 14rem; }
 
 label.f { display: grid; grid-template-columns: 7.5rem 1fr; align-items: center; gap: .8rem; }
 label.f > span, .lbl { font-weight: 700; font-size: .95rem; }
@@ -156,9 +195,10 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 .list { display: grid; gap: .7rem; }
 .item { display: grid; gap: .5rem; padding: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 45%, transparent); }
 .item .row > * { flex: 1; }
-.item .row > .iconbtn { flex: 0 0 auto; }
+.item .row > .iconbtn, .item .row > input[type=checkbox] { flex: 0 0 auto; }
 
-.generate { position: sticky; bottom: -6rem; padding: 1.2rem 0 1.4rem; background: linear-gradient(transparent, var(--bg) 35%); }
+#wallbar { padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
+#wallbar .sp { flex: 1; }
 
 /* Ansicht */
 .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
@@ -205,9 +245,14 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 @media (max-width: 900px) {
   html, body { height: auto; }
   main { flex-direction: column; }
-  aside { width: auto; min-width: 0; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 0; }
+  #home, #wizard { overflow: visible; }
   #stage { flex: none; height: 75vh; }
-  .generate { bottom: 0; }
+}
+@media (max-width: 640px) {
+  .choices { grid-template-columns: 1fr; }
+  .steps .st { display: none; }
+  .steps .cur .st { display: inline; }
+  .wiznav .btn.big { min-width: 0; flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -222,10 +267,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
   </div>
   <span class="sp"></span>
   <div class="tools">
-    <label>Beispiel <select id="exampleSel" style="width:auto"></select></label>
-    <button class="btn ghost" id="btnLoadYaml" title="Stadtbeschreibung (.yaml) öffnen">Öffnen …</button>
-    <button class="btn ghost" id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern">Speichern</button>
-    <input type="file" id="fileYaml" accept=".yaml,.yml" hidden>
+    <button class="btn ghost" id="btnHome" type="button" hidden title="Zurück zur Startseite">Startseite</button>
     <button class="round theme" id="btnTheme" type="button" aria-label="Design wechseln" title="Hell / Dunkel">
       <svg class="i sonne" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg>
       <svg class="i mond" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.2 8.2 0 0 1 9.5 4a8.3 8.3 0 1 0 10.5 10.5z"/></svg>
@@ -233,9 +275,41 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
   </div>
 </header>
 <main>
-  <aside id="form"></aside>
-  <section class="viewer">
+  <section id="home" aria-label="Startseite">
+    <div class="home-in">
+      <div class="sun" aria-hidden="true"></div>
+      <span class="eyebrow">Die Alte Ordnung</span>
+      <h2>Was möchtest du tun?</h2>
+      <div class="choices">
+        <button type="button" class="choice" id="chNew" disabled>
+          <span class="t"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M12 11v6M9 14h6"/></svg>Neue Stadtkarte</span>
+          <span class="d">Schritt für Schritt durch alle Einstellungen: Allgemein, Gelände, Befestigung, Viertel, Orte und Ausgabe.</span>
+        </button>
+        <button type="button" class="choice" id="chRandom" disabled>
+          <span class="t"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="8.5" cy="8.5" r=".9" fill="currentColor"/><circle cx="15.5" cy="15.5" r=".9" fill="currentColor"/><circle cx="12" cy="12" r=".9" fill="currentColor"/><circle cx="15.5" cy="8.5" r=".9" fill="currentColor"/><circle cx="8.5" cy="15.5" r=".9" fill="currentColor"/></svg>Zufällige Stadtkarte</span>
+          <span class="d">Alle Einstellungen werden gewürfelt und die Karte sofort gezeichnet.</span>
+        </button>
+        <button type="button" class="choice" id="chOpen" disabled>
+          <span class="t"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Stadtkarte öffnen</span>
+          <span class="d">Eine gespeicherte Stadtbeschreibung (.yaml) laden; die Karte wird sofort gezeichnet.</span>
+        </button>
+        <button type="button" class="choice" id="chExample" aria-expanded="false" aria-controls="examples" disabled>
+          <span class="t"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2z"/><path d="M12 6v14"/></svg>Beispiel laden</span>
+          <span class="d">Eine der mitgelieferten Städte zeichnen und von dort aus anpassen.</span>
+        </button>
+      </div>
+      <div class="examples" id="examples" hidden>
+        <div class="lbl">Beispiel wählen</div>
+        <div class="exlist" id="exList"></div>
+      </div>
+      <div class="hint homemsg" id="homeMsg" role="status"></div>
+      <input type="file" id="fileYaml" accept=".yaml,.yml" hidden>
+    </div>
+  </section>
+  <section id="wizard" aria-label="Einstellungen" hidden><div class="wiz" id="form"></div></section>
+  <section class="viewer" id="viewer" hidden>
     <div class="toolbar">
+      <button class="btn" id="btnBack" type="button" title="Zurück in den Assistenten – die Angaben bleiben erhalten">‹ Einstellungen ändern</button>
       <button class="iconbtn" id="zoomOut" title="Verkleinern" aria-label="Verkleinern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
       <button class="btn ghost" id="zoomFit" title="Ganze Karte">Ganz</button>
       <button class="iconbtn" id="zoomIn" title="Vergrößern" aria-label="Vergrößern"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
@@ -252,6 +326,14 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
       <button class="btn" data-fmt="html" disabled title="interaktive Karte für den Browser: zoomen, Beschriftung ein-/ausblenden">Interaktiv</button>
       <button class="btn" data-fmt="web" disabled title="für die eigene Webseite: Kartenbild ohne Beschriftung (WebP), Beschriftung (SVG), Ortsliste (JSON) und Stadtbeschreibung als ZIP">Web-Paket</button>
       <button class="btn ghost" id="btnSaveOut" disabled title="SVG, PNG, PDF und interaktive Karte (HTML) in den Kartenordner schreiben">Alle Formate speichern</button>
+      <button class="btn ghost" id="btnSaveYaml" title="Stadtbeschreibung als .yaml speichern – auf der Startseite mit „Stadtkarte öffnen“ wieder zu laden">Als .yaml speichern</button>
+    </div>
+    <div id="wallbar" class="drawbar" hidden>
+      <button type="button" class="btn" id="btnDraw">Mauer zeichnen</button>
+      <button type="button" class="btn ghost" id="btnWallClear" disabled>Mauer löschen</button>
+      <span class="hint" id="wallInfo"></span>
+      <span class="sp"></span>
+      <button type="button" class="btn" id="btnGenWall" disabled title="Erst mindestens drei Punkte setzen">Stadt erzeugen</button>
     </div>
     <div id="hints"></div>
     <div id="stage">
@@ -259,7 +341,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
         <div class="sun" aria-hidden="true"></div>
         <span class="eyebrow">Der Tisch ist leer</span>
         <h2>Noch keine Karte</h2>
-        <p>Stelle links die Stadt zusammen und klicke auf „Karte erzeugen“.</p>
+        <p id="emptyMsg"></p>
       </div></div>
       <div id="mapWrap" hidden><img id="map" alt="Erzeugte Stadtkarte"><svg id="labels" xmlns="http://www.w3.org/2000/svg"></svg><svg id="wallDraw" viewBox="0 0 100 100" preserveAspectRatio="none" hidden></svg></div>
       <div id="busy"><div style="text-align:center"><div class="sun" aria-hidden="true"></div><div class="msg">Die Karte wird gezeichnet …</div><div class="hint" id="busyTime"></div></div></div>
@@ -306,8 +388,6 @@ function select(options, value, onchange) {
   return s;
 }
 const field = (label, input, hint) => el("label", {class: "f"}, el("span", {}, label), hint ? el("div", {}, input, el("div", {class: "hint"}, hint)) : input);
-const section = (title, open, count, ...content) =>
-  el("details", {open}, el("summary", {}, title, count != null ? el("span", {class: "count"}, `(${count})`) : null), el("div", {class: "box"}, ...content));
 function norm(c) {
   c.gelaende ??= {}; c.mauer ??= {}; c.ausgabe ??= {}; c.viertel ??= []; c.orte ??= [];
   const g = c.gelaende;
@@ -357,6 +437,37 @@ function dustGrid(g) {   // 5x5 Felder über der Karte: Spalten A-E von links, Z
   return {grid: box, city: cell("mitte", "Stadt", "Über der Stadt")};
 }
 
+// Assistent: jede Seite fragt nur einen Themenbereich ab
+const STEPS = ["Allgemein", "Gelände", "Befestigung", "Viertel", "Besondere Orte", "Ausgabe"];
+const STEPS_KURZ = ["Allgemein", "Gelände", "Befestigung", "Viertel", "Orte", "Ausgabe"];   // für die Schrittleiste
+const INTRO = [
+  "Name, Größe und Umriss der Stadt.",
+  "Küste, Fluss, Wald, Felder und Staub rund um die Stadt.",
+  "Stadtmauer, Tore und Vorstädte.",
+  "Stadtviertel mit eigenem Charakter. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet.",
+  "Gasthäuser, Tempel, Festungen und andere Orte, die auf der Karte benannt werden.",
+  "Bildgröße, Stil und weitere Optionen der fertigen Karte.",
+];
+let step = 0, wizError = "";
+
+// Größe: Regler logarithmisch von 300 bis 250.000 Einwohnern; ab 20.000 wird die Stadt in Häuserblöcken gezeichnet
+const POP_MIN = 300, POP_MAX = 250000;
+const popLabel = n => `${n.toLocaleString("de-DE")} Einwohner` + (n < 2500 ? " (Dorf)" : n >= 20000 ? " (Großstadt: Häuserblöcke, Altstadt, Vorstädte)" : "");
+const toPop = v => { const n = POP_MIN * (POP_MAX / POP_MIN) ** (v / 1000);
+  const rund = n < 2000 ? 50 : n < 20000 ? 100 : 1000; return Math.min(POP_MAX, Math.round(n / rund) * rund); };
+const toPos = n => Math.round(Math.log(Math.max(POP_MIN, Math.min(POP_MAX, n)) / POP_MIN) / Math.log(POP_MAX / POP_MIN) * 1000);
+
+function goStep(i) {
+  step = Math.max(0, Math.min(STEPS.length - 1, i)); wizError = "";
+  renderForm(); $("#wizard").scrollTop = 0;
+}
+
+function stepper() {
+  return el("ol", {class: "steps"}, STEPS.map((t, i) => el("li", {class: i === step ? "cur" : i < step ? "done" : ""},
+    el("button", {type: "button", "aria-current": i === step ? "step" : null, on: {click: () => goStep(i)}},
+      el("span", {class: "n"}, String(i + 1)), el("span", {class: "st"}, STEPS_KURZ[i])))));
+}
+
 function renderForm() {
   const f = $("#form"); f.innerHTML = "";
   const g = cfg.gelaende;
@@ -366,67 +477,60 @@ function renderForm() {
   const txt = (obj, key, attrs = {}, refresh = false) => el("input", {type: "text", value: obj[key] ?? "", ...attrs,
     on: {input: e => { obj[key] = e.target.value; }, change: () => { if (refresh) renderForm(); }}});
   const chk = (obj, key, after) => el("input", {type: "checkbox", checked: !!obj[key], on: {change: e => { obj[key] = e.target.checked; after?.(); }}});
+  const eigene = cfg.stadtform === "eigene";
 
-  // Allgemein
-  // Regler logarithmisch von 300 bis 250.000 Einwohnern; ab 20.000 wird die Stadt in Häuserblöcken gezeichnet
-  const POP_MIN = 300, POP_MAX = 250000;
-  const popLabel = n => `${n.toLocaleString("de-DE")} Einwohner` + (n < 2500 ? " (Dorf)" : n >= 20000 ? " (Großstadt: Häuserblöcke, Altstadt, Vorstädte)" : "");
-  const toPop = v => { const n = POP_MIN * (POP_MAX / POP_MIN) ** (v / 1000);
-    const step = n < 2000 ? 50 : n < 20000 ? 100 : 1000; return Math.min(POP_MAX, Math.round(n / step) * step); };
-  const toPos = n => Math.round(Math.log(Math.max(POP_MIN, Math.min(POP_MAX, n)) / POP_MIN) / Math.log(POP_MAX / POP_MIN) * 1000);
-  const popOut = el("div", {class: "hint"}, popLabel(cfg.einwohner));
-  const pop = el("input", {type: "range", min: 0, max: 1000, step: 1, value: toPos(cfg.einwohner),
-    on: {input: e => { cfg.einwohner = toPop(Number(e.target.value)); popOut.textContent = popLabel(cfg.einwohner); }}});
-  const seedIn = num(cfg, "seed", {min: 0});
-  f.append(section("Allgemein", true, null,
-    field("Name", txt(cfg, "name")),
-    field("Größe", el("div", {}, pop, popOut)),
-    field("Stadtform", select(Object.entries(FORM), cfg.stadtform, v => { cfg.stadtform = v; if (v !== "eigene") drawEnd(); renderForm(); drawWall(); }),
-          "Umriss der Stadt; „Zufall“ wählt je Seed eine Form."),
-    cfg.stadtform === "eigene" ? field("Mauer", el("div", {class: "drawbar"},
-      el("button", {type: "button", class: "btn" + (drawMode ? " on" : ""), id: "btnDraw",
-        on: {click: () => drawMode ? drawEnd() : drawStart()}}, drawMode ? "Zeichnen beenden" : "Mauer zeichnen"),
-      el("button", {type: "button", class: "btn ghost", disabled: !wallPts().length,
-        on: {click: () => { cfg.mauer.punkte = []; drawWall(); renderForm(); }}}, "Mauer löschen"),
-      el("span", {class: "hint", id: "wallInfo"}, wallInfo())),
-      "Erst „Gelände erzeugen“, dann zeichnen: Linksklick setzt einen Turm, Taste T ein Tor an der Maus, " +
-      "Rücktaste nimmt den letzten Punkt zurück, Rechtsklick beendet. Beginnt und endet die Mauer an der Küste " +
-      "(bzw. an der Plateaukante), ist die Stadt dort offen – Küste und Felswand sind dann die Mauer. " +
-      "Danach „Stadt erzeugen“.") : null,
-    field("Bebauung", select([["dicht", "Dicht (wie bisher)"], ["locker", "Locker (+40 % Fläche)"],
-                              ["weitlaeufig", "Weitläufig (fast doppelte Fläche)"]],
-      cfg.bebauung ?? "dicht", v => { if (v === "dicht") delete cfg.bebauung; else cfg.bebauung = v; }),
-      "Gleiche Einwohner auf mehr Fläche: größere Grundstücke, Gärten, breitere Gassen."),
-    field("Seed", el("div", {class: "row"}, seedIn,
-      iconBtn("wuerfel", "Zufälliger Seed", () => { cfg.seed = Math.floor(Math.random() * 99999) + 1; seedIn.value = cfg.seed; })),
-      "Gleicher Seed und gleiche Angaben ergeben dieselbe Karte."),
-  ));
+  // 1. Allgemein
+  const pageAllgemein = () => {
+    const popOut = el("div", {class: "hint"}, popLabel(cfg.einwohner));
+    const pop = el("input", {type: "range", min: 0, max: 1000, step: 1, value: toPos(cfg.einwohner),
+      on: {input: e => { cfg.einwohner = toPop(Number(e.target.value)); popOut.textContent = popLabel(cfg.einwohner); }}});
+    const seedIn = num(cfg, "seed", {min: 0});
+    return [
+      field("Name", txt(cfg, "name")),
+      field("Größe", el("div", {}, pop, popOut)),
+      field("Stadtform", select(Object.entries(FORM), cfg.stadtform, v => { cfg.stadtform = v; if (v !== "eigene") drawEnd(); renderForm(); drawWall(); }),
+            "Umriss der Stadt; „Zufall“ wählt je Seed eine Form."),
+      eigene ? field("Mauer", el("div", {class: "hint"},
+        "Auf der letzten Seite erzeugst du zuerst nur das Gelände. Darauf zeichnest du die Mauer: Linksklick setzt einen Turm, " +
+        "Taste T ein Tor an der Maus, Rücktaste nimmt den letzten Punkt zurück, Rechtsklick beendet. Beginnt und endet die Mauer " +
+        "an der Küste (bzw. an der Plateaukante), ist die Stadt dort offen – Küste und Felswand sind dann die Mauer. " +
+        "Danach „Stadt erzeugen“.")) : null,
+      field("Bebauung", select([["dicht", "Dicht (wie bisher)"], ["locker", "Locker (+40 % Fläche)"],
+                                ["weitlaeufig", "Weitläufig (fast doppelte Fläche)"]],
+        cfg.bebauung ?? "dicht", v => { if (v === "dicht") delete cfg.bebauung; else cfg.bebauung = v; }),
+        "Gleiche Einwohner auf mehr Fläche: größere Grundstücke, Gärten, breitere Gassen."),
+      field("Seed", el("div", {class: "row"}, seedIn,
+        iconBtn("wuerfel", "Zufälliger Seed", () => { cfg.seed = randomSeed(); seedIn.value = cfg.seed; })),
+        "Gleicher Seed und gleiche Angaben ergeben dieselbe Karte."),
+    ];
+  };
 
-  // Gelände
-  const mtn = g.biotop === "gebirge", plat = g.biotop === "hochplateau";
-  const sides = Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]);
-  const riverW = el("input", {type: "range", min: 20, max: 110, step: 2, value: g.flussbreite, disabled: !g.fluss,
-    on: {input: e => g.flussbreite = Number(e.target.value)}});
-  f.append(section("Gelände", true, null,
-    field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
-      g.biotop = v; if ((v === "gebirge" || v === "hochplateau") && g.kueste === "keine") g.kueste = "nord";
-      if (v === "hochplateau") { g.plateau ??= "oben"; g.kante ??= "direkt"; } renderForm(); })),
-    mtn ? field("Berg", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt.")
-        : plat ? field("Kante", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der die Plateaukante verläuft.")
-        : field("Küste", select(Object.entries(COAST), g.kueste, v => { g.kueste = v; renderForm(); })),
-    plat ? field("Stadt", select([["oben", "Auf dem Plateau"], ["unten", "Am Fuße des Plateaus"]], g.plateau ?? "oben",
-                                 v => { g.plateau = v; })) : null,
-    plat ? field("Zur Kante", select([["direkt", "Direkt an der Kante"], ["abstand", "Mit Abstand (Mauer ringsum)"]],
-                                     g.kante ?? "direkt", v => { g.kante = v; }),
-                 "Direkt an der Kante schützt die Felswand die Stadt auf dieser Seite.") : null,
-    !mtn && !plat && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
-    field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
-    el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
-      el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
-      el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
-    el("div", {class: "hint"}, "Himmelsrichtungen um die Stadt, in denen Wald bzw. Felder liegen."),
-    ...(() => { const dg = dustGrid(g); const dirs = Object.keys(g.staub ?? {}).filter(k => DIR_NAMES[k] && k !== "mitte");
-      return [
+  // 2. Gelände
+  const pageGelaende = () => {
+    const mtn = g.biotop === "gebirge", plat = g.biotop === "hochplateau";
+    const sides = Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]);
+    const riverW = el("input", {type: "range", min: 20, max: 110, step: 2, value: g.flussbreite, disabled: !g.fluss,
+      on: {input: e => g.flussbreite = Number(e.target.value)}});
+    const dg = dustGrid(g), dirs = Object.keys(g.staub ?? {}).filter(k => DIR_NAMES[k] && k !== "mitte");
+    return [
+      field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
+        g.biotop = v; if ((v === "gebirge" || v === "hochplateau") && g.kueste === "keine") g.kueste = "nord";
+        if (v === "hochplateau") { g.plateau ??= "oben"; g.kante ??= "direkt"; } renderForm(); })),
+      mtn && eigene ? el("div", {class: "wizerr", role: "alert"}, "Die eigene Stadtform gibt es im Gebirge noch nicht – bitte unter „Allgemein“ eine andere Stadtform wählen.") : null,
+      mtn ? field("Berg", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt.")
+          : plat ? field("Kante", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der die Plateaukante verläuft.")
+          : field("Küste", select(Object.entries(COAST), g.kueste, v => { g.kueste = v; renderForm(); })),
+      plat ? field("Stadt", select([["oben", "Auf dem Plateau"], ["unten", "Am Fuße des Plateaus"]], g.plateau ?? "oben",
+                                   v => { g.plateau = v; })) : null,
+      plat ? field("Zur Kante", select([["direkt", "Direkt an der Kante"], ["abstand", "Mit Abstand (Mauer ringsum)"]],
+                                       g.kante ?? "direkt", v => { g.kante = v; }),
+                   "Direkt an der Kante schützt die Felswand die Stadt auf dieser Seite.") : null,
+      !mtn && !plat && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
+      field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
+      el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
+        el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
+        el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
+      el("div", {class: "hint"}, "Himmelsrichtungen um die Stadt, in denen Wald bzw. Felder liegen."),
       el("div", {class: "row", style: "align-items:flex-start; gap:1.4rem"},
         el("div", {}, el("div", {class: "lbl"}, "Staub"), dg.grid),
         el("div", {style: "display:grid; gap:.5rem"},
@@ -436,71 +540,74 @@ function renderForm() {
               v => { g.staub ??= {}; if (v) g.staub.ueberall = v; else delete g.staub.ueberall; })))),
       el("div", {class: "hint"}, "Staub: 25 Felder über der Karte (oben links = A1). Jeder Klick schaltet weiter – leer, " +
          "wenig (Schleier), mittel (schemenhaft), schwarz (Finsternis). „Stadt“ legt Staub über die Stadt, „Überall“ " +
-         "einen Schleier über die ganze Karte." + (dirs.length ? ` Aus der Datei zusätzlich: ${dirs.map(k => DIR_NAMES[k]).join(", ")}.` : ""))];
-    })(),
-  ));
+         "einen Schleier über die ganze Karte." + (dirs.length ? ` Aus der Datei zusätzlich: ${dirs.map(k => DIR_NAMES[k]).join(", ")}.` : "")),
+    ];
+  };
 
-  // Mauer
-  f.append(section("Befestigung", false, null,
+  // 3. Befestigung
+  const pageBefestigung = () => [
     field("Stadtmauer", el("div", {class: "row"}, chk(cfg.mauer, "vorhanden"), el("span", {class: "hint"}, "Stein; Sumpf, Nordland, Steppe: Palisade; Wüste: Lehm"))),
-    field("Tore", num(cfg.mauer, "tore", {min: 1, max: 8})),
+    eigene ? field("Tore", el("div", {class: "hint"}, "Die Tore setzt du beim Zeichnen der Mauer (Taste T)."))
+           : field("Tore", num(cfg.mauer, "tore", {min: 1, max: 8})),
     field("Vorstädte", el("label", {class: "row"},
       el("input", {type: "checkbox", checked: cfg.mauer.vorstaedte !== false,
         on: {change: e => { if (e.target.checked) delete cfg.mauer.vorstaedte; else cfg.mauer.vorstaedte = false; }}}),
       el("span", {class: "hint"}, "Häuser vor den Toren an den Landstraßen; bei Großstädten ganze Vorstädte"))),
-  ));
+  ];
 
-  // Viertel
-  const vList = el("div", {class: "list"});
-  cfg.viertel.forEach((v, i) => vList.append(el("div", {class: "item"},
-    el("div", {class: "row"}, txt(v, "name", {placeholder: "Name des Viertels"}, true),
-      iconBtn("x", "Viertel entfernen", () => { cfg.viertel.splice(i, 1); renderForm(); }, "del")),
-    el("div", {class: "row"},
-      select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => { v.typ = x; if (x !== "armen") delete v.ausserhalb; renderForm(); }),
-      v.ausserhalb ? null
-        : select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
-    v.typ === "hafen" ? el("div", {class: "row"},
-      select([["klein", "Größe: klein"], ["mittel", "Größe: mittel"], ["gross", "Größe: groß"]], v.groesse ?? "gross",
-        x => { if (x === "gross") delete v.groesse; else v.groesse = x; })) : null,
-    v.typ === "armen" ? el("label", {class: "row hint"},
-      el("input", {type: "checkbox", checked: !!v.ausserhalb,
-        on: {change: e => { if (e.target.checked) { v.ausserhalb = true; delete v.lage; } else delete v.ausserhalb; renderForm(); }}}),
-      "Vor der Stadtmauer: Hütten rund um die Stadt verteilt") : null,
-  )));
-  f.append(section("Viertel", true, cfg.viertel.length,
-    vList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "Viertel hinzufügen")),
-    el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Armenviertel liegen immer am Stadtrand, nie im Kern. Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
-  ));
-
-  // Orte
-  const names = cfg.viertel.map(v => v.name).filter(Boolean);
-  const oList = el("div", {class: "list"});
-  cfg.orte.forEach((o, i) => {
-    const lage = PLAGE[o.typ];
-    oList.append(el("div", {class: "item"},
-      el("div", {class: "row"}, txt(o, "name", {placeholder: "Name des Ortes"}),
-        el("input", {type: "text", value: o.kuerzel ?? "", placeholder: "Kürzel", style: "flex:0 0 5rem",
-          title: "Optional: steht statt des Namens auf der Karte, der Name kommt in die Legende",
-          on: {input: e => { if (e.target.value) o.kuerzel = e.target.value; else delete o.kuerzel; }}}),
-        el("input", {type: "number", min: 1, max: 50, value: o.anzahl ?? "", placeholder: "Anz.", style: "flex:0 0 4.5rem",
-          title: "Optional: so viele Orte dieser Art, fortlaufend nummeriert (z.B. 5 Schenken: S1 bis S5). "
-               + "Weitere Einträge mit demselben Kürzel zählen weiter.",
-          on: {input: e => { const n = parseInt(e.target.value, 10); if (n >= 1) o.anzahl = Math.min(n, 50); else delete o.anzahl; }}}),
-        iconBtn("x", "Ort entfernen", () => { cfg.orte.splice(i, 1); renderForm(); }, "del")),
+  // 4. Viertel
+  const pageViertel = () => {
+    const vList = el("div", {class: "list"});
+    cfg.viertel.forEach((v, i) => vList.append(el("div", {class: "item"},
+      el("div", {class: "row"}, txt(v, "name", {placeholder: "Name des Viertels"}, true),
+        iconBtn("x", "Viertel entfernen", () => { cfg.viertel.splice(i, 1); renderForm(); }, "del")),
       el("div", {class: "row"},
-        select(OPT.place_types.map(t => [t, PTYPE[t] ?? t]), o.typ, x => { o.typ = x; delete o.lage; renderForm(); }),
-        lage ? select(lage, o.lage ?? lage[0][0], x => { if (x) o.lage = x; else delete o.lage; })
-             : select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; })),
-      o.typ === "friedhof" && o.lage !== "ausserhalb"
-        ? select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; }) : null,
-    ));
-  });
-  f.append(section("Besondere Orte", true, cfg.orte.length,
-    oList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.orte.push({name: "Neuer Ort", typ: "gasthaus"}); renderForm(); }}}, "Ort hinzufügen")),
-  ));
+        select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => { v.typ = x; if (x !== "armen") delete v.ausserhalb; renderForm(); }),
+        v.ausserhalb ? null
+          : select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
+      v.typ === "hafen" ? el("div", {class: "row"},
+        select([["klein", "Größe: klein"], ["mittel", "Größe: mittel"], ["gross", "Größe: groß"]], v.groesse ?? "gross",
+          x => { if (x === "gross") delete v.groesse; else v.groesse = x; })) : null,
+      v.typ === "armen" ? el("label", {class: "row hint"},
+        el("input", {type: "checkbox", checked: !!v.ausserhalb,
+          on: {change: e => { if (e.target.checked) { v.ausserhalb = true; delete v.lage; } else delete v.ausserhalb; renderForm(); }}}),
+        "Vor der Stadtmauer: Hütten rund um die Stadt verteilt") : null,
+    )));
+    return [
+      vList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "Viertel hinzufügen")),
+      el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Armenviertel liegen immer am Stadtrand, nie im Kern."),
+    ];
+  };
 
-  // Ausgabe
-  f.append(section("Ausgabe", false, null,
+  // 5. Besondere Orte
+  const pageOrte = () => {
+    const names = cfg.viertel.map(v => v.name).filter(Boolean);
+    const oList = el("div", {class: "list"});
+    cfg.orte.forEach((o, i) => {
+      const lage = PLAGE[o.typ];
+      oList.append(el("div", {class: "item"},
+        el("div", {class: "row"}, txt(o, "name", {placeholder: "Name des Ortes"}),
+          el("input", {type: "text", value: o.kuerzel ?? "", placeholder: "Kürzel", style: "flex:0 0 5rem",
+            title: "Optional: steht statt des Namens auf der Karte, der Name kommt in die Legende",
+            on: {input: e => { if (e.target.value) o.kuerzel = e.target.value; else delete o.kuerzel; }}}),
+          el("input", {type: "number", min: 1, max: 50, value: o.anzahl ?? "", placeholder: "Anz.", style: "flex:0 0 4.5rem",
+            title: "Optional: so viele Orte dieser Art, fortlaufend nummeriert (z.B. 5 Schenken: S1 bis S5). "
+                 + "Weitere Einträge mit demselben Kürzel zählen weiter.",
+            on: {input: e => { const n = parseInt(e.target.value, 10); if (n >= 1) o.anzahl = Math.min(n, 50); else delete o.anzahl; }}}),
+          iconBtn("x", "Ort entfernen", () => { cfg.orte.splice(i, 1); renderForm(); }, "del")),
+        el("div", {class: "row"},
+          select(OPT.place_types.map(t => [t, PTYPE[t] ?? t]), o.typ, x => { o.typ = x; delete o.lage; renderForm(); }),
+          lage ? select(lage, o.lage ?? lage[0][0], x => { if (x) o.lage = x; else delete o.lage; })
+               : select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; })),
+        o.typ === "friedhof" && o.lage !== "ausserhalb"
+          ? select([["", "in beliebigem Viertel"], ...names.map(n => [n, "in: " + n])], o.viertel, x => { if (x) o.viertel = x; else delete o.viertel; }) : null,
+      ));
+    });
+    return [oList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.orte.push({name: "Neuer Ort", typ: "gasthaus"}); renderForm(); }}}, "Ort hinzufügen"))];
+  };
+
+  // 6. Ausgabe
+  const pageAusgabe = () => [
     field("Bildgröße", select([[1500, "1500 px (schnell)"], [2000, "2000 px"], [3000, "3000 px"], [4000, "4000 px (Druck, langsam)"]],
       cfg.ausgabe.bildgroesse, v => cfg.ausgabe.bildgroesse = Number(v))),
     field("Stil", select([["pergament", "Pergament (altes Papier)"], ["standard", "Standard (ohne Papier)"]],
@@ -516,10 +623,25 @@ function renderForm() {
       el("span", {class: "hint"}, "Dunkle Karte mit Laternen und hellen Fenstern; Dörfer haben weniger Licht"))),
     field("Dachdetails", el("div", {class: "row"}, chk(cfg.ausgabe, "dachdetails"),
       el("span", {class: "hint"}, "Ziegel, Schiefer, Reet, Schornsteine (SVG wird etwas größer)"))),
-  ));
+  ];
 
-  const genLabel = cfg.stadtform !== "eigene" ? "Karte erzeugen" : wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen";
-  f.append(el("div", {class: "generate"}, el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: generateMap}}, genLabel)));
+  const pages = [pageAllgemein, pageGelaende, pageBefestigung, pageViertel, pageOrte, pageAusgabe];
+  const last = step === STEPS.length - 1;
+  const genLabel = !eigene ? "Karte erzeugen" : wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen";
+  const count = step === 3 ? cfg.viertel.length : step === 4 ? cfg.orte.length : null;
+  f.append(...[
+    stepper(),
+    el("span", {class: "eyebrow"}, `Schritt ${step + 1} von ${STEPS.length}`),
+    el("h2", {}, STEPS[step], count != null ? el("span", {class: "count"}, ` (${count})`) : null),
+    el("p", {class: "hint intro"}, INTRO[step]),
+    wizError ? el("div", {class: "wizerr", role: "alert"}, wizError) : null,
+    el("div", {class: "box"}, ...pages[step]()),
+    el("div", {class: "wiznav"},
+      el("button", {type: "button", class: "btn ghost", on: {click: () => step === 0 ? showView("home") : goStep(step - 1)}},
+        step === 0 ? "‹ Startseite" : "‹ Zurück"),
+      last ? el("button", {type: "button", class: "btn big", id: "btnGen", on: {click: () => generateMap("wizard")}}, genLabel)
+           : el("button", {type: "button", class: "btn", on: {click: () => goStep(step + 1)}}, "Weiter ›")),
+  ].filter(Boolean));   // append() würde ein null als Text „null“ einfügen
 }
 
 async function api(path, opts = {}) {
@@ -531,11 +653,67 @@ async function api(path, opts = {}) {
 }
 function status(text, err = false) { const s = $("#status"); s.textContent = text; s.className = err ? "err" : ""; }
 
-async function generateMap() {
-  const btn = $("#btnGen"); btn.disabled = true;
+// Ansichten: Startseite, Assistent, Karte
+let view = "home";
+function showView(v) {
+  if (v !== "viewer") drawEnd();
+  view = v;
+  for (const id of ["home", "wizard", "viewer"]) $("#" + id).hidden = id !== v;
+  $("#btnHome").hidden = v === "home";
+  if (v === "viewer" && zoom !== null && $("#map").naturalWidth) applyZoom();
+  window.scrollTo(0, 0);
+}
+
+// Ansicht leeren, bevor eine andere Karte beginnt (sonst blitzt kurz die alte auf)
+function resetViewer() {
+  resultId = null; zoom = null; lastNatural = 0; mapW = 0; terrainOnly = false;
+  $("#mapWrap").hidden = true; $("#empty").hidden = false; $("#map").removeAttribute("src");
+  $("#emptyMsg").textContent = EMPTY_MSG;
+  $("#labels").innerHTML = ""; $("#labels").classList.remove("edit"); $("#btnMove").classList.remove("on");
+  $("#hints").innerHTML = ""; $("#zoomLbl").textContent = ""; status("");
+  document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = true);
+  drawEnd(); updateResetButton(); drawWall();
+}
+const EMPTY_MSG = "Über „Einstellungen ändern“ kommst du zurück zu den Angaben.";
+
+function randomSeed() { return Math.floor(Math.random() * 99999) + 1; }
+
+// Neue Stadtkarte: Assistent mit Grundwerten, Seite 1
+function startNew() {
+  cfg = norm({name: "Neue Stadt", seed: randomSeed(), einwohner: 5000, gelaende: {wald: ["west"], felder: ["ost", "sued"]}});
+  step = 0; wizError = "";
+  resetViewer(); renderForm(); showView("wizard");
+}
+
+// Geladene oder gewürfelte Stadt: sofort zeichnen
+async function openCfg(c) {
+  cfg = c; step = 0; wizError = "";
+  resetViewer();
+  return generateMap("direkt");
+}
+
+async function randomMap() {
+  for (let i = 0; i < 3; i++) {   // sollte eine Würfelung wider Erwarten nicht gehen, würfelt es neu
+    if (await openCfg(randomCfg())) return;
+  }
+}
+
+async function loadExample(name) {
+  try { await openCfg(norm(await api("/api/example?name=" + encodeURIComponent(name)))); }
+  catch (e) { homeStatus("Beispiel konnte nicht geladen werden: " + e.message, true); }
+}
+
+function homeStatus(text, err = false) { const s = $("#homeMsg"); s.textContent = text; s.className = "hint homemsg" + (err ? " err" : ""); }
+
+async function generateMap(from) {
+  const btn = $("#btnGen"); if (btn) btn.disabled = true;
+  $("#btnGenWall").disabled = true;
+  drawEnd();
+  showView("viewer");
   $("#busy").classList.add("on"); $("#hints").innerHTML = "";
   const t0 = Date.now();
   const tick = setInterval(() => $("#busyTime").textContent = `${Math.round((Date.now() - t0) / 1000)} s – meist 5–15 s`, 500);
+  let ok = false;
   try {
     const res = await api("/api/generate", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cfg)});
     resultId = res.id; mapW = res.W;
@@ -543,7 +721,7 @@ async function generateMap() {
     lab.setAttribute("viewBox", `0 0 ${res.W} ${res.W}`); lab.innerHTML = res.labels;
     showImage(res.preview);
     terrainOnly = !!res.gelaende_nur; drawWall();
-    if (terrainOnly) $("#hints").append(el("div", {}, "Gelände ohne Stadt: jetzt links unter „Mauer“ die Stadtmauer zeichnen und dann „Stadt erzeugen“."));
+    if (terrainOnly) $("#hints").append(el("div", {}, "Gelände ohne Stadt: wähle oben „Mauer zeichnen“, setze die Mauer auf der Karte und klicke dann auf „Stadt erzeugen“."));
     for (const h of res.hints) $("#hints").append(el("div", {}, h));
     document.querySelectorAll("[data-fmt], #btnSaveOut, #btnMove").forEach(b => b.disabled = false);
     updateResetButton();
@@ -555,11 +733,149 @@ async function generateMap() {
       showImage(URL.createObjectURL(b));
       status(info);
     }).catch(() => { if (resultId === res.id) status(info); });
+    ok = true;
   } catch (e) {
     status("Fehler: " + e.message, true);
+    if (from === "wizard") {   // Angaben stimmen nicht: zurück zur letzten Seite, dort steht die Meldung
+      wizError = e.message; step = STEPS.length - 1; renderForm(); showView("wizard");
+    } else $("#emptyMsg").textContent = "Die Karte konnte nicht gezeichnet werden: " + e.message;
   } finally {
-    clearInterval(tick); $("#busy").classList.remove("on"); btn.disabled = false;
+    clearInterval(tick); $("#busy").classList.remove("on");
+    const b = $("#btnGen"); if (b) b.disabled = false;
+    updateWallBar();
   }
+  return ok;
+}
+
+// Zufällige Stadtkarte: würfelt alle Angaben des Assistenten, aber nur stimmige Kombinationen
+// (Hafen nur mit Wasser, Wassermühle nur mit Fluss, höchstens ein Palast usw.). Die eigene Stadtform bleibt
+// außen vor, sie braucht das Zeichnen der Mauer.
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const chance = p => Math.random() < p;
+const sample = (a, n) => { const c = [...a], out = []; while (c.length && out.length < n) out.push(c.splice(rnd(c.length), 1)[0]); return out; };
+const wpick = pairs => { let r = Math.random() * pairs.reduce((s, p) => s + p[1], 0);
+  for (const [v, w] of pairs) if ((r -= w) < 0) return v; return pairs[pairs.length - 1][0]; };
+const WIND = ["nord", "nordost", "ost", "suedost", "sued", "suedwest", "west", "nordwest"];
+
+// Stadtnamen: Vorsilbe + Endung, je nach Biotop
+const NAME_PARTS = {
+  gemaessigt: [["Raben", "Wolfs", "Eichen", "Nebel", "Stein", "Hohen", "Silber", "Birken", "Falken", "Linden", "Ahorn", "Hirsch", "Mond", "Weiden", "Adler", "Krähen"],
+               ["furt", "burg", "heim", "bach", "wacht", "feld", "mark", "tal", "hain", "brück", "born", "wald", "stedt", "horst"]],
+  sumpf: [["Moor", "Nebel", "Schilf", "Torf", "Sumpf", "Binsen", "Erlen", "Krötten"], ["dorf", "furt", "stedt", "bruch", "siel", "ried", "hausen"]],
+  nordland: [["Eis", "Frost", "Schnee", "Winter", "Nord", "Wolfs", "Bären", "Rauhreif"], ["wacht", "heim", "burg", "fjord", "stein", "feste", "hall"]],
+  steppe: [["Wind", "Gras", "Weit", "Falken", "Hirsch", "Pferde", "Dürr"], ["mark", "feld", "ritt", "stedt", "weide", "heim", "rast"]],
+  wueste: [["Sand", "Oasen", "Dünen", "Sonnen", "Salz", "Skorpion", "Palmen"], ["born", "quell", "tor", "stadt", "rast", "garten", "wacht"]],
+  gebirge: [["Eisen", "Stein", "Fels", "Gold", "Kupfer", "Silber", "Granit", "Erz"], ["hall", "tiefe", "hort", "grund", "schacht", "halle", "esse"]],
+  hochplateau: [["Hoch", "Wind", "Adler", "Fels", "Wolken", "Kalk", "Sturm"], ["kante", "stein", "burg", "feld", "horst", "mark", "wacht"]],
+};
+const DISTRICT_NAMES = {
+  hafen: ["Hafen", "Hafenviertel", "Kaiviertel"], handwerk: ["Handwerkerviertel", "Zunftviertel"], arbeiter: ["Arbeiterviertel", "Gerberviertel"],
+  fischer: ["Fischerviertel", "Fischergasse"], bauern: ["Bauernviertel", "Ackerbürgerviertel"], adel: ["Adelsviertel", "Hochviertel"],
+  tempel: ["Tempelbezirk", "Tempelviertel"], markt: ["Marktviertel", "Marktquartier"], wohn: ["Wohnviertel", "Altstadt"],
+  armen: ["Armenviertel", "Schattenviertel"],
+};
+const PLACE_NAMES = {
+  gasthaus: ["Zum Goldenen Hirsch", "Zur Krone", "Zum Eber", "Zum Wilden Mann", "Zur Linde", "Zum Anker", "Zum Roten Adler", "Zur Rast"],
+  laden: ["Kramladen", "Gewürzhandel", "Krämerei", "Tuchhandel", "Kräuterstube"],
+  schmiede: ["Schmiede Eisenhart", "Hufschmiede", "Waffenschmiede"],
+  muehle: ["Windmühle", "Obermühle", "Hügelmühle"],
+  wassermuehle: ["Wassermühle", "Untermühle", "Mühle am Wehr"],
+  kontor: ["Handelskontor", "Kontor der Salzhändler", "Kontor Brandt"],
+  werft: ["Werft", "Schiffswerft", "Alte Werft"],
+  adelshaus: ["Haus Lorint", "Haus Valdane", "Haus Rothenstein", "Haus Weidenhain", "Haus Eschenbach"],
+  palast: ["Palast", "Herzogspalast", "Fürstenpalast"],
+  rathaus: ["Rathaus", "Dorfhalle", "Gildenhaus"],
+  bauernhof: ["Hof Birkenau", "Eichenhof", "Lindenhof", "Hof Sonnenfeld"],
+  tempel: ["Tempel des Sor", "Schrein der Ordnung", "Tempel der Wächter"],
+  kathedrale: ["Kathedrale", "Dom zu Sor", "Großes Münster"],
+  kaserne: ["Kaserne", "Stadtwache", "Wachhaus"],
+  friedhof: ["Friedhof", "Gottesacker", "Alter Friedhof"],
+  festung: ["Festung", "Seeburg", "Grenzwacht", "Bastion"],
+};
+
+function randomCfg() {
+  const biotop = wpick(OPT.biomes.map(b => [b, b === "gemaessigt" ? 4 : 1]));
+  const mtn = biotop === "gebirge", plat = biotop === "hochplateau";
+  const sides = ["nord", "ost", "sued", "west"];
+  const kueste = mtn || plat ? pick(sides) : wpick([...sides.map(s => [s, 2]), ["keine", 2]]);
+  const fluss = chance(0.6);
+  const wasser = (kueste !== "keine" && !mtn && !plat) || fluss;
+  const g = {biotop, kueste, fluss, flussbreite: 30 + 2 * rnd(31), inseln: kueste !== "keine" && !mtn && !plat ? rnd(4) : 0};
+  if (plat) { g.plateau = pick(["oben", "unten"]); g.kante = pick(["direkt", "abstand"]); }
+  g.wald = biotop === "wueste" ? [] : sample(WIND, rnd(4));
+  g.felder = biotop === "wueste" || biotop === "nordland" ? sample(WIND, rnd(2)) : sample(WIND, rnd(4));
+  if (chance(0.45)) {   // Staub nur am Kartenrand, damit die Stadt sichtbar bleibt
+    const rand = [];
+    for (const r of "12345") for (const c of "abcde") if ("ae".includes(c) || "15".includes(r)) rand.push(c + r);
+    g.staub = {};
+    for (const k of sample(rand, 1 + rnd(4))) g.staub[k] = wpick([["wenig", 5], ["mittel", 3], ["finsternis", 1]]);
+    if (chance(0.15)) g.staub.ueberall = "wenig";
+    if (chance(0.1)) g.staub.mitte = "wenig";
+  }
+
+  // Größe: viele Dörfer und Städte, selten eine Großstadt
+  const tier = wpick([["dorf", 20], ["klein", 35], ["mittel", 30], ["gross", 15]]);
+  const [lo, hi] = {dorf: [300, 2400], klein: [2500, 6000], mittel: [6000, 19000], gross: [20000, 50000]}[tier];
+  const einwohner = toPop(toPos(lo + Math.random() * (hi - lo)));
+
+  const parts = NAME_PARTS[biotop] ?? NAME_PARTS.gemaessigt;
+  const name = pick(parts[0]) + pick(wasser && !mtn ? [...parts[1], "hafen"] : parts[1]);
+  const c = {
+    name, seed: randomSeed(), einwohner,
+    stadtform: pick(Object.keys(FORM).filter(k => k !== "eigene")),
+    gelaende: g,
+    mauer: {vorhanden: chance(0.85), tore: 2 + rnd(5)},
+    viertel: [], orte: [],
+    ausgabe: {bildgroesse: 2000, raster: 0, legende: true, dachdetails: true, nacht: chance(0.15),
+              stil: chance(0.7) ? "pergament" : "standard",
+              ausschnitt: wpick(wasser ? [["weit", 70], ["fuellend", 30]] : [["weit", 50], ["normal", 25], ["nah", 15], ["fuellend", 10]])},
+  };
+  if (!chance(0.8)) c.mauer.vorstaedte = false;
+  const beb = wpick([["dicht", 60], ["locker", 25], ["weitlaeufig", 15]]);
+  if (beb !== "dicht") c.bebauung = beb;
+  if (c.ausgabe.stil === "pergament") delete c.ausgabe.stil;
+  if (c.ausgabe.ausschnitt === "weit") delete c.ausgabe.ausschnitt;
+
+  // Viertel: Hafen nur mit Wasser (im Gebirge und auf dem Plateau gibt es weder Hafen noch Fischer)
+  let types = OPT.district_types.filter(t => !((mtn || plat) && (t === "hafen" || t === "fischer")) && (t !== "hafen" || wasser));
+  const nV = einwohner < 2500 ? rnd(3) : einwohner < 20000 ? 2 + rnd(4) : 4 + rnd(4);
+  const chosen = sample(types, nV);
+  if (types.includes("hafen") && chance(0.7) && !chosen.includes("hafen") && nV > 0) chosen[0] = "hafen";
+  const lagen = sample(Object.keys(DIR_NAMES), Object.keys(DIR_NAMES).length);
+  for (const typ of chosen) {
+    const v = {name: pick(DISTRICT_NAMES[typ]), typ};
+    if (typ === "hafen") v.groesse = pick(["klein", "mittel", "gross"]);
+    else if (typ === "armen" && chance(0.35)) v.ausserhalb = true;
+    else if (chance(0.5) && lagen.length) v.lage = lagen.pop();
+    if (v.groesse === "gross") delete v.groesse;
+    c.viertel.push(v);
+  }
+  const hafen = c.viertel.find(v => v.typ === "hafen");
+  const viertelNamen = c.viertel.filter(v => v.typ !== "hafen").map(v => v.name);   // der Hafen bleibt Kontor und Werft vorbehalten
+
+  // Besondere Orte
+  const nO = einwohner < 2500 ? 1 + rnd(4) : einwohner < 20000 ? 3 + rnd(6) : 5 + rnd(8);
+  const einmal = new Set(["palast", "rathaus", "kathedrale", "kaserne", "festung", "friedhof"]);
+  const mindest = {palast: 15000, kathedrale: 8000, kaserne: 5000, adelshaus: 1500, tempel: 1000, kontor: 1500, werft: 1500};   // Einwohner
+  const draussen = new Set(["muehle", "wassermuehle", "bauernhof", "festung"]);
+  let ptypes = OPT.place_types.filter(t => !(t === "wassermuehle" && !fluss) && !(t === "festung" && mtn) && !((mtn || plat) && ["muehle", "bauernhof", "wassermuehle"].includes(t))
+    && !((t === "kontor" || t === "werft") && (!hafen || hafen.groesse === "klein")) && einwohner >= (mindest[t] ?? 0));
+  const benutzt = {};
+  for (let i = 0; i < nO && ptypes.length; i++) {
+    const typ = pick(ptypes);
+    benutzt[typ] = (benutzt[typ] ?? 0) + 1;
+    if (einmal.has(typ) || (draussen.has(typ) && benutzt[typ] >= 2)) ptypes = ptypes.filter(t => t !== typ);
+    const pool = PLACE_NAMES[typ].filter(n => !c.orte.some(o => o.name === n));
+    const o = {name: pick(pool.length ? pool : PLACE_NAMES[typ]), typ};
+    if (typ === "festung") o.lage = wpick([["land", 3], ...(kueste !== "keine" && !mtn && !plat ? [["insel", 2], ["landzunge", 2]] : [])]);
+    else if (typ === "friedhof") { if (chance(0.3)) o.lage = "ausserhalb"; else if (viertelNamen.length && chance(0.4)) o.viertel = pick(viertelNamen); }
+    else if (typ === "kontor" || typ === "werft") o.viertel = hafen.name;
+    else if (!draussen.has(typ) && viertelNamen.length && chance(0.5)) o.viertel = pick(viertelNamen);
+    if (typ === "gasthaus" && chance(0.35)) { o.name = "Schenke"; o.kuerzel = "S"; o.anzahl = 2 + rnd(4); }
+    c.orte.push(o);
+  }
+  return norm(c);
 }
 
 // Bild anzeigen; bei anderer Auflösung (Vorschau ↔ voll) bleiben Ausschnitt und Bildschirmgröße erhalten
@@ -624,6 +940,7 @@ function drawWall() {
   const svg = $("#wallDraw"), p = wallPts();
   const show = cfg && cfg.stadtform === "eigene" && (drawMode || terrainOnly) && !$("#mapWrap").hidden;
   svg.toggleAttribute("hidden", !show);   // SVG-Elemente kennen die Eigenschaft .hidden nicht
+  updateWallBar();
   if (!show) return;
   const pts = p.map(q => `${q[0]},${q[1]}`).join(" ");
   let h = "";
@@ -637,25 +954,37 @@ function drawWall() {
       : `<circle cx="${q[0]}" cy="${q[1]}" r="0.6" fill="#d9a441" stroke="#2a2018" style="stroke-width:1.5px" vector-effect="non-scaling-stroke"/>`;
   }
   svg.innerHTML = h;
-  const info = $("#wallInfo"); if (info) info.textContent = wallInfo();
 }
 function addPoint(kind) {
   if (!lastPos) return;
   cfg.mauer.punkte = [...wallPts(), [lastPos[0], lastPos[1], kind]];
-  drawWall(); refreshGen();
+  drawWall();
 }
-function refreshGen() {
-  const b = $("#btnGen"); if (!b) return;
-  b.textContent = wallPts().length >= 3 ? "Stadt erzeugen" : "Gelände erzeugen";
+// Leiste über der Karte (nur bei „Eigene Stadtform“): Mauer zeichnen, löschen, Stadt erzeugen
+function updateWallBar() {
+  const bar = $("#wallbar"); if (!bar) return;
+  const on = !!cfg && cfg.stadtform === "eigene";
+  bar.hidden = !on;
+  if (!on) return;
+  const n = wallPts().length;
+  $("#btnDraw").textContent = drawMode ? "Zeichnen beenden" : "Mauer zeichnen";
+  $("#btnDraw").classList.toggle("on", drawMode);
+  $("#btnWallClear").disabled = !n;
+  $("#wallInfo").textContent = wallInfo();
+  const gen = $("#btnGenWall"); gen.disabled = n < 3 || $("#busy").classList.contains("on");
+  gen.title = n < 3 ? "Erst mindestens drei Punkte setzen" : "";
 }
+$("#btnDraw").onclick = () => drawMode ? drawEnd() : drawStart();
+$("#btnWallClear").onclick = () => { cfg.mauer.punkte = []; drawWall(); };
+$("#btnGenWall").onclick = () => generateMap("wand");
 function drawStart() {
   if ($("#mapWrap").hidden) { status("Zuerst „Gelände erzeugen“ – darauf wird die Mauer gezeichnet.", true); return; }
-  drawMode = true; stage.classList.add("draw"); renderForm(); drawWall();
+  drawMode = true; stage.classList.add("draw"); drawWall();
   status("Mauer zeichnen: Linksklick = Turm, T = Tor, Rücktaste = zurück, Rechtsklick = fertig");
 }
 function drawEnd() {
   if (!drawMode) return;
-  drawMode = false; stage.classList.remove("draw"); renderForm(); drawWall();
+  drawMode = false; stage.classList.remove("draw"); drawWall();
   status(wallPts().length >= 3 ? "Mauer fertig – jetzt „Stadt erzeugen“." : "Zeichnen beendet.");
 }
 stage.addEventListener("pointerdown", e => {
@@ -668,7 +997,7 @@ stage.addEventListener("contextmenu", e => { if (drawMode) { e.preventDefault();
 document.addEventListener("keydown", e => {
   if (!drawMode || ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
   if (e.key === "t" || e.key === "T") { e.preventDefault(); addPoint("tor"); }
-  else if (e.key === "Backspace") { e.preventDefault(); cfg.mauer.punkte = wallPts().slice(0, -1); drawWall(); refreshGen(); }
+  else if (e.key === "Backspace") { e.preventDefault(); cfg.mauer.punkte = wallPts().slice(0, -1); drawWall(); }
   else if (e.key === "Escape") drawEnd();
 });
 
@@ -758,7 +1087,7 @@ $("#btnTheme").onclick = () => {
   try { localStorage.setItem("dao-theme", next); } catch (e) {}
 };
 
-// YAML öffnen/speichern, Beispiele
+// Stadtbeschreibung (.yaml) speichern; „Stadtkarte öffnen“ liest sie wieder ein
 $("#btnSaveYaml").onclick = async () => {
   try {
     const out = {...cfg};
@@ -767,29 +1096,42 @@ $("#btnSaveYaml").onclick = async () => {
     const a = el("a", {href: URL.createObjectURL(new Blob([text], {type: "text/yaml"})),
       download: (cfg.name || "stadt").toLowerCase().replace(/[^a-z0-9äöüß]+/g, "_") + ".yaml"});
     document.body.append(a); a.click(); a.remove();
+    status("Stadtbeschreibung gespeichert – sie lässt sich auf der Startseite mit „Stadtkarte öffnen“ wieder laden.");
   } catch (e) { status("Fehler: " + e.message, true); }
 };
-$("#btnLoadYaml").onclick = () => $("#fileYaml").click();
 $("#fileYaml").onchange = async e => {
-  const file = e.target.files[0]; if (!file) return;
+  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+  let c;
   try {
-    cfg = norm(await api("/api/parse", {method: "POST", body: await file.text()}));
-    renderForm(); updateResetButton(); status(`„${file.name}“ geladen`);
-  } catch (err) { status("Datei konnte nicht gelesen werden: " + err.message, true); }
-  e.target.value = "";
+    const raw = await api("/api/parse", {method: "POST", body: await file.text()});
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Die Datei enthält keine Stadtbeschreibung.");
+    c = norm(raw);
+  } catch (err) { homeStatus(`„${file.name}“ konnte nicht gelesen werden: ${err.message}`, true); return; }
+  homeStatus("");
+  await openCfg(c);
 };
-async function loadExample(name) {
-  cfg = norm(await api("/api/example?name=" + encodeURIComponent(name)));
-  renderForm(); updateResetButton(); status(`Beispiel „${name}“ geladen`);
-}
-$("#exampleSel").onchange = e => loadExample(e.target.value);
+
+// Startseite
+$("#chNew").onclick = startNew;
+$("#chRandom").onclick = () => { homeStatus(""); randomMap(); };
+$("#chOpen").onclick = () => $("#fileYaml").click();
+$("#chExample").onclick = () => {
+  const p = $("#examples"); p.hidden = !p.hidden;
+  $("#chExample").setAttribute("aria-expanded", String(!p.hidden));
+  if (!p.hidden) p.scrollIntoView({block: "nearest"});
+};
+$("#btnHome").onclick = () => showView("home");
+$("#btnBack").onclick = () => { step = 0; wizError = ""; renderForm(); showView("wizard"); $("#wizard").scrollTop = 0; };
 
 (async () => {
-  OPT = await api("/api/options");
+  try { OPT = await api("/api/options"); }
+  catch (e) { homeStatus("Die Werkstatt konnte nicht gestartet werden: " + e.message, true); return; }
   $("#btnSaveOut").title = "SVG, PNG und PDF speichern nach " + OPT.output_dir;
-  for (const ex of OPT.examples) $("#exampleSel").append(el("option", {value: ex, selected: ex === "hafenstadt"}, ex));
-  await loadExample(OPT.examples.includes("hafenstadt") ? "hafenstadt" : OPT.examples[0]);
-  status("Bereit");
+  for (const ex of OPT.examples)
+    $("#exList").append(el("button", {type: "button", class: "btn", on: {click: () => loadExample(ex)}}, ex[0].toUpperCase() + ex.slice(1)));
+  document.querySelectorAll(".choice").forEach(b => b.disabled = false);
+  if (!OPT.examples.length) $("#chExample").hidden = true;
+  showView("home");
 })();
 window.addEventListener("resize", () => { if (zoom !== null && $("#map").naturalWidth) applyZoom(); });
 </script>
