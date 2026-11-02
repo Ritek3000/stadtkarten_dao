@@ -161,7 +161,9 @@ allem, auch über Laternen und Leuchtfeuer, aber unter der Beschriftung.
 
 Ein Viertel mit `typ: hafen` hat die Option `groesse: klein | mittel | gross` (Werkstatt: „Größe“ beim
 Hafenviertel). Sie bestimmt, wie breit der gepflasterte Kai-Streifen am Ufer wird; `gross` (Standard) ist der
-bisherige Hafen. Stege und Schiffe gibt es nur am Kai und im Fluss; ein Schiff legt nur dort an, wo es frei aufs
+bisherige Hafen. In einer sehr kleinen Stadt, in der der Kai das ganze Land einnähme (etwa bei einem sehr
+breiten Fluss), wird er schmaler, damit für die übrigen Viertel Land bleibt; die Ausgabe nennt das mit einer
+„Hinweis“-Zeile. Stege und Schiffe gibt es nur am Kai und im Fluss; ein Schiff legt nur dort an, wo es frei aufs
 offene Wasser ablegen kann. Jede Küstenstadt hat einen großen Leuchtturm, bevorzugt auf einer vorgelagerten Insel,
 sonst an der Spitze des Hafens; bei Nacht strahlt sein Feuer weit übers Wasser.
 
