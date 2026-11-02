@@ -78,6 +78,8 @@ früher nacheinander.
 | `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
 | `stadtkarte/parallel.py` | Rendern in eigenen Prozessen |
+| `stadtkarte/blender_export.py` | Karte als reine Geometrie (JSON) für Blender schreiben |
+| `blender/stadtkarte_blender.py` | Blender-Skript: 2D-Kurven oder extrudierte 3D-Stadt aus dieser JSON-Datei |
 | `stadtkarte/shapes.py` | Hausgrundrisse: Quadrat, Rechteck, Raute, Fünfeck, Sechseck, L-Form, Achteck; Kreuz nur für Gotteshäuser; Mindestbreite 8 px |
 | `stadtkarte/roofs.py` | detaillierte Dächer: Dachflächen mit Licht, Material je Biotop, Schornsteine, Gauben, Moos |
 | `stadtkarte/noise.py` | vorberechnete Bodentexturen und Details (Körnung, Gras, Sandrippel, Schneeverwehungen, Felsrisse) |
@@ -334,6 +336,35 @@ Für die eigene Webseite: Der Knopf „Web-Paket“ lädt eine ZIP-Datei herunte
 Die **Kennung** ist der feste Name der Stadt auf der Webseite. Steht in der Stadtbeschreibung `kennung: rabenfurt`
 (nur Kleinbuchstaben a-z, Ziffern, `-` und `_`), wird sie verwendet, sonst wird sie aus dem Namen gebildet. Sie wird in
 `stadt.yaml` festgeschrieben, damit die Stadt auch nach einer Umbenennung dieselbe bleibt.
+
+## Blender: 2D-Kurven oder 3D-Stadt
+
+Aus jeder Karte lässt sich in Blender (4.x oder 5.x) entweder ein Satz sauberer 2D-Kurven für einen SVG-Export
+oder eine extrudierte 3D-Stadt erzeugen. Blenders eigenes Python kennt weder shapely noch Pillow und kann den Generator
+deshalb nicht selbst starten; zuerst schreibt die normale Umgebung die Geometrie als JSON, dann liest Blender sie ein:
+
+```bash
+.venv\Scripts\python -m stadtkarte.blender_export beispiele\hafenstadt.yaml -o ausgabe\stadt.json
+```
+
+In Blender im Arbeitsbereich *Scripting* `blender/stadtkarte_blender.py` öffnen, oben im Konfigurationsblock
+`JSON_PATH` und `OUTPUT_MODE` einstellen und *Run Script* drücken. Ohne Oberfläche geht es auch so:
+
+```bash
+blender -b -P blender/stadtkarte_blender.py -- --json ausgabe/stadt.json --mode 3D --save stadt.blend
+```
+
+| `OUTPUT_MODE` | Ergebnis |
+|---|---|
+| `'2D'` | flache Poly- oder Bézierkurven auf der XY-Ebene, je Art eine Collection: `Main_Roads`, `Side_Streets`, `Country_Roads`, `Bridges`, `Plazas`, `Piers`, `Waterways`, `Building_Outlines` (je Viertel ein Objekt), `City_Walls`. Straßenobjekte tragen ihre Breite als benutzerdefinierte Eigenschaft. Die Kurven sind bereinigt: keine doppelten Punkte, kein wiederholter Schlusspunkt (geschlossene Kurven sind zyklisch), Punkte auf geraden Strecken entfallen (Abweichung höchstens `SIMPLIFY_TOLERANCE`) |
+| `'3D'` | Häuser als Quader-Körper mit Boden und Dach, Straßen als Streifen mit echter Breite (Hauptstraße, Ringgasse, Landstraße, Brücke), Gassen- und Platzflächen, Wasser, Geländeplatte mit Ufern, Mauer mit Türmen und Toren; dazu einfache Materialien (`SK_*`): graue Straßen, dunkelgraue Häuser, Glas für hohe Türme |
+
+Die Gebäudehöhe hängt vom Gebäudetyp, vom Viertel und von der Entfernung zur Stadtmitte ab (innen hoch, außen niedrig;
+in der Mitte können einzelne Hochhäuser entstehen) und bekommt eine zufällige Streuung, die `RANDOM_SEED` festlegt.
+Alle Höhen, Breiten, Ebenen und Farben stehen im Konfigurationsblock am Anfang des Skripts. Normalen zeigen bei den
+Körpern nach außen, doppelte Punkte entfernt das Skript beim Aufbau (Häuserzeilen bleiben bewusst getrennte, geschlossene
+Körper). Wer `MERGE_BUILDINGS = False` setzt, bekommt ein Objekt je Haus statt eines je Viertel. Ein erneuter Lauf ersetzt
+das Ergebnis des vorigen. Nicht übernommen werden Bäume, Felder, Wald, Schiffe und Beschriftungen.
 
 ## Stil
 
