@@ -60,6 +60,7 @@ def _quay_spot(s, base, sea, water, taken, frame, anchor, r):
     """Platz am Ufer von base, möglichst weit draußen am Meer: nahe am Meer selbst oder an der Mündung."""
     mouth = sea.buffer(250 * s)
     edge = base.boundary.intersection(water.buffer(3 * s)).intersection(mouth)
+    base4 = base.buffer(4 * s)   # ändert sich in der Schleife nicht; dort neu zu berechnen kostete bis zu 40 s
     cands = []
     for ln in lines(edge):
         k = 0.0
@@ -75,7 +76,7 @@ def _quay_spot(s, base, sea, water, taken, frame, anchor, r):
             for inland in (r + 2 * s, r + 14 * s):   # direkt an der Kaikante, sonst etwas zurückgesetzt
                 c = Point(p.x + dx / n * inland, p.y + dy / n * inland)
                 foot = c.buffer(r + 3 * s)
-                if not frame.contains(c) or foot.intersects(taken) or not base.buffer(4 * s).contains(foot.buffer(-6 * s)):
+                if not frame.contains(c) or foot.intersects(taken) or not base4.contains(foot.buffer(-6 * s)):
                     continue
                 seaward = sea.intersection(c.buffer(r * 6)).area - c.distance(sea) * r   # nah und offen zum Meer
                 cands.append((seaward, -c.distance(anchor), c))
