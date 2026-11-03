@@ -105,7 +105,7 @@ früher nacheinander.
 | `stadtkarte/wasser.py` | Wasser mit Tiefe, Brandung und Flussufern als Bild |
 | `stadtkarte/umgebung.py`, `stadtkarte/papier.py`, `stadtkarte/staub.py` | Bodentönung nach Umgebung, Papierstruktur des Pergament-Stils, Staub |
 | `stadtkarte/webpaket.py` | Web-Paket: Kartenbild, Beschriftung, Ortsliste und Stadtbeschreibung |
-| `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF |
+| `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF; `render_svg` setzt die Karte aus Ebenen zusammen (`water_svg`, `land_svg`, `streets_svg` … `labels_svg`), von unten nach oben |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
 | `stadtkarte/parallel.py` | Rendern in eigenen Prozessen |
 | `stadtkarte/blender_export.py` | Karte als reine Geometrie (JSON) für Blender schreiben |
