@@ -410,19 +410,24 @@ function select(options, value, onchange) {
   return s;
 }
 const field = (label, input, hint) => el("label", {class: "f"}, el("span", {}, label), hint ? el("div", {}, input, el("div", {class: "hint"}, hint)) : input);
+// >>> Standardwerte: kommen vom Server (OPT.defaults und OPT.optional, Quelle ist config.py); ein Test führt diesen Block aus
+const plain = v => v !== null && typeof v === "object" && !Array.isArray(v);
+function fillDefaults(c, d) {   // trägt fehlende (nicht angegebene oder leere) Angaben aus d ein, Abschnitte rekursiv
+  for (const [k, v] of Object.entries(d)) {
+    if (plain(v)) { if (!plain(c[k])) c[k] = {}; fillDefaults(c[k], v); }
+    else c[k] ??= JSON.parse(JSON.stringify(v));
+  }
+}
 function norm(c) {
-  c.gelaende ??= {}; c.mauer ??= {}; c.ausgabe ??= {}; c.viertel ??= []; c.orte ??= [];
-  const g = c.gelaende;
-  g.biotop ??= "gemaessigt"; g.kueste ??= "nord"; g.fluss ??= true; g.flussbreite ??= 60; g.inseln ??= 2;
-  g.wald = [].concat(g.wald ?? []); g.felder = [].concat(g.felder ?? []);
-  c.mauer.vorhanden ??= true; c.mauer.tore ??= 4;
-  c.ausgabe.bildgroesse ??= 2000; c.ausgabe.raster ??= 0; c.ausgabe.legende ??= true; c.ausgabe.dachdetails ??= true; c.ausgabe.nachtkarte ??= true;
-  c.ausgabe.formate ??= ["svg", "png"];
-  if (!c.beschriftung || typeof c.beschriftung !== "object") c.beschriftung = {};
-  c.name ??= "Neue Stadt"; c.seed ??= 1; c.einwohner ??= 5000; c.stadtform ??= "zufall";
+  // wie config.from_dict: ausdrücklich leer (wald: / felder:) heißt „kein Wald“ bzw. „keine Felder“, fehlend heißt Standard
+  if (plain(c.gelaende)) for (const k of ["wald", "felder"]) if (c.gelaende[k] === null) c.gelaende[k] = [];
+  fillDefaults(c, OPT.defaults);
+  for (const k of ["wald", "felder"]) c.gelaende[k] = [].concat(c.gelaende[k]);   // auch ein einzelner Wert ist erlaubt
   for (const o of c.orte) if (o.typ === "bastion" || o.typ === "burg") o.typ = "festung";
   return c;
 }
+const optional = key => OPT.optional[key];   // Wert einer weglassbaren Angabe, wenn sie fehlt (z.B. "ausgabe.stil")
+// <<< Standardwerte
 
 function compass(list, onchange) {
   const box = el("div", {class: "compass"});
@@ -472,11 +477,13 @@ const INTRO = [
 ];
 let step = 0, wizError = "";
 
-// Größe: Regler logarithmisch von 300 bis 250.000 Einwohnern; ab 20.000 wird die Stadt in Häuserblöcken gezeichnet
-const POP_MIN = 300, POP_MAX = 250000;
-const popLabel = n => `${n.toLocaleString("de-DE")} Einwohner` + (n < 2500 ? " (Dorf)" : n >= 20000 ? " (Großstadt: Häuserblöcke, Altstadt, Vorstädte)" : "");
+// Größe: Regler logarithmisch von 300 Einwohnern (erlaubt sind ab 100) bis zum Höchstwert des Servers; ab der Großstadt-Grenze
+// wird die Stadt in Häuserblöcken gezeichnet. POP_MAX und GROSS kommen aus OPT.limits (beim Start gesetzt).
+const POP_MIN = 300;
+let POP_MAX, GROSS;
+const popLabel = n => `${n.toLocaleString("de-DE")} Einwohner` + (n < 2500 ? " (Dorf)" : n >= GROSS ? " (Großstadt: Häuserblöcke, Altstadt, Vorstädte)" : "");
 const toPop = v => { const n = POP_MIN * (POP_MAX / POP_MIN) ** (v / 1000);
-  const rund = n < 2000 ? 50 : n < 20000 ? 100 : 1000; return Math.min(POP_MAX, Math.round(n / rund) * rund); };
+  const rund = n < 2000 ? 50 : n < GROSS ? 100 : 1000; return Math.min(POP_MAX, Math.round(n / rund) * rund); };
 const toPos = n => Math.round(Math.log(Math.max(POP_MIN, Math.min(POP_MAX, n)) / POP_MIN) / Math.log(POP_MAX / POP_MIN) * 1000);
 
 function goStep(i) {
@@ -536,7 +543,7 @@ function formPages(side) {
         "richten sich neu nach der Mauer.") : null,
       field("Bebauung", select([["dicht", "Dicht (wie bisher)"], ["locker", "Locker (+40 % Fläche)"],
                                 ["weitlaeufig", "Weitläufig (fast doppelte Fläche)"]],
-        cfg.bebauung ?? "dicht", v => { if (v === "dicht") delete cfg.bebauung; else cfg.bebauung = v; }),
+        cfg.bebauung ?? optional("bebauung"), v => { if (v === optional("bebauung")) delete cfg.bebauung; else cfg.bebauung = v; }),
         "Gleiche Einwohner auf mehr Fläche: größere Grundstücke, Gärten, breitere Gassen."),
       field("Seed", el("div", {class: "row"}, seedIn,
         iconBtn("wuerfel", "Zufälliger Seed", () => { cfg.seed = randomSeed(); seedIn.value = cfg.seed; })),
@@ -554,15 +561,15 @@ function formPages(side) {
     return [
       field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
         g.biotop = v; if ((v === "gebirge" || v === "hochplateau") && g.kueste === "keine") g.kueste = "nord";
-        if (v === "hochplateau") { g.plateau ??= "oben"; g.kante ??= "direkt"; } renderForm(); })),
+        if (v === "hochplateau") { g.plateau ??= optional("gelaende.plateau"); g.kante ??= optional("gelaende.kante"); } renderForm(); })),
       mtn && eigene ? el("div", {class: "wizerr", role: "alert"}, "Die eigene Stadtform gibt es im Gebirge noch nicht – bitte unter „Allgemein“ eine andere Stadtform wählen.") : null,
       mtn ? field("Berg", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der das Felsmassiv liegt.")
           : plat ? field("Kante", select(sides, g.kueste, v => { g.kueste = v; }), "Seite, auf der die Plateaukante verläuft.")
           : field("Küste", select(Object.entries(COAST), g.kueste, v => { g.kueste = v; renderForm(); })),
-      plat ? field("Stadt", select([["oben", "Auf dem Plateau"], ["unten", "Am Fuße des Plateaus"]], g.plateau ?? "oben",
+      plat ? field("Stadt", select([["oben", "Auf dem Plateau"], ["unten", "Am Fuße des Plateaus"]], g.plateau ?? optional("gelaende.plateau"),
                                    v => { g.plateau = v; })) : null,
       plat ? field("Zur Kante", select([["direkt", "Direkt an der Kante"], ["abstand", "Mit Abstand (Mauer ringsum)"]],
-                                       g.kante ?? "direkt", v => { g.kante = v; }),
+                                       g.kante ?? optional("gelaende.kante"), v => { g.kante = v; }),
                    "Direkt an der Kante schützt die Felswand die Stadt auf dieser Seite.") : null,
       !mtn && !plat && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
       field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
@@ -605,8 +612,8 @@ function formPages(side) {
         v.ausserhalb ? null
           : select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
       v.typ === "hafen" ? el("div", {class: "row"},
-        select([["klein", "Größe: klein"], ["mittel", "Größe: mittel"], ["gross", "Größe: groß"]], v.groesse ?? "gross",
-          x => { if (x === "gross") delete v.groesse; else v.groesse = x; })) : null,
+        select([["klein", "Größe: klein"], ["mittel", "Größe: mittel"], ["gross", "Größe: groß"]], v.groesse ?? optional("viertel.groesse"),
+          x => { if (x === optional("viertel.groesse")) delete v.groesse; else v.groesse = x; })) : null,
       v.typ === "armen" ? el("label", {class: "row hint"},
         el("input", {type: "checkbox", checked: !!v.ausserhalb,
           on: {change: e => { if (e.target.checked) { v.ausserhalb = true; delete v.lage; } else delete v.ausserhalb; renderForm(); }}}),
@@ -651,11 +658,12 @@ function formPages(side) {
     field("Bildgröße", select([[1500, "1500 px (schnell)"], [2000, "2000 px"], [3000, "3000 px"], [4000, "4000 px (Druck, langsam)"]],
       cfg.ausgabe.bildgroesse, v => cfg.ausgabe.bildgroesse = Number(v))),
     field("Stil", select([["pergament", "Pergament (altes Papier)"], ["standard", "Standard (ohne Papier)"]],
-      cfg.ausgabe.stil ?? "pergament", v => { if (v === "pergament") delete cfg.ausgabe.stil; else cfg.ausgabe.stil = v; }),
+      cfg.ausgabe.stil ?? optional("ausgabe.stil"), v => { if (v === optional("ausgabe.stil")) delete cfg.ausgabe.stil; else cfg.ausgabe.stil = v; }),
       "Pergament: Papierstruktur, warmer Ton, gebräunter Rand, Küste wie mit der Feder gezeichnet."),
     field("Ausschnitt", select([["weit", "Weit (viel Umland)"], ["normal", "Normal"], ["nah", "Nah"],
                                 ["fuellend", "Füllend (Stadt, Hafen, Festung passen gerade)"]],
-      cfg.ausgabe.ausschnitt ?? "weit", v => { if (v === "weit") delete cfg.ausgabe.ausschnitt; else cfg.ausgabe.ausschnitt = v; }),
+      cfg.ausgabe.ausschnitt ?? optional("ausgabe.ausschnitt"),
+      v => { if (v === optional("ausgabe.ausschnitt")) delete cfg.ausgabe.ausschnitt; else cfg.ausgabe.ausschnitt = v; }),
       "Wie viel der Karte die Stadt einnimmt. Näher heißt größere, detailreichere Häuser; Schrift bleibt gleich groß."),
     field("Raster", num(cfg.ausgabe, "raster", {min: 0, step: 10}), "Pixel pro Feld, 0 = kein Raster"),
     field("Legende", el("div", {class: "row"}, chk(cfg.ausgabe, "legende"))),
@@ -813,7 +821,7 @@ function randomSeed() { return Math.floor(Math.random() * 99999) + 1; }
 
 // Neue Stadtkarte: Assistent mit Grundwerten, Seite 1
 function startNew() {
-  cfg = norm({name: "Neue Stadt", seed: randomSeed(), einwohner: 5000, gelaende: {wald: ["west"], felder: ["ost", "sued"]}});
+  cfg = norm({name: "Neue Stadt", seed: randomSeed()});   // alles Übrige: die Standardwerte des Servers
   step = 0; wizError = "";
   resetViewer(); showView("wizard");
 }
@@ -957,7 +965,7 @@ function randomCfg() {
 
   // Größe: viele Dörfer und Städte, selten eine Großstadt
   const tier = wpick([["dorf", 20], ["klein", 35], ["mittel", 30], ["gross", 15]]);
-  const [lo, hi] = {dorf: [300, 2400], klein: [2500, 6000], mittel: [6000, 19000], gross: [20000, 50000]}[tier];
+  const [lo, hi] = {dorf: [300, 2400], klein: [2500, 6000], mittel: [6000, GROSS - 1000], gross: [GROSS, 50000]}[tier];
   const einwohner = toPop(toPos(lo + Math.random() * (hi - lo)));
 
   const parts = NAME_PARTS[biotop] ?? NAME_PARTS.gemaessigt;
@@ -968,19 +976,18 @@ function randomCfg() {
     gelaende: g,
     mauer: {vorhanden: chance(0.85), tore: 2 + rnd(5)},
     viertel: [], orte: [],
-    ausgabe: {bildgroesse: 2000, raster: 0, legende: true, dachdetails: true, nachtkarte: true,
-              stil: chance(0.7) ? "pergament" : "standard",
+    ausgabe: {stil: chance(0.7) ? "pergament" : "standard",
               ausschnitt: wpick(wasser ? [["weit", 70], ["fuellend", 30]] : [["weit", 50], ["normal", 25], ["nah", 15], ["fuellend", 10]])},
   };
   if (!chance(0.8)) c.mauer.vorstaedte = false;
   const beb = wpick([["dicht", 60], ["locker", 25], ["weitlaeufig", 15]]);
-  if (beb !== "dicht") c.bebauung = beb;
-  if (c.ausgabe.stil === "pergament") delete c.ausgabe.stil;
-  if (c.ausgabe.ausschnitt === "weit") delete c.ausgabe.ausschnitt;
+  if (beb !== optional("bebauung")) c.bebauung = beb;
+  if (c.ausgabe.stil === optional("ausgabe.stil")) delete c.ausgabe.stil;
+  if (c.ausgabe.ausschnitt === optional("ausgabe.ausschnitt")) delete c.ausgabe.ausschnitt;
 
   // Viertel: Hafen nur mit Wasser (im Gebirge und auf dem Plateau gibt es weder Hafen noch Fischer)
   let types = OPT.district_types.filter(t => !((mtn || plat) && (t === "hafen" || t === "fischer")) && (t !== "hafen" || wasser));
-  const nV = einwohner < 2500 ? rnd(3) : einwohner < 20000 ? 2 + rnd(4) : 4 + rnd(4);
+  const nV = einwohner < 2500 ? rnd(3) : einwohner < GROSS ? 2 + rnd(4) : 4 + rnd(4);
   const chosen = sample(types, nV);
   if (types.includes("hafen") && chance(0.7) && !chosen.includes("hafen") && nV > 0) chosen[0] = "hafen";
   const lagen = sample(Object.keys(DIR_NAMES), Object.keys(DIR_NAMES).length);
@@ -989,14 +996,14 @@ function randomCfg() {
     if (typ === "hafen") v.groesse = pick(["klein", "mittel", "gross"]);
     else if (typ === "armen" && chance(0.35)) v.ausserhalb = true;
     else if (chance(0.5) && lagen.length) v.lage = lagen.pop();
-    if (v.groesse === "gross") delete v.groesse;
+    if (v.groesse === optional("viertel.groesse")) delete v.groesse;
     c.viertel.push(v);
   }
   const hafen = c.viertel.find(v => v.typ === "hafen");
   const viertelNamen = c.viertel.filter(v => v.typ !== "hafen").map(v => v.name);   // der Hafen bleibt Kontor und Werft vorbehalten
 
   // Besondere Orte
-  const nO = einwohner < 2500 ? 1 + rnd(4) : einwohner < 20000 ? 3 + rnd(6) : 5 + rnd(8);
+  const nO = einwohner < 2500 ? 1 + rnd(4) : einwohner < GROSS ? 3 + rnd(6) : 5 + rnd(8);
   const einmal = new Set(["palast", "rathaus", "kathedrale", "kaserne", "festung", "friedhof"]);
   const mindest = {palast: 15000, kathedrale: 8000, kaserne: 5000, adelshaus: 1500, tempel: 1000, kontor: 1500, werft: 1500};   // Einwohner
   const draussen = new Set(["muehle", "wassermuehle", "bauernhof", "festung"]);
@@ -1387,7 +1394,7 @@ $("#chExample").onclick = () => {
 $("#btnHome").onclick = () => showView("home");
 
 (async () => {
-  try { OPT = await api("/api/options"); }
+  try { OPT = await api("/api/options"); POP_MAX = OPT.limits.einwohner_max; GROSS = OPT.limits.grossstadt; }
   catch (e) { homeStatus("Die Werkstatt konnte nicht gestartet werden: " + e.message, true); return; }
   $("#btnSaveOut").title = "SVG, PNG, PDF und interaktive Karte der gerade angezeigten Karte (Tag oder Nacht) speichern nach " + OPT.output_dir;
   if (OPT.version) $("#ver").textContent = "v" + OPT.version;

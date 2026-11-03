@@ -9,7 +9,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, polylabel, split, unary_union
 
 from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, varied_shape
-from .config import ROTATION, place_info, to_canonical
+from .config import OPTIONAL, ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from . import leuchtturm, staub
 from .geo import Noise1D, axes, blob, lines, oriented_rect, polys, roof, ship_footprint, unit, vlen
@@ -37,7 +37,7 @@ def generate(cfg):
     Titel bleiben in Kartengröße. "fuellend" misst zuerst Stadt, Hafen, Festung und Orte vor der Stadt und erzeugt
     die Welt dann so groß, dass all das gerade auf die Karte passt."""
     W = int(cfg["ausgabe"]["bildgroesse"])
-    mode = cfg["ausgabe"].get("ausschnitt", "weit")
+    mode = cfg["ausgabe"].get("ausschnitt", OPTIONAL["ausgabe.ausschnitt"])
     if mode not in AUSSCHNITT or cfg["stadtform"] == "eigene":
         return _generate(cfg, W)
     frac = city_radius(W, cfg["einwohner"], spread(cfg)) / W
@@ -134,6 +134,10 @@ def crop_model(m, cx, cy, W, z):
 
 
 def _generate(cfg, W):
+    """Baut das Kartenmodell in Stufen: Gelände, Stadt, Festung, Leuchtturm, Orte vor der Mauer, Wald und Felder,
+    Häuser, Bäume und Felsen, Sumpf, Brücken und zuletzt die Prüfung auf Überlagerungen. Die Reihenfolge ist
+    verbindlich: alle Stufen ziehen ihre Zufallszahlen aus demselben rng, eine andere Reihenfolge ergäbe zum selben
+    Seed eine andere Karte (tests/golden.py würde das melden)."""
     rng = random.Random(cfg["seed"])
     hints = []   # Hinweise an den Nutzer (m["hints"]); jede Karte hat ihre eigene Liste
     s = W / 2000
@@ -142,8 +146,87 @@ def _generate(cfg, W):
     has_coast = g["kueste"] != "keine"
     r = city_radius(W, cfg["einwohner"], spread(cfg))
     biome = BIOMES[g["biotop"]]
-
     plateau = biome["plateau"] and has_coast
+    form = pick_shape(cfg["seed"], cfg["stadtform"])
+
+    # Gelände
+    sea, coast_y, cx, cy, city_shape = _coast_and_outline(rng, cfg, W, s, r, biome, form, has_coast, plateau)
+    custom = custom_wall(cfg, W, rot) if form == "eigene" else None
+    terrain, islands, gorge, level_full, custom = _waters(rng, cfg, W, s, r, biome, has_coast, plateau, custom,
+                                                          sea, coast_y, (cx, cy), city_shape)
+    pools, oases = _pools_and_oases(rng, W, s, r, biome, (cx, cy), terrain)
+    if form == "eigene" and custom is None:   # erster Schritt: nur das Gelände, die Mauer wird darauf gezeichnet
+        return terrain_model(cfg, W, s, rot, terrain, pools, oases, biome, hints)
+    if custom is not None:
+        terrain["custom"] = custom
+        cx, cy = custom["center"]
+        r = custom["radius"]
+
+    # Stadt, Festung, Leuchtturm
+    builder = CityBuilder(cfg, rng, W, s, terrain, (cx, cy), r, rot, hints)
+    city, ext_roads, internal = builder.build()
+    cx, cy = builder.center   # liegt der Umriss im Wasser, rückt die Stadt ans Ufer (sonst unverändert)
+    shape = city["shape"]
+    if not biome["stilts"]:
+        pools = pools.difference(shape.buffer(25 * s))
+    forts, fort_bridges, ext_roads, forts_u = _fortress(rng, W, s, cfg, terrain, city, ext_roads, islands, hints)
+    sea, river, river_line = terrain["sea"], terrain["river"], terrain["river_line"]
+    water, land = terrain["water"], terrain["land"]   # eine Festung an Land hat Meer und Wasser verkleinert
+    light, forts_u = _lighthouse(s, W, city, terrain, islands, forts, forts_u)
+    if not city["faubourg"].is_empty:   # Großstadt: Vorstädte halten Felder, Wald und Einzelhäuser fern
+        forts_u = forts_u.union(city["faubourg"])
+    if not city["slum_outside"].is_empty:   # ebenso Hüttensiedlungen vor der Mauer
+        forts_u = forts_u.union(city["slum_outside"].buffer(10 * s))
+    # Altstadtmauer und ihre Tore zeichnen sich wie die äußere Mauer (die Festung nutzt nur die äußere)
+    city["wall"] = city["wall"] + city.pop("old_wall")
+    city["gates"] = city["gates"] + city.pop("old_gates")
+
+    # Orte vor der Mauer, Bergwerke, Wald, Felder und Häuser
+    pools, forts_u = _outside_places(rng, s, city, builder, ext_roads, shape, water, pools, forts_u)
+    mines, paths, forts_u = _mines(rng, s, biome, sea, land, shape, river, ext_roads, forts_u)
+    roads_u = unary_union([ln.buffer(w / 2 + 14 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
+    forest, forest_trees, fields, fields_u = _forest_and_fields(rng, W, s, cfg, rot, terrain, (cx, cy), r, shape,
+                                                                pools, roads_u, forts_u)
+    houses = _suburbs(rng, s, cfg, city, ext_roads, water, shape, fields_u, forest, forts_u)
+    allowed = _free_ground(s, terrain, shape, pools, roads_u, fields_u, houses, forest, forts, forts_u)
+
+    # Bäume, Felsen, Dünen, Eisschollen, Sumpf
+    trees = _trees(rng, s, biome, pools, forest_trees, allowed, shape)
+    if plateau:
+        forest, fields, fields_u, level_trees = _upper_level(rng, W, s, (cx, cy), r, terrain, forts, forts_u,
+                                                             forest, fields, fields_u)
+        trees += level_trees
+    trees = [(x, y, rad, rng.choice(biome["trees"])) for x, y, rad, _ in trees]
+    trees += oasis_palms(rng, s, oases, biome, unary_union([shape.buffer(10 * s), roads_u, fields_u, water]))
+    rocks, dunes, floes = _rocks_dunes_floes(rng, s, terrain, shape, pools, allowed, roads_u, fields_u, forest, oases)
+    reeds, lilies = _swamp(rng, s, biome, pools, shape, city, houses)
+
+    # Brücken und Abschlussprüfung gegen Überlagerungen
+    bridges = _bridges_over_water(s, city, ext_roads, internal, river, river_line, forts, fort_bridges)
+    houses, trees = _resolve_overlaps(s, city, bridges, ext_roads, forts, light, houses, trees)
+
+    return {
+        "name": cfg["name"], "W": W, "s": s, "rot": rot, "cfg": cfg,
+        "sea": sea, "river": river, "land": land, "water": water,
+        "fields": fields, "forest": forest, "trees": trees, "suburbs": houses,
+        "ext_roads": ext_roads, "bridges": bridges,
+        "forts": forts, "biome": biome, "pools": pools, "reeds": reeds, "lilies": lilies,
+        "oases": oases, "rocks": rocks, "dunes": dunes, "floes": floes,
+        "river_line": river_line, "mines": mines, "paths": paths,
+        "klamm_fade": (gorge["y_a"], gorge["y_b"]) if gorge and river is not None else None,
+        "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
+        "lighthouse": light,
+        "dust": staub.areas(cfg, W, (cx, cy), r, rot),
+        "hints": hints,
+        **city,
+    }
+
+
+def _coast_and_outline(rng, cfg, W, s, r, biome, form, has_coast, plateau):
+    """Küste (bzw. Felsmassiv, Plateaukante), Stadtmitte und, wo es schon jetzt feststeht, der Stadtumriss.
+    Liefert (Meer, Küstenfunktion, cx, cy, Umriss); der Umriss bleibt None, wenn er erst nach Fluss und Küste
+    entsteht (runde Stadt) oder aus der gezeichneten Mauer kommt (Form "eigene")."""
+    g = cfg["gelaende"]
     if biome["mountain"]:   # Felsmassiv an der "Küstenseite", Inseln gibt es dort nicht
         sea, coast_y = make_coast(rng, W, s, has_coast, depth=0.27, amp=1.6)
         g["inseln"] = 0
@@ -155,13 +238,12 @@ def _generate(cfg, W):
     cx = W / 2 + rng.uniform(-0.04, 0.04) * W
     cy = coast_y(cx) + r * 1.0 if has_coast else W / 2
     city_shape = None
-    form = pick_shape(cfg["seed"], cfg["stadtform"])
-    custom = custom_wall(cfg, W, rot) if form == "eigene" else None
     if form == "eigene":
         # Gelände entsteht wie bei einer runden Stadt (Fluss und Küste bleiben gleich, ob schon eine Mauer
-        # gezeichnet ist oder nicht); die gezeichnete Mauer wird erst danach zum Stadtumriss
-        pass   # city_shape bleibt None: der Umriss entsteht erst, wenn Küste bzw. Plateaukante feststehen (sie können Mauer sein)
-    elif biome["mountain"] and has_coast:
+        # gezeichnet ist oder nicht); die gezeichnete Mauer wird erst danach zum Stadtumriss. Der Umriss entsteht
+        # erst, wenn Küste bzw. Plateaukante feststehen (sie können Mauer sein).
+        return sea, coast_y, cx, cy, city_shape
+    if biome["mountain"] and has_coast:
         # Felskessel: Stadt rückt tief ins Massiv, Felsflanken links und rechts, unten offen
         # Der Kessel folgt exakt dem Stadtumriss, damit der Fels oben und seitlich direkt an die Stadt grenzt.
         cy = coast_y(cx) + r * 0.45
@@ -194,6 +276,16 @@ def _generate(cfg, W):
         city_shape = make_shape(rng, (cx, cy), r)
         city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s,
                                             top=coast_y(cx) - 0.2 * r if has_coast else None)
+    return sea, coast_y, cx, cy, city_shape
+
+
+def _waters(rng, cfg, W, s, r, biome, has_coast, plateau, custom, sea, coast_y, center, city_shape):
+    """Inseln, Fluss (im Gebirge mit Klamm), Wasser und Land; beim Hochplateau die geschlossene andere Stufe, über die
+    der Fluss als Wasserfall fließt; eine gezeichnete Mauer wird zum Stadtumriss geschlossen.
+    Liefert (terrain, Inseln, Klamm, ganze Plateaustufe, gezeichnete Mauer); terrain bündelt Meer, Fluss, Wasser,
+    Land und Küstenfunktion für Stadt, Festung und Leuchtturm."""
+    g = cfg["gelaende"]
+    cx, cy = center
     islands = []
     if has_coast:
         islands = make_islands(rng, W, s, sea, coast_y, int(g.get("inseln", 0)))
@@ -231,6 +323,14 @@ def _generate(cfg, W):
     terrain = dict(sea=sea, river=river, river_line=river_line, water=water, coast_y=coast_y, land=land,
                    mountain=biome["mountain"], plateau=plateau, biome=biome, shape=city_shape,
                    plateau_oben=plateau and g.get("plateau") == "oben")
+    return terrain, islands, gorge, level_full, custom
+
+
+def _pools_and_oases(rng, W, s, r, biome, center, terrain):
+    """Tümpel (bei Pfahlbauten auch Wasserflächen mitten im Ort) und Oasen. Liefert (Tümpel samt Oasen, Oasen); in
+    terrain stehen die Tümpel nur dort, wo Häuser über Wasser stehen dürfen."""
+    cx, cy = center
+    water = terrain["water"]
     pools = make_pools(rng, W, s, biome["pools"], water)
     if biome["stilts"]:   # Pfahlbausiedlung: Wasserflächen und Kanäle mitten im Ort
         extra = []
@@ -248,22 +348,13 @@ def _generate(cfg, W):
         pools = unary_union([pools] + oases)
     # Nur Pfahldörfer bauen über Wasser; sonst bleiben Seen und Oasen außerhalb des Orts
     terrain["pools"] = pools if biome["stilts"] else Polygon()
+    return pools, oases
 
-    if form == "eigene" and custom is None:   # erster Schritt: nur das Gelände, die Mauer wird darauf gezeichnet
-        return terrain_model(cfg, W, s, rot, terrain, pools, oases, biome, hints)
-    if custom is not None:
-        terrain["custom"] = custom
-        cx, cy = custom["center"]
-        r = custom["radius"]
 
-    builder = CityBuilder(cfg, rng, W, s, terrain, (cx, cy), r, rot, hints)
-    city, ext_roads, internal = builder.build()
-    cx, cy = builder.center   # liegt der Umriss im Wasser, rückt die Stadt ans Ufer (sonst unverändert)
-    shape = city["shape"]
-    if not biome["stilts"]:
-        pools = pools.difference(shape.buffer(25 * s))
-
-    # Festung (Insel, Landzunge oder an Land)
+def _fortress(rng, W, s, cfg, terrain, city, ext_roads, islands, hints):
+    """Festung (Insel, Landzunge oder an Land) samt Weg und Brücke. Eine Festung an Land verkleinert Meer, Wasser und
+    Land in terrain und verdrängt Schiffe, Stege und Hütten. Liefert (Festungen, Festungsbrücken, Landstraßen samt
+    Festungsweg, Fläche, die Wald, Felder und Häuser freihalten muss)."""
     forts, fort_bridges = [], []
     fort_specs = [o for o in cfg["orte"] if o["typ"] in FORT_TYPES]
     for spec in fort_specs[:1]:
@@ -272,8 +363,8 @@ def _generate(cfg, W):
             continue
         add = fort["land_add"]
         if add is not None:
-            sea = sea.difference(add)
-            water = water.difference(add)
+            sea = terrain["sea"].difference(add)
+            water = terrain["water"].difference(add)
             land = box(0, 0, W, W).difference(water)
             terrain.update(sea=sea, water=water, land=land)
             city["ships"] = [sh for sh in city["ships"] if not add.buffer(8 * s).contains(Point(sh["x"], sh["y"]))]
@@ -300,7 +391,12 @@ def _generate(cfg, W):
                                  + [ln.buffer(w / 2 + 4 * s) for ln, w in fort_bridges])
         city["ships"] = [sh for sh in city["ships"] if sh.get("depart") is None
                          or not sh["depart"].intersects(fort_block)]
-    # Leuchtturm: jede Küstenstadt, auf einer vorgelagerten Insel oder an der Spitze des Hafens
+    return forts, fort_bridges, ext_roads, forts_u
+
+
+def _lighthouse(s, W, city, terrain, islands, forts, forts_u):
+    """Leuchtturm: jede Küstenstadt, auf einer vorgelagerten Insel oder an der Spitze des Hafens. Er verdrängt, was auf
+    seiner Fläche steht. Liefert (Leuchtturm oder None, Freihaltefläche samt Leuchtturm)."""
     light = leuchtturm.place(s, W, city, terrain, islands, forts)
     if light is not None:
         foot = light["area"]
@@ -312,44 +408,56 @@ def _generate(cfg, W):
         forts_u = forts_u.union(foot.buffer(20 * s))
         city["labels"].append({"x": light["x"], "y": light["y"], "text": "Leuchtturm", "kind": "ort",
                                "lift": light["r"] * 1.6, "ort": place_info({"name": "Leuchtturm", "typ": "leuchtturm"})})
-    if not city["faubourg"].is_empty:   # Großstadt: Vorstädte halten Felder, Wald und Einzelhäuser fern
-        forts_u = forts_u.union(city["faubourg"])
-    if not city["slum_outside"].is_empty:   # ebenso Hüttensiedlungen vor der Mauer
-        forts_u = forts_u.union(city["slum_outside"].buffer(10 * s))
-    # Altstadtmauer und ihre Tore zeichnen sich wie die äußere Mauer (die Festung nutzt nur die äußere)
-    city["wall"] = city["wall"] + city.pop("old_wall")
-    city["gates"] = city["gates"] + city.pop("old_gates")
+    return light, forts_u
 
-    # Friedhöfe ohne Platz im Ort (oder lage: ausserhalb), Windmühlen und Bauernhöfe an eine Landstraße vor die Mauer
+
+def _outside_places(rng, s, city, builder, ext_roads, shape, water, pools, forts_u):
+    """Friedhöfe ohne Platz im Ort (oder lage: ausserhalb), Windmühlen und Bauernhöfe an eine Landstraße vor die Mauer.
+    Liefert (Tümpel ohne die neuen Flächen, Freihaltefläche samt neuen Flächen)."""
     for spec in city["deferred"]:
         place = {"muehle": outside_windmill, "bauernhof": outside_farm}.get(spec["typ"], outside_cemetery)
         area = place(rng, s, spec, builder, ext_roads, shape, water, pools, forts_u)
         if area is not None:
             forts_u = forts_u.union(area.buffer(10 * s))
             pools = pools.difference(area.buffer(8 * s))   # Gräberhügel bzw. Hofplatz: trockener Grund
+    return pools, forts_u
 
+
+def _mines(rng, s, biome, sea, land, shape, river, ext_roads, forts_u):
+    """Bergwerke samt Pfaden (nur im Gebirge). Liefert (Bergwerke, Pfade, Freihaltefläche samt Halden)."""
     mines, paths = [], []
     if biome["mountain"] and sea is not None:
         mines, paths = make_mines(rng, s, biome["mines"], sea, land, shape, river, ext_roads)
         if mines:
             forts_u = forts_u.union(unary_union([mn["spoil"].buffer(20 * s) for mn in mines]))
+    return mines, paths, forts_u
 
-    roads_u = unary_union([ln.buffer(w / 2 + 14 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
+
+def _forest_and_fields(rng, W, s, cfg, rot, terrain, center, r, shape, pools, roads_u, forts_u):
+    """Wald samt Bäumen und Felder vor der Stadt. Beide meiden Wasser, Stadt, Landstraßen und Freihalteflächen;
+    im Gebirge wächst am oberen Hang (Geröll) kein geschlossener Wald. Liefert (Wald, Waldbäume, Felder, Felderfläche)."""
+    g = cfg["gelaende"]
+    biome, sea, water, land = terrain["biome"], terrain["sea"], terrain["water"], terrain["land"]
     # Gebirge: oberer Hang (bis über die Stadt hinaus) ist Geröll, dort wächst kein geschlossener Wald
     upper_slope = Polygon()
     if biome["mountain"] and sea is not None:
         far = max(sea.distance(Point(x, y)) for x, y in shape.exterior.coords)
         upper_slope = sea.buffer(far * 0.75).intersection(land)
     forest_dirs = [to_canonical(d, rot) for d in g["wald"]]
-    forest, forest_trees = make_forest(rng, W, s, (cx, cy), r, forest_dirs,
+    forest, forest_trees = make_forest(rng, W, s, center, r, forest_dirs,
                                        unary_union([water.buffer(10 * s), shape.buffer(60 * s), roads_u, forts_u.buffer(30 * s),
                                                     upper_slope]), land,
                                        biome["tree_spacing"], biome["forest_scale"])
     blocked = unary_union([water.buffer(18 * s), shape.buffer(50 * s), roads_u, forest.buffer(25 * s),
                            forts_u.buffer(40 * s), pools.buffer(10 * s)])
     field_dirs = [to_canonical(d, rot) for d in g["felder"]]
-    fields = make_fields(rng, W, s, (cx, cy), r, field_dirs, blocked, biome["field_kinds"], biome["field_prob"])
+    fields = make_fields(rng, W, s, center, r, field_dirs, blocked, biome["field_kinds"], biome["field_prob"])
     fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
+    return forest, forest_trees, fields, fields_u
+
+
+def _suburbs(rng, s, cfg, city, ext_roads, water, shape, fields_u, forest, forts_u):
+    """Vorstadthäuser an den Landstraßen und Weiler an Straßen, die sonst kein Ziel hätten."""
     houses = [] if not cfg["mauer"].get("vorstaedte", True) else suburb_houses(rng, s, ext_roads,
                            unary_union([water.buffer(4 * s), shape.buffer(12 * s), fields_u.buffer(6 * s),
                                         forest.buffer(4 * s), forts_u,
@@ -358,40 +466,63 @@ def _generate(cfg, W):
         houses += hamlet(rng, s, ln, unary_union([water.buffer(4 * s), shape.buffer(12 * s), fields_u.buffer(6 * s),
                                                   unary_union([h["poly"].buffer(4 * s) for h in houses] or [Polygon()]),
                                                   unary_union([g.buffer(w / 2 + 2 * s) for g, w in ext_roads])]))
+    return houses
+
+
+def _free_ground(s, terrain, shape, pools, roads_u, fields_u, houses, forest, forts, forts_u):
+    """Freies Land für Einzelbäume und Felsen: ohne Wasser, Stadt, Straßen, Felder, Häuser, Festungen und Wald."""
+    biome, water, land = terrain["biome"], terrain["water"], terrain["land"]
     houses_u = unary_union([h["poly"].buffer(8 * s) for h in houses]) if houses else Polygon()
     blocked2 = unary_union([water.buffer(10 * s), shape.buffer(30 * s), roads_u, fields_u.buffer(15 * s), houses_u,
                             unary_union([f["fort"] for f in forts]).buffer(12 * s) if forts else Polygon(), forts_u,
                             Polygon() if biome["stilts"] else pools.buffer(4 * s)])
-    allowed = land.difference(unary_union([blocked2, forest.buffer(10 * s)]))
+    return land.difference(unary_union([blocked2, forest.buffer(10 * s)]))
+
+
+def _trees(rng, s, biome, pools, forest_trees, allowed, shape):
+    """Waldbäume (über Tümpeln nur vereinzelt) und verstreute Einzelbäume auf freiem Land."""
     if not pools.is_empty:   # Bruchwald: über Tümpeln nur vereinzelte Bäume; auf Eis und in Oasen keine
         keep = 0.3 if biome["pool_style"] == "sumpf" else 0.0
         forest_trees = [tr for tr in forest_trees if not pools.contains(Point(tr[0], tr[1])) or rng.random() < keep]
-    trees = forest_trees + scatter_trees(rng, s, allowed, shape)
-    if plateau:   # die andere Geländestufe: Felder, ein Wäldchen und verstreute Bäume, nicht direkt an der Kante
-        level = sea.buffer(-35 * s).difference(unary_union(
-            [river.buffer(14 * s) if river is not None else Polygon(), forts_u.buffer(30 * s)]
-            + [f["fort"].buffer(30 * s) for f in forts]))
-        if not level.is_empty:
-            off = box(-W, -W, 2 * W, 2 * W).difference(level)
-            side = rng.choice([-1, 1])
-            wood, wood_trees = make_forest(rng, W, s, (cx, cy), r, [(side * 0.6, -0.8)], off, level,
-                                           biome["tree_spacing"], biome["forest_scale"] * 0.7)
-            more = make_fields(rng, W, s, (cx, cy), r, [(0, -1), (-side * 0.7, -0.7)], off.union(wood.buffer(25 * s)),
-                               biome["field_kinds"], biome["field_prob"])
-            fields += more
-            fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
-            forest = forest.union(wood)
-            spare = level.difference(unary_union([wood.buffer(10 * s), fields_u.buffer(12 * s)]))
-            trees += wood_trees + scatter_trees(rng, s, spare, Point(-W, -W).buffer(1), count=45)
-    trees = [(x, y, rad, rng.choice(biome["trees"])) for x, y, rad, _ in trees]
-    trees += oasis_palms(rng, s, oases, biome, unary_union([shape.buffer(10 * s), roads_u, fields_u, water]))
+    return forest_trees + scatter_trees(rng, s, allowed, shape)
+
+
+def _upper_level(rng, W, s, center, r, terrain, forts, forts_u, forest, fields, fields_u):
+    """Hochplateau: die andere Geländestufe trägt Felder, ein Wäldchen und verstreute Bäume, nicht direkt an der Kante.
+    Liefert (Wald, Felder, Felderfläche, zusätzliche Bäume)."""
+    biome, sea, river = terrain["biome"], terrain["sea"], terrain["river"]
+    trees = []
+    level = sea.buffer(-35 * s).difference(unary_union(
+        [river.buffer(14 * s) if river is not None else Polygon(), forts_u.buffer(30 * s)]
+        + [f["fort"].buffer(30 * s) for f in forts]))
+    if not level.is_empty:
+        off = box(-W, -W, 2 * W, 2 * W).difference(level)
+        side = rng.choice([-1, 1])
+        wood, wood_trees = make_forest(rng, W, s, center, r, [(side * 0.6, -0.8)], off, level,
+                                       biome["tree_spacing"], biome["forest_scale"] * 0.7)
+        more = make_fields(rng, W, s, center, r, [(0, -1), (-side * 0.7, -0.7)], off.union(wood.buffer(25 * s)),
+                           biome["field_kinds"], biome["field_prob"])
+        fields += more
+        fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
+        forest = forest.union(wood)
+        spare = level.difference(unary_union([wood.buffer(10 * s), fields_u.buffer(12 * s)]))
+        trees = wood_trees + scatter_trees(rng, s, spare, Point(-W, -W).buffer(1), count=45)
+    return forest, fields, fields_u, trees
+
+
+def _rocks_dunes_floes(rng, s, terrain, shape, pools, allowed, roads_u, fields_u, forest, oases):
+    """Felsbrocken, Dünen (Wüste) und Eisschollen (Eis), je nach Biotop."""
+    biome, sea, water, land = terrain["biome"], terrain["sea"], terrain["water"], terrain["land"]
     rocks = make_rocks(rng, s, biome["rocks"], allowed.difference(pools.buffer(6 * s)))
     dunes = make_dunes(rng, s, land.difference(unary_union([
         shape.buffer(50 * s), water.buffer(40 * s), fields_u.buffer(10 * s), forest.buffer(10 * s),
         unary_union(oases).buffer(70 * s) if oases else Polygon(), roads_u]))) if biome["dunes"] else []
     floes = make_floes(rng, s, sea, land) if biome["floes"] and sea is not None else []
+    return rocks, dunes, floes
 
-    # Sumpf: Stelzenhäuser über Wasser, Schilf am Ufer, Seerosen
+
+def _swamp(rng, s, biome, pools, shape, city, houses):
+    """Sumpf: Stelzenhäuser über Wasser, Schilf am Ufer, Seerosen. Liefert (Schilf, Seerosen)."""
     reeds, lilies = [], []
     if not pools.is_empty and biome["pool_style"] == "sumpf":
         for b in city["buildings"] + houses:
@@ -411,8 +542,12 @@ def _generate(cfg, W):
                 x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
                 if inner.contains(Point(x, y)) and (not shape.contains(Point(x, y)) or rng.random() < 0.3):
                     lilies.append((x, y, rng.uniform(2.5, 5) * s))
+    return reeds, lilies
 
-    # keine Überlagerungen auf dem Wasser: Stege und Schiffe weichen allen Brücken (auch der Festungsbrücke)
+
+def _bridges_over_water(s, city, ext_roads, internal, river, river_line, forts, fort_bridges):
+    """Brücken über den Fluss samt Festungsbrücken. Keine Überlagerungen auf dem Wasser: Stege und Schiffe weichen
+    allen Brücken (auch der Festungsbrücke) und den Wasserrädern."""
     # Festungsinseln liegen teils in der Flussmündung: dort ist Land, die Inselstraße braucht keine Brücke
     added = [f["land_add"] for f in forts if f["land_add"] is not None]
     bridge_river = river.difference(unary_union(added)) if river is not None and added else river
@@ -423,7 +558,12 @@ def _generate(cfg, W):
         city["piers"] = [p for p in city["piers"] if not p.intersects(bz)]
         city["ships"] = [sh for sh in city["ships"]
                          if not ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).intersects(bz)]
-    # Abschlussprüfung gegen Überlagerungen: Häuser nicht auf Brücken oder Landstraßen, Bäume auf nichts anderem
+    return bridges
+
+
+def _resolve_overlaps(s, city, bridges, ext_roads, forts, light, houses, trees):
+    """Abschlussprüfung gegen Überlagerungen: Häuser nicht auf Brücken oder Landstraßen, Werften mit freier Ausfahrt,
+    Bäume auf nichts anderem. Liefert (Vorstadthäuser, Bäume); Stadt und Schiffe werden in city angepasst."""
     bz = unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in bridges]) if bridges else Polygon()
     rz = unary_union([ln.buffer(w / 2 + 1.5 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
     lifts = [f["lift"]["area"].buffer(3 * s) for f in forts if f.get("lift")]   # Aufzug an der Plateaukante
@@ -452,22 +592,7 @@ def _generate(cfg, W):
     shapely.prepare(solid)
     trees = [tr for tr in trees if not solid.intersects(Point(tr[0], tr[1]).buffer(tr[2] * 0.6))]
     city["yard_trees"] = [tr for tr in city["yard_trees"] if not solid.intersects(Point(tr[0], tr[1]).buffer(tr[2] * 0.6))]
-
-    return {
-        "name": cfg["name"], "W": W, "s": s, "rot": rot, "cfg": cfg,
-        "sea": sea, "river": river, "land": land, "water": water,
-        "fields": fields, "forest": forest, "trees": trees, "suburbs": houses,
-        "ext_roads": ext_roads, "bridges": bridges,
-        "forts": forts, "biome": biome, "pools": pools, "reeds": reeds, "lilies": lilies,
-        "oases": oases, "rocks": rocks, "dunes": dunes, "floes": floes,
-        "river_line": river_line, "mines": mines, "paths": paths,
-        "klamm_fade": (gorge["y_a"], gorge["y_b"]) if gorge and river is not None else None,
-        "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
-        "lighthouse": light,
-        "dust": staub.areas(cfg, W, (cx, cy), r, rot),
-        "hints": hints,
-        **city,
-    }
+    return houses, trees
 
 
 def custom_wall(cfg, W, rot):

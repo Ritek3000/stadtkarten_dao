@@ -90,7 +90,7 @@ früher nacheinander.
 | Datei | Aufgabe |
 |---|---|
 | `einrichten.py` | richtet die Python-Umgebung (`.venv`) ein und hält sie aktuell (Aufruf der Startskripte) |
-| `stadtkarte/config.py` | YAML einlesen und prüfen, Standardwerte, Himmelsrichtungen |
+| `stadtkarte/config.py` | YAML einlesen und prüfen, Standardwerte (`DEFAULTS`, `OPTIONAL`), Himmelsrichtungen |
 | `stadtkarte/generator.py` | setzt Gelände, Stadt und Umland zum Kartenmodell zusammen (Ausschnitt, Festung, Leuchtturm, Mühlen) |
 | `stadtkarte/geo.py` | Geometrie-Hilfen (Flächen, Linien, Rechtecke, Achsen) und 1D-Rauschen |
 | `stadtkarte/simplex.py` | Simplex-Rauschen, bitgenau auf jedem Prozessor |
@@ -105,7 +105,7 @@ früher nacheinander.
 | `stadtkarte/wasser.py` | Wasser mit Tiefe, Brandung und Flussufern als Bild |
 | `stadtkarte/umgebung.py`, `stadtkarte/papier.py`, `stadtkarte/staub.py` | Bodentönung nach Umgebung, Papierstruktur des Pergament-Stils, Staub |
 | `stadtkarte/webpaket.py` | Web-Paket: Kartenbild, Beschriftung, Ortsliste und Stadtbeschreibung |
-| `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF |
+| `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF; `render_svg` setzt die Karte aus Ebenen zusammen (`water_svg`, `land_svg`, `streets_svg` … `labels_svg`), von unten nach oben |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
 | `stadtkarte/parallel.py` | Rendern in eigenen Prozessen |
 | `stadtkarte/blender_export.py` | Karte als reine Geometrie (JSON) für Blender schreiben |
@@ -463,11 +463,18 @@ Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [nordhafen.yaml](beispiel
 .venv\Scripts\python -m unittest          # Linux/macOS: .venv/bin/python -m unittest
 ```
 
-Die Tests liegen in `tests/` und brauchen nur die Pakete aus `requirements.txt`. Sie prüfen die Stadtbeschreibung (fehlerhafte
-Angaben ergeben eine klare Meldung statt eines Absturzes), die Einrichtung der Umgebung, die Render-Prozesse, die
-Sicherheitsregeln des lokalen Webservers und Karten, die früher beim Zeichnen abgestürzt sind. Ob dieselbe Karte auf jedem
+Die Tests liegen in `tests/` und brauchen nur die Pakete aus `requirements.txt` (ein Test der Oberfläche führt ihre
+Standardwert-Funktion mit Node aus und entfällt ohne Node). Sie prüfen die Stadtbeschreibung (fehlerhafte Angaben ergeben eine
+klare Meldung statt eines Absturzes), die Einrichtung der Umgebung, die Render-Prozesse, die Sicherheitsregeln des lokalen
+Webservers, die Standardwerte der Oberfläche und Karten, die früher beim Zeichnen abgestürzt sind. Ob dieselbe Karte auf jedem
 Prozessor entsteht, prüft weiterhin `packaging/determinismus.py`. Auf GitHub laufen die Tests bei jeder Änderung und bei Pull
 Requests (siehe unten).
+
+**Standardwerte:** Sie stehen nur in `stadtkarte/config.py`: `DEFAULTS` für alles, was eine Beschreibung enthalten muss, und
+`OPTIONAL` für Angaben, die fehlen dürfen (`bebauung: dicht`, `stil: pergament`, `ausschnitt: weit` …). Die Oberfläche bekommt
+beide beim Start vom Server (`/api/options`) und wiederholt sie nicht. Fehlen in einer Datei `wald` und `felder`, gelten
+deshalb in der Oberfläche wie in der Kommandozeile Wald im Westen und Felder im Osten und Süden; ein ausdrücklich leeres
+`wald:` bedeutet weiterhin „kein Wald“.
 
 **Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 21 feste Karten (die
 Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster u.a.) und vergleicht sie mit den

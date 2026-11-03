@@ -20,7 +20,7 @@ from shapely.ops import unary_union
 from .geo import axes, lines, polys, rings, ship_footprint, unit, vlen
 from . import gebirge, noise, papier, parallel, schlucht, staub, umgebung, wasser
 from .roofs import detailed_roof, material_for
-from .config import ROTATION
+from .config import OPTIONAL, ROTATION
 from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
 
 
@@ -617,7 +617,7 @@ def prewarm(cfg):
         if (os.cpu_count() or 1) < 3:   # sonst nähmen die Texturen dem Generator nur die Rechenzeit
             return
         g, aus = cfg["gelaende"], cfg["ausgabe"]
-        if aus.get("ausschnitt", "weit") != "weit":   # anderer Maßstab (m["s"]): Schlüssel nicht vorhersagbar
+        if aus.get("ausschnitt", OPTIONAL["ausgabe.ausschnitt"]) != OPTIONAL["ausgabe.ausschnitt"]:   # anderer Maßstab (m["s"]): Schlüssel nicht vorhersagbar
             return
         B = BIOMES[g["biotop"]]
         if B["mountain"] or B["plateau"]:
@@ -1294,19 +1294,9 @@ def mines_svg(o, m):
                  f'<circle cx="{f(-4 * s)}" cy="{f(-10 * s)}" r="{f(2 * s)}" fill="#ffd27a"/></g>')
 
 
-def render_svg(m, nacht=None):
-    """Zeichnet die Karte als SVG. nacht=None richtet sich nach ausgabe.nacht; True/False erzwingt Nacht bzw. Tag.
-    Dasselbe Ergebnis des Generators (m) lässt sich mehrfach zeichnen, so entstehen Tag- und Nachtkarte aus einer Stadt;
-    die zweite Zeichnung ist schneller, weil die Texturen schon im Zwischenspeicher liegen."""
-    nacht = bool(m["cfg"]["ausgabe"].get("nacht")) if nacht is None else bool(nacht)
-    s, W = m["s"], m["W"]
-    rng = random.Random(m["cfg"]["seed"])
-    B = m["biome"]
-    o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{W}" viewBox="0 0 {W} {W}">', defs(m)]
-    if font_face_css():
-        o.append(f"<style>{font_face_css()}</style>")
-    rot = f'rotate({m["rot"]} {f(W / 2)} {f(W / 2)})'
-    o.append(f'<g transform="{rot}">')
+def water_svg(o, m, rng):
+    """Meer bzw. Fels, Fluss, Wasser mit Tiefe, Nebel, Küstenlinien und Eisschollen."""
+    s, W, B = m["s"], m["W"], m["biome"]
     # Wasser bzw. Fels
     if B["mountain"]:
         mountain_svg(o, m, rng)
@@ -1329,6 +1319,11 @@ def render_svg(m, nacht=None):
     if m["floes"]:
         fd = "".join(path_d(fl) for fl in m["floes"])
         o.append(f'<path d="{fd}" fill="#f2f6f8" stroke="#8fb0c4" stroke-width="{f(1.2 * s)}"/>')
+
+
+def land_svg(o, m):
+    """Land mit Bodentextur und Tönung nach der Umgebung, dazu die Küstenlinie."""
+    s, W, B = m["s"], m["W"], m["biome"]
     # Land
     o.append(f'<path d="{path_d(m["land"])}" fill="{B["land"]}"/>')
     o.append(f'<g clip-path="url(#landClip)">'
@@ -1344,6 +1339,11 @@ def render_svg(m, nacht=None):
                  f'stroke-linejoin="round" filter="url(#feder)"/>')
     else:
         o.append(f'<path d="{path_d(m["land"])}" fill="none" stroke="{C["coast"]}" stroke-width="{f(2.4 * s)}"/>')
+
+
+def relief_svg(o, m, rng):
+    """Gelände über dem Land: Gebirge, Klamm, Plateaukante, Wüstenstreifen und Dünen, Sumpftümpel."""
+    s, B = m["s"], m["biome"]
     if B["mountain"]:
         slope_svg(o, m, rng)
     if B["chasm"] and m["river"] is not None:
@@ -1363,6 +1363,11 @@ def render_svg(m, nacht=None):
                  f'<path d="{dd}" fill="none" stroke="#f6e6bb" stroke-opacity="0.6" stroke-width="{f(1.6 * s)}" '
                  f'stroke-linecap="round" transform="translate({f(-2 * s)},{f(-2 * s)})"/>')
     pools_svg(o, m, rng)
+
+
+def fields_svg(o, m):
+    """Waldboden, Felder mit Bodenflecken und Hecken an den Gewanngrenzen."""
+    s, B = m["s"], m["biome"]
     # Wald, Felder
     if not m["forest"].is_empty:
         o.append(f'<path d="{path_d(m["forest"])}" fill="{B["forest_floor"]}" fill-opacity="0.55" filter="url(#softblur)"/>')
@@ -1390,6 +1395,11 @@ def render_svg(m, nacht=None):
                      f'stroke-linecap="round" stroke-dasharray="{f(0.1 * s)} {f(4.6 * s)}" transform="translate({f(0.8 * s)},{f(1 * s)})"/>'
                      f'<path d="{hd}" fill="none" stroke="#4d6a35" stroke-width="{f(3.6 * s)}" '
                      f'stroke-linecap="round" stroke-dasharray="{f(0.1 * s)} {f(4.6 * s)}"/>')
+
+
+def country_roads_svg(o, m):
+    """Landstraßen (im Sumpf mit Knüppeldamm) und die Aufzüge der Festungen an der Plateaukante."""
+    s, B = m["s"], m["biome"]
     # Landstraßen
     rd = "".join(line_d(ln) for ln, _ in m["ext_roads"])
     if rd:
@@ -1406,6 +1416,11 @@ def render_svg(m, nacht=None):
     for fort in m["forts"]:
         if fort.get("lift"):
             lift_svg(o, fort["lift"], s)
+
+
+def streets_svg(o, m):
+    """Gassen und Pflaster der Stadt; ihre Randlinie läuft nicht über einmündende Landstraßen."""
+    s, W, B = m["s"], m["W"], m["biome"]
     # Stadtflächen; ihre Randlinie läuft nicht quer über die einmündenden Landstraßen
     # (sonst zeichnet sich dort, wo die Straße in die Gassen übergeht, ein Bogen bzw. Strich ab)
     joins = unary_union([ln.buffer(9 * s) for ln, _ in m["ext_roads"]]) if m["ext_roads"] else None
@@ -1443,6 +1458,11 @@ def render_svg(m, nacht=None):
     else:
         for pv in paved:
             o.append(edged(pv, paved_fill))
+
+
+def slums_svg(o, m):
+    """Armenviertel: festgetretener Boden, schlammige Gassen mit Pfützen."""
+    s = m["s"]
     slums = [d["poly"] for d in m.get("districts", []) if DISTRICT_TYPES.get(d["typ"], {}).get("poor")]
     if slums and m["streets"]:   # Armenviertel: festgetretener Boden, schlammige Gassen mit Pfützen
         slum = unary_union(slums).buffer(6 * s).intersection(m["city_land"].union(m["slum_outside"]))
@@ -1461,6 +1481,11 @@ def render_svg(m, nacht=None):
                                    f'ry="{f(mrng.uniform(1, 2) * s)}" transform="rotate({f(mrng.uniform(0, 180))} {f(x)} {f(y)})"/>')
             if puddles:
                 o.append(f'<g fill="#3c4a4e" fill-opacity="0.55">{"".join(puddles)}</g>')
+
+
+def stilt_decks_svg(o, m):
+    """Pfahldorf: Gassen und Plätze über dem Sumpfwasser sind Stege."""
+    s, B = m["s"], m["biome"]
     if not m["pools"].is_empty and B["stilts"]:   # Pfahldorf: Gassen und Plätze über dem Sumpfwasser sind Stege
         pools = m["pools"]
         decks = unary_union(list(m["streets"]) + list(m["paved"]) + list(m["plazas"])).intersection(pools)
@@ -1472,6 +1497,11 @@ def render_svg(m, nacht=None):
             if walk:
                 o.append(f'<path d="{walk}" fill="none" stroke="#8a6d45" stroke-width="{f(w - 2 * s)}" '
                          f'stroke-dasharray="{f(2.4 * s)} {f(0.8 * s)}"/>')
+
+
+def grounds_svg(o, m):
+    """Sonderflächen (Tempelvorplatz, Exerzierplatz, Friedhof, Palastgarten, Hofplatz) und Gräber."""
+    s, B = m["s"], m["biome"]
     # Sonderflächen: Tempelvorplatz, Exerzierplatz, Friedhof
     for g, kind in m["grounds"]:
         d = path_d(g)
@@ -1508,6 +1538,11 @@ def render_svg(m, nacht=None):
     if m["graves"]:
         gd = "".join(path_d(g) for g in m["graves"])
         o.append(f'<path d="{gd}" fill="#bdb7a8" stroke="#1e1e1a" stroke-width="{f(0.6 * s)}"/>')
+
+
+def fountains_wells_svg(o, m):
+    """Laufbrunnen und Ziehbrunnen."""
+    s, B = m["s"], m["biome"]
     for x, y, r in m["fountains"]:   # Laufbrunnen: achteckiges Becken, Wasser, Brunnensäule
         oct_ = " ".join(f"{f(x + math.cos(math.pi / 8 + k * math.pi / 4) * r)},{f(y + math.sin(math.pi / 8 + k * math.pi / 4) * r)}"
                         for k in range(8))
@@ -1522,6 +1557,11 @@ def render_svg(m, nacht=None):
                  f'<path d="M{f(x - r * 1.25)},{f(y)}H{f(x + r * 1.25)}" stroke="#5a3f28" stroke-width="{f(1.3 * s)}"/>'
                  f'<circle cx="{f(x - r * 1.25)}" cy="{f(y)}" r="{f(0.8 * s)}" fill="#3a2a1a"/>'
                  f'<circle cx="{f(x + r * 1.25)}" cy="{f(y)}" r="{f(0.8 * s)}" fill="#3a2a1a"/>')
+
+
+def stalls_svg(o, m):
+    """Wochenmarkt: Stände mit gestreifter Plane und Schatten."""
+    s = m["s"]
     if m["stalls"]:                  # Wochenmarkt: Stände mit gestreifter Plane und Schatten
         sil = "".join(path_d(st["poly"]) for st in m["stalls"])
         o.append(shadow_layer(f'<path d="{sil}"/>', 1.5 * s, 1.8 * s, 0.45, s))
@@ -1538,6 +1578,11 @@ def render_svg(m, nacht=None):
                      f'<path d="{stripes}" stroke="{c2}" stroke-width="{f(w / 6)}"/>'
                      f'<path d="M{xy(p0 + v * dd / 2)}L{xy(p0 + u * w + v * dd / 2)}" stroke="#000" stroke-opacity="0.35" stroke-width="{f(0.6 * s)}"/>'
                      f'<path d="{path_d(st["poly"])}" fill="none" stroke="{C["outline"]}" stroke-width="{f(0.8 * s)}"/>')
+
+
+def terraces_svg(o, m):
+    """Terrassenstadt im Gebirge: Tönung, Stützmauern und Treppen."""
+    s = m["s"]
     terrace_tint(o, m, 1.0)   # Boden und Straßen
     if m["terrace_walls"]:
         tw = "".join(line_d(ln) for ln in m["terrace_walls"])
@@ -1559,15 +1604,30 @@ def render_svg(m, nacht=None):
         o.append(f'<path d="{d}" fill="none" stroke="#4a4740" stroke-width="{f(w + 1 * s)}"/>'
                  f'<path d="{d}" fill="none" stroke="#d2cdc0" stroke-width="{f(w - 1.5 * s)}" '
                  f'stroke-dasharray="{f(1.3 * s)} {f(1.5 * s)}"/>')
+
+
+def mine_paths_svg(o, m):
+    """Pfade von den Minen zur nächsten Straße."""
+    s, B = m["s"], m["biome"]
     for ln in m["paths"]:
         d = line_d(ln)
         o.append(f'<path d="{d}" fill="none" stroke="{C["road_edge"]}" stroke-opacity="0.6" stroke-width="{f(7 * s)}" '
                  f'stroke-linecap="round"/><path d="{d}" fill="none" stroke="{B["road"]}" stroke-width="{f(5 * s)}" '
                  f'stroke-linecap="round"/>')
+
+
+def harbor_svg(o, m):
+    """Stege und Schiffe."""
+    s = m["s"]
     # Stege, Schiffe, Brücken
     for pier in m["piers"]:
         o.append(f'<path d="{path_d(pier)}" fill="#7a5a3c" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>')
     o.append('<g filter="url(#shadow)">' + "".join(ship_svg(sh, s) for sh in m["ships"]) + "</g>")
+
+
+def bridges_svg(o, m):
+    """Brücken mit Fahrbahn und Geländer. Liefert die Positionen der Brückenlaternen (für Lichtschein und Nacht)."""
+    s, W, B = m["s"], m["W"], m["biome"]
     lamps = []
     if m["bridges"]:
         # Kontur und Brüstung nur über dem Wasser (enden am Ufer wie Widerlager), die Fahrbahn blendet an Land
@@ -1604,12 +1664,23 @@ def render_svg(m, nacht=None):
             side = 1 if k % 2 else -1
             off = w / 2 - 1.2 * s
             lamps.append((p.x - ty / nl * off * side, p.y + tx / nl * off * side))
+    return lamps
+
+
+def forts_svg(o, m):
+    """Festungen: dicke Mauer, gepflasterter Hof."""
+    s = m["s"]
     # Festungen: dicke Mauer, gepflasterter Hof
     for ft in m["forts"]:
         d = path_d(ft["fort"])
         o.append(f'<g filter="url(#shadow)"><path d="{d}" fill="#8f8a7c" stroke="{C["wall"]}" stroke-width="{f(2.5 * s)}"/></g>'
                  f'<path d="{path_d(ft["fort"].buffer(-7 * s, join_style="mitre"))}" fill="url(#cobble)" '
                  f'stroke="{C["wall"]}" stroke-width="{f(1.5 * s)}"/>')
+
+
+def rocks_svg(o, m):
+    """Findlinge und Felsbrocken."""
+    s = m["s"]
     if m["rocks"]:
         rk = "".join(f'<ellipse cx="{f(x)}" cy="{f(y)}" rx="{f(rx)}" ry="{f(ry)}" transform="rotate({f(a)} {f(x)} {f(y)})"/>'
                      for x, y, rx, ry, a in m["rocks"])
@@ -1618,8 +1689,11 @@ def render_svg(m, nacht=None):
         o.append(shadow_layer(rk, 2 * s, 2.5 * s, 0.5, s) +
                  f'<g fill="#8b877c" stroke="#2e2c27" stroke-width="{f(1 * s)}">{rk}</g>'
                  f'<g fill="#ffffff" fill-opacity="0.35">{hl}</g>')
-    if m.get("lighthouse"):
-        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=False)
+
+
+def buildings_svg(o, m):
+    """Gebäude mit Schattenwurf: Dächer mit Licht, Material und Details, Häuserblöcke, Pfahlbauten."""
+    s, B = m["s"], m["biome"]
     # Gebäude
     stilts_svg(o, m)
     # Schattenwurf als versetzte Silhouette (statt teurem feDropShadow über die ganze Karte)
@@ -1644,8 +1718,11 @@ def render_svg(m, nacht=None):
             svg = detailed_roof(b, s, roof_rng, material, to_light, C["outline"])
         o.append(svg or building_svg(b, s, B["flat_roofs"]))
     o.append("</g>")
-    mills_svg(o, m)
-    mines_svg(o, m)
+
+
+def forges_svg(o, m):
+    """Glut der Schmieden. Liefert ihre Positionen (für die Nacht)."""
+    s = m["s"]
     forge_glow = []
     for b in m["buildings"]:
         if b.get("forge"):
@@ -1655,9 +1732,12 @@ def render_svg(m, nacht=None):
         o.append(glow_dots([(x, y, 9 * s) for x, y in forge_glow], "glowForge", s))
         o.append("".join(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(2.4 * s)}" fill="#ffc25a" stroke="#2a1608" '
                          f'stroke-width="{f(0.7 * s)}"/>' for x, y in forge_glow))
-    if m["great_gate"]:
-        great_gate_svg(o, m)
-    terrace_tint(o, m, 0.55)   # dieselbe Tönung schwächer über den Dächern
+    return forge_glow
+
+
+def walls_svg(o, m, lamps):
+    """Stadtmauer, Lichtschein, Brückenlaternen, Türme und Tore."""
+    s, B = m["s"], m["biome"]
     # Mauer, Türme, Tore
     wd = "".join(line_d(ln) for ln in m["wall"])
     if wd and B["wall"] == "palisade":
@@ -1687,6 +1767,11 @@ def render_svg(m, nacht=None):
                  f'<rect x="{f(-17 * s)}" y="{f(-11 * s)}" width="{f(34 * s)}" height="{f(22 * s)}" fill="#b2493a" '
                  f'stroke="{C["outline"]}" stroke-width="{f(1.5 * s)}"/>'
                  f'<rect x="{f(-6 * s)}" y="{f(-11 * s)}" width="{f(12 * s)}" height="{f(22 * s)}" fill="#7c3328"/></g>')
+
+
+def trees_svg(o, m, rng):
+    """Bäume mit Schatten (von hinten nach vorn sortiert)."""
+    s, B = m["s"], m["biome"]
     # Bäume
     trees = list(m["trees"]) + [(x, y, r, rng.choice(B["trees"])) for x, y, r in m["yard_trees"]]
     trees.sort(key=lambda t: t[1])
@@ -1701,25 +1786,32 @@ def render_svg(m, nacht=None):
         parts.append(tree_svg(x, y, r, c, s, rng, kind))
     o.append(shadow_layer("".join(shadows), 3 * s, 3.5 * s, 0.45, s))
     o.append("<g>" + "".join(parts) + "</g>")
+
+
+def ship_bows_svg(o, m):
+    """Der Bug des Schiffs im Helling der Werft liegt über allem; nur das Heck bleibt in der Halle verborgen."""
+    s, W = m["s"], m["W"]
     # Werft: der Bug des Schiffs im Helling liegt über allem (Schatten, Lichtschein, Bäume); nur das Heck bleibt in
     # der Halle verborgen (Zuschnitt: ganze Karte ohne die Halle)
     for i, sh in enumerate(x for x in m["ships"] if x.get("slip")):
         frame = f"M{f(-W)},{f(-W)}H{f(2 * W)}V{f(2 * W)}H{f(-W)}Z"
         o.append(f'<clipPath id="slipBow{i}"><path clip-rule="evenodd" d="{frame}{path_d(sh["hall"])}"/></clipPath>'
                  f'<g clip-path="url(#slipBow{i})">{ship_svg(sh, s)}</g>')
-    if nacht:
-        night_svg(o, m, lamps, forge_glow)
-    if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
-        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=True)
+
+
+def dust_svg(o, m):
+    """Staub über allem, auch über Lichtern."""
+    s, W = m["s"], m["W"]
     patches, overall = m.get("dust") or ([], None)
     if patches or overall:   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
         tex = m.setdefault("_tex", {})
         tex["staub"] = _tex_pool().submit(staub.image, W, s, [(rings(p), lv) for p, lv in patches], overall)
         o.append('<use href="#tex_staub"/>')
-    o.append("</g>")  # Ende Drehung
 
-    # Beschriftung (immer aufrecht), Schrift in Kartengröße
-    s = m.get("st", s)
+
+def paper_svg(o, m):
+    """Papierstruktur und warmer Ton (Pergament) bzw. Randabdunkelung (Standard)."""
+    W = m["W"]
     if m["cfg"]["ausgabe"].get("stil") == "pergament":
         # Papierstruktur und warmer Ton, multipliziert; Farben leicht entsättigt wie alte Druckfarbe
         o.append(f'<image href="{papier.image(W, m["s"])}" x="0" y="0" width="{W}" height="{W}" '
@@ -1727,6 +1819,11 @@ def render_svg(m, nacht=None):
                  f'<rect width="{W}" height="{W}" fill="#c9a86a" style="mix-blend-mode:color" opacity="0.18"/>')
     else:
         o.append(f'<rect width="{W}" height="{W}" fill="url(#vignette)"/>')
+
+
+def labels_svg(o, m):
+    """Beschriftung (immer aufrecht, Schrift in Kartengröße): Viertel, Orte, Titel und Legende, je Art in einer Gruppe."""
+    s, W = m.get("st", m["s"]), m["W"]   # Schrift in Kartengröße (bei vergrößertem Ausschnitt anders als die Welt)
     title_size = 78 * s
     taken = [(W - 60 * s - text_width(m["name"], title_size), W - 70 * s - title_size, W - 60 * s, W - 50 * s)]
     rows = legend_rows(m["legend"]) if m["cfg"]["ausgabe"].get("legende") else []
@@ -1777,16 +1874,84 @@ def render_svg(m, nacht=None):
                           f'fill="{C["text"]}">{escape(name)}</text>')
         o.append(movable("legende", offsets, W, "".join(legend)))
     o.append("</g>" + LABELS_END)
+
+
+def grid_svg(o, m):
+    """Raster (ausgabe.raster) in einer eigenen Gruppe."""
+    W = m["W"]
     grid = int(m["cfg"]["ausgabe"].get("raster") or 0)
     if grid > 0:
         d = "".join(f"M{k},0V{W}M0,{k}H{W}" for k in range(grid, W, grid))
         o.append(f'{RASTER_START}<path d="{d}" stroke="#000" stroke-opacity="0.25" stroke-width="1" fill="none"/></g>')
+
+
+def textures_svg(o, m):
+    """Wartet auf die Texturen und bettet jede einmal ein; Verwendungen verweisen per <use> darauf."""
+    W = m["W"]
     tex = {k: fut.result() for k, fut in m.pop("_tex", {}).items()}
     if tex:   # jede Textur nur einmal einbetten, Verwendungen verweisen per <use> darauf
         o.append("<defs>" + "".join(
             f'<image id="tex_{k}" href="{u}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none" '
             f'image-rendering="optimizeSpeed"/>'
             for k, u in tex.items()) + "</defs>")
+
+
+def render_svg(m, nacht=None):
+    """Zeichnet die Karte als SVG. nacht=None richtet sich nach ausgabe.nacht; True/False erzwingt Nacht bzw. Tag.
+    Dasselbe Ergebnis des Generators (m) lässt sich mehrfach zeichnen, so entstehen Tag- und Nachtkarte aus einer Stadt;
+    die zweite Zeichnung ist schneller, weil die Texturen schon im Zwischenspeicher liegen.
+
+    Die Ebenen (water_svg ... textures_svg) werden von unten nach oben gezeichnet; die Reihenfolge bestimmt, was über was
+    liegt. Sie bestimmt auch, wann die Texturen im Hintergrund zu rechnen beginnen (noch beim Aufbau, abgeholt wird erst in
+    textures_svg am Ende) und in welcher Reihenfolge der Zufallsgenerator rng gezogen wird: beides ändert sich mit ihr."""
+    nacht = bool(m["cfg"]["ausgabe"].get("nacht")) if nacht is None else bool(nacht)
+    s, W = m["s"], m["W"]
+    rng = random.Random(m["cfg"]["seed"])
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{W}" viewBox="0 0 {W} {W}">', defs(m)]
+    if font_face_css():
+        o.append(f"<style>{font_face_css()}</style>")
+    rot = f'rotate({m["rot"]} {f(W / 2)} {f(W / 2)})'
+    o.append(f'<g transform="{rot}">')
+    water_svg(o, m, rng)
+    land_svg(o, m)
+    relief_svg(o, m, rng)
+    fields_svg(o, m)
+    country_roads_svg(o, m)
+    streets_svg(o, m)
+    slums_svg(o, m)
+    stilt_decks_svg(o, m)
+    grounds_svg(o, m)
+    fountains_wells_svg(o, m)
+    stalls_svg(o, m)
+    terraces_svg(o, m)
+    mine_paths_svg(o, m)
+    harbor_svg(o, m)
+    lamps = bridges_svg(o, m)
+    forts_svg(o, m)
+    rocks_svg(o, m)
+    if m.get("lighthouse"):
+        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=False)
+    buildings_svg(o, m)
+    mills_svg(o, m)
+    mines_svg(o, m)
+    forge_glow = forges_svg(o, m)
+    if m["great_gate"]:
+        great_gate_svg(o, m)
+    terrace_tint(o, m, 0.55)   # dieselbe Tönung schwächer über den Dächern
+    walls_svg(o, m, lamps)
+    trees_svg(o, m, rng)
+    ship_bows_svg(o, m)
+    if nacht:
+        night_svg(o, m, lamps, forge_glow)
+    if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
+        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=True)
+    dust_svg(o, m)   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
+    o.append("</g>")  # Ende Drehung
+
+    paper_svg(o, m)
+    labels_svg(o, m)
+    grid_svg(o, m)
+    textures_svg(o, m)
     o.append("</svg>")
     return "".join(o)
 
