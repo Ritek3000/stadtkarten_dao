@@ -63,10 +63,14 @@ jobs:
           cache-dependency-path: ${{ matrix.requirements }}
 
       - name: Abhängigkeiten installieren
-        run: python -m pip install -r ${{ matrix.requirements }} pyflakes==4.1.0
+        run: python -m pip install -r ${{ matrix.requirements }}
 
+      # Einmal genügt; pyflakes 4 braucht außerdem Python 3.11 oder neuer (unter 3.10 nicht installierbar)
       - name: Codeprüfung (pyflakes)
-        run: python -m pyflakes stadtkarte tests packaging blender einrichten.py
+        if: matrix.python == '3.12'
+        run: |
+          python -m pip install pyflakes==4.1.0
+          python -m pyflakes stadtkarte tests packaging blender einrichten.py
 
       - name: Tests
         run: python -m unittest -v
