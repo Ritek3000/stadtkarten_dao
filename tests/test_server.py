@@ -5,7 +5,9 @@ import threading
 import unittest
 from http.server import ThreadingHTTPServer
 
+from stadtkarte import parallel
 from stadtkarte.ui.__main__ import MAX_BODY, Handler
+from tests.test_generator import HINWEISE, hinweiskarte
 
 
 class Server(unittest.TestCase):
@@ -17,6 +19,7 @@ class Server(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        parallel.shutdown()   # Render-Prozesse, die das Erzeugen einer Karte gestartet hat
         cls.server.shutdown()
         cls.server.server_close()
 
@@ -74,6 +77,14 @@ class Server(unittest.TestCase):
         self.assertNotIn("/", json.loads(text)["error"])
         status, _ = self.request("GET", "/api/example?name=hafenstadt")
         self.assertEqual(status, 200)
+
+    def test_erzeugen_liefert_die_hinweise_ohne_vorsatz(self):
+        cfg = hinweiskarte()
+        cfg["ausgabe"]["nachtkarte"] = False   # kein Hintergrund-Thread für die Nachtkarte
+        status, text = self.request("POST", "/api/generate", body=json.dumps(cfg),
+                                    headers={"Content-Type": "application/json"})
+        self.assertEqual(status, 200, text[:300])
+        self.assertEqual(json.loads(text)["hints"], HINWEISE)
 
     def test_fehlerhafte_angaben_ergeben_400_mit_meldung(self):
         cfg = {"name": "A", "orte": [{"name": "X", "typ": "zauberturm"}]}

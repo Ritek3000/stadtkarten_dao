@@ -217,8 +217,9 @@ def wall_angle(shape, p):
 
 
 class CityBuilder:
-    def __init__(self, cfg, rng, W, s, terrain, center, r, rot):
+    def __init__(self, cfg, rng, W, s, terrain, center, r, rot, hints=None):
         self.cfg, self.rng, self.W, self.s = cfg, rng, W, s
+        self.hints = [] if hints is None else hints   # Hinweise an den Nutzer, in der Reihenfolge ihres Entstehens
         self.t = terrain
         self.center, self.r, self.rot = center, r, rot
         pop = cfg["einwohner"]
@@ -228,6 +229,10 @@ class CityBuilder:
         self.spread = max(1.0, (r / city_radius(W, pop)) ** 2) if spread(cfg) > 1 else 1.0
         self.g = max(1.0, math.sqrt(pop / GROSS))   # 1 bei 20.000, 3.5 bei 250.000 Einwohnern: wie viel feiner
         self.out = self.empty_out()
+
+    def hint(self, text):
+        """Meldet dem Nutzer, was der Generator anders gemacht hat als beschrieben (steht in m["hints"], ohne "Hinweis:")."""
+        self.hints.append(text)
 
     @staticmethod
     def empty_out():
@@ -258,11 +263,11 @@ class CityBuilder:
             base = city_radius(self.W, self.cfg["einwohner"])
             ratio = self.shape.area / (math.pi * base * base)
             if ratio < 0.45:
-                print("Hinweis: Die gezeichnete Mauer ist für die Einwohnerzahl sehr eng - die Stadt wird dicht "
-                      "bebaut und wirkt kleiner als angegeben.")
+                self.hint("Die gezeichnete Mauer ist für die Einwohnerzahl sehr eng - die Stadt wird dicht "
+                          "bebaut und wirkt kleiner als angegeben.")
             elif ratio > 3.5:
-                print("Hinweis: Die gezeichnete Mauer umschließt sehr viel Fläche für die Einwohnerzahl - "
-                      "die Stadt wird weitläufig mit vielen Gärten.")
+                self.hint("Die gezeichnete Mauer umschließt sehr viel Fläche für die Einwohnerzahl - "
+                          "die Stadt wird weitläufig mit vielen Gärten.")
             self.spread = min(3.0, max(1.0, ratio))
         if self.spread > 1:   # nach der tatsächlichen Fläche (am Kartenrand oder an der Küste verkleinert)
             base = city_radius(self.W, self.cfg["einwohner"])
@@ -289,8 +294,8 @@ class CityBuilder:
             raise ValueError("Auf der Karte ist kein Land für die Stadt - bitte den Fluss schmaler wählen.")
         self.shape, self.sides = moved, sides
         self.center = (self.center[0] + move[0], self.center[1] + move[1])
-        print("Hinweis: Der Stadtumriss läge ganz im Wasser (kleine Stadt, sehr breiter Fluss oder Küste) - "
-              "die Stadt wird ans Ufer verschoben.")
+        self.hint("Der Stadtumriss läge ganz im Wasser (kleine Stadt, sehr breiter Fluss oder Küste) - "
+                  "die Stadt wird ans Ufer verschoben.")
 
     def side_of(self, p):
         p = p if isinstance(p, Point) else Point(p)
@@ -313,13 +318,13 @@ class CityBuilder:
                 d = unit((p.x - c[0], p.y - c[1]))
                 self.gates.append((math.atan2(d[1], d[0]), p, np.array(d)))
             if wet and self.gates:   # eine Meldung für alle (bei mehreren Toren im Wasser sonst identische Zeilen)
-                print("Hinweis: Ein Tor liegt im Wasser und entfällt." if wet == 1
-                      else f"Hinweis: {wet} Tore liegen im Wasser und entfallen.")
+                self.hint("Ein Tor liegt im Wasser und entfällt." if wet == 1
+                          else f"{wet} Tore liegen im Wasser und entfallen.")
             elif wet:   # kein Tor übrig: die Stadt wäre ohne Zugang
-                print("Hinweis: Das einzige Tor liegt im Wasser und entfällt - die Stadt hat kein Tor. "
-                      "Bitte ein Tor an Land setzen." if wet == 1 else
-                      f"Hinweis: Alle {wet} Tore liegen im Wasser und entfallen - die Stadt hat kein Tor. "
-                      "Bitte ein Tor an Land setzen.")
+                self.hint("Das einzige Tor liegt im Wasser und entfällt - die Stadt hat kein Tor. "
+                          "Bitte ein Tor an Land setzen." if wet == 1 else
+                          f"Alle {wet} Tore liegen im Wasser und entfallen - die Stadt hat kein Tor. "
+                          "Bitte ein Tor an Land setzen.")
             self.walled = walled
             if not walled:
                 return
@@ -761,15 +766,15 @@ class CityBuilder:
         for sp in specs:
             sp.setdefault("typ", "wohn")
             if sp.get("ausserhalb") and sp["typ"] != "armen":
-                print(f"Hinweis: Nur Armenviertel können vor der Mauer liegen - '{sp.get('name')}' liegt in der Stadt.")
+                self.hint(f"Nur Armenviertel können vor der Mauer liegen - '{sp.get('name')}' liegt in der Stadt.")
                 sp["ausserhalb"] = False
             if (self.t.get("mountain") or self.t.get("plateau")) and sp["typ"] in ("hafen", "fischer"):
                 new = "markt" if sp["typ"] == "hafen" else "handwerk"
                 where = "ins Gebirge" if self.t.get("mountain") else "an die Plateaukante"
-                print(f"Hinweis: '{sp.get('name')}' ({sp['typ']}) passt nicht {where} - wird als {new} gebaut.")
+                self.hint(f"'{sp.get('name')}' ({sp['typ']}) passt nicht {where} - wird als {new} gebaut.")
                 sp["typ"] = new
             if sp["typ"] == "hafen" and not has_water:
-                print(f"Hinweis: '{sp.get('name')}' ist ein Hafen, aber es gibt kein Wasser - wird als Markt gebaut.")
+                self.hint(f"'{sp.get('name')}' ist ein Hafen, aber es gibt kein Wasser - wird als Markt gebaut.")
                 sp["typ"] = "markt"
         if all(sp.get("ausserhalb") for sp in specs):   # alle Viertel vor der Mauer: drinnen einfache Wohnbebauung
             specs = list(specs) + [dict(UNNAMED_DISTRICT)]
@@ -803,7 +808,7 @@ class CityBuilder:
         self._poor_to_outer_ring(idx)
         for d in self.district_list:
             if d["poly"].is_empty and not d["outside"]:
-                print(f"Hinweis: Viertel '{d['name']}' hat keinen Platz gefunden.")
+                self.hint(f"Viertel '{d['name']}' hat keinen Platz gefunden.")
         self.out["districts"] = self.district_list
 
     def _poor_to_outer_ring(self, idx):
@@ -862,11 +867,11 @@ class CityBuilder:
                 if harbor.is_empty or self.city_land.difference(harbor).area >= self.city_land.area / 3:
                     break
             if harbor.is_empty or self.city_land.difference(harbor).is_empty:
-                print(f"Hinweis: Neben den anderen Vierteln ist am Wasser kein Platz für den Kai von '{name}' - "
-                      "der Hafen wird ohne eigenen Kai gebaut.")
+                self.hint(f"Neben den anderen Vierteln ist am Wasser kein Platz für den Kai von '{name}' - "
+                          "der Hafen wird ohne eigenen Kai gebaut.")
                 return None
-            print(f"Hinweis: Der Hafen '{name}' würde die ganze Stadt einnehmen - der Kai wird schmaler, "
-                  "damit für die anderen Viertel Land bleibt.")
+            self.hint(f"Der Hafen '{name}' würde die ganze Stadt einnehmen - der Kai wird schmaler, "
+                      "damit für die anderen Viertel Land bleibt.")
         if harbor.is_empty:
             return None
         # Saatpunkt in den Hafen legen, damit die Uferseiten-Logik stimmt
@@ -1166,7 +1171,7 @@ class CityBuilder:
                                                           "district": di, "poor": True})
             dl[di]["poly"] = unary_union(pieces) if pieces else Polygon()
             if not pieces:
-                print(f"Hinweis: Für das Armenviertel '{dl[di]['name']}' ist vor der Mauer kein Platz.")
+                self.hint(f"Für das Armenviertel '{dl[di]['name']}' ist vor der Mauer kein Platz.")
         if streets:
             self.out["streets"].append(unary_union(streets))
             self.out["slum_outside"] = unary_union(all_area)
@@ -1468,17 +1473,17 @@ class CityBuilder:
             if typ in FORT_TYPES:   # Festungen baut der Generator außerhalb der Stadt
                 continue
             if typ == "wassermuehle" and self.t["river"] is None:
-                print(f"Hinweis: Kein Fluss für die Wassermühle '{o['name']}' - es wird eine Windmühle.")
+                self.hint(f"Kein Fluss für die Wassermühle '{o['name']}' - es wird eine Windmühle.")
                 typ = "muehle"
             elif typ == "wassermuehle" and self.t["biome"]["chasm"]:   # der Fluss liegt tief unten in der Klamm
-                print(f"Hinweis: In der Klamm ist keine Wassermühle möglich - '{o['name']}' wird eine Windmühle.")
+                self.hint(f"In der Klamm ist keine Wassermühle möglich - '{o['name']}' wird eine Windmühle.")
                 typ = "muehle"
             if typ in ("muehle", "bauernhof"):   # Windmühle und Bauernhof stehen vor der Stadt an einer Landstraße
                 self.out["deferred"].append(dict(o, typ=typ, typ_yaml=o["typ"]))
                 continue
             di = names.get(str(o.get("viertel", "")).lower())
             if di is not None and not any(b["district"] == di for b in self.out["buildings"]):
-                print(f"Hinweis: Ort '{o['name']}' wird woanders platziert, Viertel '{o.get('viertel')}' ist leer.")
+                self.hint(f"Ort '{o['name']}' wird woanders platziert, Viertel '{o.get('viertel')}' ist leer.")
                 di = None
             alive = [b for b in self.out["buildings"] if not b.get("removed") and id(b) not in used
                      and (di is None or b["district"] == di)]
@@ -1486,7 +1491,7 @@ class CityBuilder:
             if typ == "werft" and not self.t["water"].is_empty:
                 target = self._shipyard(di)
                 if target is None:
-                    print(f"Hinweis: Kein Uferplatz für die Werft '{o['name']}' - sie steht etwas abseits vom Wasser.")
+                    self.hint(f"Kein Uferplatz für die Werft '{o['name']}' - sie steht etwas abseits vom Wasser.")
             if target is None and typ in BIG_LANDMARKS:
                 blks = [bk for bk in self.blocks if (di is None or bk["district"] == di)
                         and {"friedhof": 2500, "kaserne": 2500, "tempel": 1500, "rathaus": 1500,
@@ -1506,7 +1511,7 @@ class CityBuilder:
                     self.out["deferred"].append(o)   # wird vom Generator vor der Mauer angelegt
                     continue
                 if typ in COMPACT and not blks:
-                    print(f"Hinweis: Kein passender Block für '{o['name']}' gefunden.")
+                    self.hint(f"Kein passender Block für '{o['name']}' gefunden.")
                 if typ == "werft":
                     blks.sort(key=lambda bk: bk["poly"].distance(self.t["water"]))
                     blks = blks[:3]
@@ -1762,7 +1767,7 @@ class CityBuilder:
                     if spot is None or score < spot[0]:
                         spot = (score, rect)
         if spot is None:
-            print("Hinweis: Kein Haus und kein Platz direkt am Fluss für die Wassermühle - sie steht etwas abseits.")
+            self.hint("Kein Haus und kein Platz direkt am Fluss für die Wassermühle - sie steht etwas abseits.")
             b = min(alive, key=lambda b: b["poly"].distance(river))
             p, q = nearest_points(b["poly"], river)
             return b, p, q

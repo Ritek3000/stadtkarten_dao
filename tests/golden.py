@@ -51,7 +51,7 @@ import yaml  # noqa: E402
 from shapely.geometry.base import BaseGeometry  # noqa: E402
 
 from stadtkarte import config  # noqa: E402
-from stadtkarte.generator import building_count, generate  # noqa: E402
+from stadtkarte.generator import building_count, generate, hint_lines  # noqa: E402
 from stadtkarte.render import render_svg  # noqa: E402
 
 DATEI = ROOT / "tests" / "golden" / "karten.json"
@@ -181,7 +181,7 @@ def _einspeisen(h, obj, tiefe=0):
 
 def fingerabdruck_modell(m):
     h = hashlib.sha256()
-    _einspeisen(h, {k: v for k, v in m.items() if k not in ("cfg", "biome")})
+    _einspeisen(h, {k: v for k, v in m.items() if k not in ("cfg", "biome", "hints")})   # Hinweise: eigener Vergleich
     return h.hexdigest()[:20]
 
 
@@ -200,16 +200,17 @@ def fingerabdruck_karte(svg):
 
 
 def berechne(name):
-    """Erzeugt und zeichnet eine Karte (läuft in einem eigenen Prozess) und liefert ihre Fingerabdrücke."""
+    """Erzeugt und zeichnet eine Karte (läuft in einem eigenen Prozess) und liefert ihre Fingerabdrücke. Hinweise gehören
+    ins Kartenmodell (m["hints"]); schreibt Erzeugen oder Zeichnen etwas auf die Konsole, scheitert der Fall."""
     raw, ansichten = faelle()[name]
     with contextlib.redirect_stdout(io.StringIO()) as ausgabe:
         m = generate(config.from_dict(copy.deepcopy(raw)))
-    hinweise = [z for z in ausgabe.getvalue().splitlines() if z.strip()]
-    out = {"hinweise": hinweise, "zahlen": zahlen(m), "modell": fingerabdruck_modell(m), "karten": {}}
-    for ansicht in ansichten:
-        with contextlib.redirect_stdout(io.StringIO()):
-            svg = render_svg(m, nacht=ansicht == "nacht")
-        out["karten"][ansicht] = fingerabdruck_karte(svg)
+        out = {"hinweise": hint_lines(m), "zahlen": zahlen(m), "modell": fingerabdruck_modell(m), "karten": {}}
+        for ansicht in ansichten:
+            out["karten"][ansicht] = fingerabdruck_karte(render_svg(m, nacht=ansicht == "nacht"))
+    if ausgabe.getvalue().strip():
+        raise AssertionError(f"Karte '{name}': Erzeugen oder Zeichnen schreibt auf die Konsole (Hinweise gehören nach "
+                             f"m['hints']): {ausgabe.getvalue().strip()[:300]!r}")
     return out
 
 

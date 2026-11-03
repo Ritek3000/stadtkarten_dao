@@ -3,7 +3,6 @@
 Start:  .venv\\Scripts\\python -m stadtkarte.ui     (oder Doppelklick auf "Stadtkarte starten.bat")
 """
 import base64
-import contextlib
 import io
 import json
 import os
@@ -62,7 +61,7 @@ STATIC_TYPES = {".woff2": "font/woff2", ".png": "image/png"}
 PLACE_TYPES = ["gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "kontor", "werft", "adelshaus",
                "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof", "festung"]
 RESULTS = {}            # Ergebnis-ID -> erzeugte Karte (die letzten paar bleiben im Speicher)
-GEN_LOCK = threading.Lock()
+GEN_LOCK = threading.Lock()       # eine Karte nach der anderen erzeugen und zeichnen (Rechenzeit und Speicher)
 RESULTS_LOCK = threading.Lock()   # RESULTS wird von parallelen Anfragen verändert
 MAX_BODY = 8 * 1024 * 1024        # Stadtbeschreibung, Einstellungen und Beschriftungen sind winzig
 
@@ -103,10 +102,9 @@ def build(raw):
     Vorschau. Dasselbe Bild dient später auch der interaktiven Karte. Danach zeichnet ein Hintergrund-Thread aus
     derselben Stadt die Nachtkarte (build_night), zum Umschalten in der Ansicht."""
     cfg = config.from_dict(raw)
-    out = io.StringIO()
     t0 = time.time()
     stop_night()   # eine noch nicht fertige Nachtkarte einer älteren Karte wird nicht mehr gebraucht
-    with GEN_LOCK, contextlib.redirect_stdout(out):
+    with GEN_LOCK:
         prewarm(cfg)   # Texturen, die nicht von der Stadt abhängen, rechnen schon während des Generators
         m = generate(cfg)
         tag = new_version(render_svg(m, nacht=False))   # die Tagkarte zuerst: nur auf sie wartet man
@@ -133,7 +131,7 @@ def build(raw):
         "W": m["W"],
         "labels": tag["labels"],
         "preview": "data:image/webp;base64," + base64.b64encode(png_to_webp(small, 88)).decode(),
-        "hints": [ln.replace("Hinweis: ", "") for ln in out.getvalue().splitlines() if ln.strip()],
+        "hints": m["hints"],
         "gelaende_nur": bool(m.get("gelaende_nur")),
         "nacht": night,
         "stats": {"gebaeude": building_count(m), "baeume": len(m["trees"]),
@@ -153,8 +151,7 @@ def build_night(res, m):
         with GEN_LOCK:
             if res["abbruch"].is_set():
                 raise Abgebrochen("eine neue Karte wurde angefordert")
-            with contextlib.redirect_stdout(io.StringIO()):
-                svg = render_svg(m, nacht=True)
+            svg = render_svg(m, nacht=True)
         with res["lock"]:
             if res["abbruch"].is_set():
                 raise Abgebrochen("eine neue Karte wurde angefordert")

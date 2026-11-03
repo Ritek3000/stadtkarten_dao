@@ -9,8 +9,6 @@ ohne Zusatzpakete einliest.
 Alle Koordinaten stehen in Kartenpixeln, im Bildkoordinatensystem (y zeigt nach unten) und schon in der Ausrichtung der
 fertigen Karte (die Drehung zur Küstenlage ist eingerechnet). Blender spiegelt y und skaliert."""
 import argparse
-import contextlib
-import io
 import json
 import math
 import pathlib
@@ -19,7 +17,7 @@ from shapely.geometry import box
 
 from . import config
 from .city import RING_ROAD_WIDTH   # bis zu dieser Breite (mal s) sind Straßen Ringgassen, darüber Hauptstraßen
-from .generator import generate
+from .generator import generate, hint_lines
 from .geo import lines, polys
 
 FORMAT = "stadtkarte-blender"
@@ -191,12 +189,11 @@ def main():
         cfg = config.load(args.datei)
         if args.seed is not None:
             cfg["seed"] = args.seed
-        with contextlib.redirect_stdout(io.StringIO()) as hints:   # Hinweise des Generators bleiben sichtbar, aber gebündelt
-            m = generate(cfg)
+        m = generate(cfg)
     except (OSError, ValueError) as e:
         raise SystemExit(f"Fehler: {e}") from None
-    if hints.getvalue().strip():
-        print(hints.getvalue().strip())
+    for line in hint_lines(m):
+        print(line)
     data = export_model(m)
     target = args.ausgabe or pathlib.Path("ausgabe") / f"{pathlib.Path(args.datei).stem}_{cfg['seed']}_blender.json"
     out = write(data, target)
