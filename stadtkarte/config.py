@@ -138,11 +138,34 @@ def load(path):
 
 
 def from_dict(raw):
-    """Vervollständigt und prüft eine Stadtbeschreibung (z.B. aus der Oberfläche)."""
+    """Vervollständigt und prüft eine Stadtbeschreibung (z.B. aus der Oberfläche). Die Prüfungen laufen in fester
+    Reihenfolge: haben mehrere Angaben einen Fehler, meldet from_dict immer denselben zuerst."""
     if not isinstance(raw, dict):
         raise ValueError("Die Stadtbeschreibung muss aus Angaben wie 'name: ...' und 'seed: ...' bestehen "
                          "(eine Zuordnung), nicht aus einer Liste oder einem einzelnen Text.")
     cfg = _merge(copy.deepcopy(DEFAULTS), copy.deepcopy(raw))
+    _check_sections(cfg)
+    cfg["name"] = text(cfg.get("name"), "name", DEFAULTS["name"])
+    _terrain_settings(cfg)
+    _numbers(cfg)
+    _city_form(cfg)
+    _density(cfg)
+    _output_options(cfg)
+    _dust(cfg["gelaende"])
+    _directions(cfg["gelaende"])
+    for i, v in enumerate(cfg["viertel"], 1):
+        _district(v, i)
+    _ident(cfg)
+    for i, o in enumerate(cfg["orte"], 1):
+        _place(o, i)
+    cfg["orte"] = numbered_places(cfg["orte"])
+    cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
+    return cfg
+
+
+def _check_sections(cfg):
+    """Abschnitte haben die richtige Form: Gelände, Mauer und Ausgabe sind Zuordnungen, Viertel und Orte Listen aus
+    Zuordnungen."""
     for key in ("gelaende", "mauer", "ausgabe"):
         if not isinstance(cfg[key], dict):
             raise ValueError(f"{key}: erwartet eingerückte Angaben (Schlüssel: Wert), nicht '{cfg[key]}'")
@@ -152,7 +175,10 @@ def from_dict(raw):
         for i, entry in enumerate(cfg[key], 1):
             if not isinstance(entry, dict):
                 raise ValueError(f"{key}[{i}]: erwartet Angaben wie 'name: ...' und 'typ: ...', nicht '{entry}'")
-    cfg["name"] = text(cfg.get("name"), "name", DEFAULTS["name"])
+
+
+def _terrain_settings(cfg):
+    """Küstenlage und Biotop, beim Hochplateau Lage der Stadt und der Kante."""
     g = cfg["gelaende"]
     g["kueste"] = norm(g["kueste"]) if g["kueste"] else "keine"
     g["biotop"] = BIOME_ALIASES.get(norm(g["biotop"]), norm(g["biotop"]))
@@ -160,22 +186,31 @@ def from_dict(raw):
         raise ValueError(f"Unbekanntes Biotop: {g['biotop']} (möglich: {', '.join(BIOMES)})")
     if (BIOMES[g["biotop"]]["mountain"] or BIOMES[g["biotop"]]["plateau"]) and g["kueste"] == "keine":
         g["kueste"] = "nord"   # im Gebirge die Bergseite, beim Hochplateau die Seite der Kante
-    # Hochplateau: Stadt oben auf dem Plateau oder unten am Fuß, direkt an der Kante oder mit Abstand
     if BIOMES[g["biotop"]]["plateau"]:
-        pl = {"auf": "oben", "aufdemplateau": "oben", "drauf": "oben", "fuss": "unten", "amfuss": "unten",
-              "unterhalb": "unten", "darunter": "unten"}
-        wert = norm(g.get("plateau") or OPTIONAL["gelaende.plateau"])
-        g["plateau"] = pl.get(wert, wert)
-        if g["plateau"] not in ("oben", "unten"):
-            raise ValueError(f"gelaende.plateau: {g['plateau']} - möglich sind oben (auf dem Plateau) und unten (am Fuß)")
-        ka = {"an": "direkt", "anderkante": "direkt", "kante": "direkt", "weg": "abstand", "entfernt": "abstand",
-              "mitabstand": "abstand"}
-        wert = norm(g.get("kante") or OPTIONAL["gelaende.kante"])
-        g["kante"] = ka.get(wert, wert)
-        if g["kante"] not in ("direkt", "abstand"):
-            raise ValueError(f"gelaende.kante: {g['kante']} - möglich sind direkt (an der Kante) und abstand")
+        _plateau_settings(g)
     if g["kueste"] not in ROTATION:
         raise ValueError(f"Unbekannte Küstenlage: {g['kueste']}")
+
+
+def _plateau_settings(g):
+    """Hochplateau: Stadt oben auf dem Plateau oder unten am Fuß, direkt an der Kante oder mit Abstand."""
+    pl = {"auf": "oben", "aufdemplateau": "oben", "drauf": "oben", "fuss": "unten", "amfuss": "unten",
+          "unterhalb": "unten", "darunter": "unten"}
+    wert = norm(g.get("plateau") or OPTIONAL["gelaende.plateau"])
+    g["plateau"] = pl.get(wert, wert)
+    if g["plateau"] not in ("oben", "unten"):
+        raise ValueError(f"gelaende.plateau: {g['plateau']} - möglich sind oben (auf dem Plateau) und unten (am Fuß)")
+    ka = {"an": "direkt", "anderkante": "direkt", "kante": "direkt", "weg": "abstand", "entfernt": "abstand",
+          "mitabstand": "abstand"}
+    wert = norm(g.get("kante") or OPTIONAL["gelaende.kante"])
+    g["kante"] = ka.get(wert, wert)
+    if g["kante"] not in ("direkt", "abstand"):
+        raise ValueError(f"gelaende.kante: {g['kante']} - möglich sind direkt (an der Kante) und abstand")
+
+
+def _numbers(cfg):
+    """Zahlenfelder prüfen und umwandeln: Einwohner, Seed, Tore, Flussbreite, Inseln, Bildgröße, Raster."""
+    g = cfg["gelaende"]
     number(cfg, "einwohner", "einwohner", int, MIN_EINWOHNER, MAX_EINWOHNER)
     if cfg.get("seed") is None or (isinstance(cfg["seed"], str) and not cfg["seed"].strip()):
         raise ValueError("seed fehlt: bitte eine ganze Zahl eintragen (oder den Würfel nutzen)")
@@ -186,6 +221,10 @@ def from_dict(raw):
     aus_ = cfg["ausgabe"]
     number(aus_, "bildgroesse", "ausgabe.bildgroesse", int, 300, 8000, DEFAULTS["ausgabe"]["bildgroesse"])
     number(aus_, "raster", "ausgabe.raster", int, 0, 2000, 0)
+
+
+def _city_form(cfg):
+    """Stadtform (mit anderen Schreibweisen); bei "eigene" zusätzlich die gezeichnete Mauer."""
     form = norm(cfg["stadtform"] or "zufall")
     form = {"zufaellig": "zufall", "auto": "zufall", "kreis": "rund", "elliptisch": "oval", "langgestreckt": "oval",
             "lang": "oval", "unregelmassig": "unregelmaessig", "eckig": "vieleck", "polygon": "vieleck",
@@ -195,27 +234,36 @@ def from_dict(raw):
         raise ValueError(f"Unbekannte Stadtform: {cfg['stadtform']} "
                          "(möglich: zufall, rund, oval, unregelmaessig, vieleck, gewachsen, eigene)")
     cfg["stadtform"] = form
-    if form == "eigene":   # selbst gezeichnete Mauer: Punkte in % der fertigen Karte, je Turm oder Tor
-        if BIOMES[g["biotop"]]["mountain"]:
-            raise ValueError("Die eigene Stadtform gibt es (noch) nicht im Gebirge.")
-        pts = []
-        given = cfg["mauer"].get("punkte") or []
-        if not isinstance(given, (list, tuple)):
-            raise ValueError("mauer.punkte: erwartet eine Liste aus [x, y, turm|tor] in Prozent der Karte")
-        for i, p in enumerate(given):
-            try:
-                if not isinstance(p, (list, tuple)):
-                    raise TypeError(p)
-                x, y = float(p[0]), float(p[1])
-                kind = norm(p[2]) if len(p) > 2 else "turm"
-            except (TypeError, ValueError, IndexError):
-                raise ValueError(f"mauer.punkte[{i}]: erwartet [x, y, turm|tor] in Prozent der Karte") from None
-            if kind not in ("turm", "tor") or not (0 <= x <= 100 and 0 <= y <= 100):
-                raise ValueError(f"mauer.punkte[{i}]: x und y von 0 bis 100, Art turm oder tor")
-            pts.append([round(x, 3), round(y, 3), kind])
-        cfg["mauer"]["punkte"] = pts
-        cfg["ausgabe"].pop("ausschnitt", None)   # gezeichnet wird auf der ganzen Karte
-    beb = norm(cfg.get("bebauung") or OPTIONAL["bebauung"])   # lockere Bebauung: gleiche Einwohner auf mehr Fläche
+    if form == "eigene":
+        _drawn_wall(cfg)
+
+
+def _drawn_wall(cfg):
+    """Selbst gezeichnete Mauer: Punkte in % der fertigen Karte, je Turm oder Tor."""
+    if BIOMES[cfg["gelaende"]["biotop"]]["mountain"]:
+        raise ValueError("Die eigene Stadtform gibt es (noch) nicht im Gebirge.")
+    pts = []
+    given = cfg["mauer"].get("punkte") or []
+    if not isinstance(given, (list, tuple)):
+        raise ValueError("mauer.punkte: erwartet eine Liste aus [x, y, turm|tor] in Prozent der Karte")
+    for i, p in enumerate(given):
+        try:
+            if not isinstance(p, (list, tuple)):
+                raise TypeError(p)
+            x, y = float(p[0]), float(p[1])
+            kind = norm(p[2]) if len(p) > 2 else "turm"
+        except (TypeError, ValueError, IndexError):
+            raise ValueError(f"mauer.punkte[{i}]: erwartet [x, y, turm|tor] in Prozent der Karte") from None
+        if kind not in ("turm", "tor") or not (0 <= x <= 100 and 0 <= y <= 100):
+            raise ValueError(f"mauer.punkte[{i}]: x und y von 0 bis 100, Art turm oder tor")
+        pts.append([round(x, 3), round(y, 3), kind])
+    cfg["mauer"]["punkte"] = pts
+    cfg["ausgabe"].pop("ausschnitt", None)   # gezeichnet wird auf der ganzen Karte
+
+
+def _density(cfg):
+    """Bebauung: lockere Bebauung verteilt die gleichen Einwohner auf mehr Fläche. Der Standardwert wird weggelassen."""
+    beb = norm(cfg.get("bebauung") or OPTIONAL["bebauung"])
     beb = {"normal": "dicht", "eng": "dicht", "aufgelockert": "locker", "weit": "weitlaeufig", "sehrlocker": "weitlaeufig",
            "laendlich": "weitlaeufig"}.get(beb, beb)
     if beb not in ("dicht", "locker", "weitlaeufig"):
@@ -224,6 +272,10 @@ def from_dict(raw):
         cfg.pop("bebauung", None)
     else:
         cfg["bebauung"] = beb
+
+
+def _output_options(cfg):
+    """Ausgabe: Zeichenstil, Ausschnitt (Standardwerte werden weggelassen) und Dateiformate."""
     stil = norm(cfg["ausgabe"].get("stil") or OPTIONAL["ausgabe.stil"])   # Zeichenstil der fertigen Karte
     stil = {"normal": "standard", "modern": "standard", "papier": "pergament", "alt": "pergament",
             "historisch": "pergament"}.get(stil, stil)
@@ -252,7 +304,10 @@ def from_dict(raw):
         if fmt not in clean_formats:
             clean_formats.append(fmt)
     cfg["ausgabe"]["formate"] = clean_formats
-    # Staub: {Richtung | "mitte" | "ueberall": wenig | mittel | finsternis}; auch als Liste von Richtungen (= mittel)
+
+
+def _dust(g):
+    """Staub: {Richtung | "mitte" | "ueberall": wenig | mittel | finsternis}; auch als Liste von Richtungen (= mittel)."""
     st = g.get("staub") or {}
     if isinstance(st, (list, tuple)):
         st = {d: "mittel" for d in st}
@@ -276,62 +331,78 @@ def from_dict(raw):
         g["staub"] = clean_st
     else:
         g.pop("staub", None)
+
+
+def _directions(g):
+    """Himmelsrichtungen der Wälder und Felder."""
     for key in ("wald", "felder"):
         vals = g.get(key) or []
         g[key] = [norm(v) for v in (vals if isinstance(vals, list) else [vals])]
         for v in g[key]:
             if v not in DIRS:
                 raise ValueError(f"Unbekannte Richtung bei gelaende.{key}: {v}")
-    for i, v in enumerate(cfg["viertel"], 1):
-        v["name"] = text(v.get("name"), f"viertel[{i}].name")
-        v["typ"] = norm(v.get("typ") or "wohn")
-        if v["typ"] not in DISTRICT_TYPES:
-            raise ValueError(f"Viertel {v['name'] or i}: unbekannter Typ '{v['typ']}' "
-                             f"(möglich: {', '.join(DISTRICT_TYPES)})")
-        if v.get("lage") and norm(v["lage"]) in ("ausserhalb", "aussen", "draussen", "vorderstadt", "vordermauer"):
-            v["ausserhalb"] = True   # Armenviertel vor der Stadtmauer
-            del v["lage"]
-        if v["typ"] == "hafen":   # Größe des Hafenviertels: klein | mittel | gross (Standard)
-            gr = norm(v.get("groesse") or OPTIONAL["viertel.groesse"])
-            gr = {"gross": "gross", "groß": "gross", "klein": "klein", "mittel": "mittel", "normal": "mittel"}.get(gr, gr)
-            if gr not in ("klein", "mittel", "gross"):
-                raise ValueError(f"Viertel {v.get('name')}: groesse {v.get('groesse')} - möglich sind klein, mittel, gross")
-            if gr == OPTIONAL["viertel.groesse"]:
-                v.pop("groesse", None)
-            else:
-                v["groesse"] = gr
-        else:
+
+
+def _district(v, i):
+    """Ein Viertel (i-ter Eintrag, von 1 an gezählt): Name, Typ, Lage, beim Hafenviertel die Größe."""
+    v["name"] = text(v.get("name"), f"viertel[{i}].name")
+    v["typ"] = norm(v.get("typ") or "wohn")
+    if v["typ"] not in DISTRICT_TYPES:
+        raise ValueError(f"Viertel {v['name'] or i}: unbekannter Typ '{v['typ']}' "
+                         f"(möglich: {', '.join(DISTRICT_TYPES)})")
+    if v.get("lage") and norm(v["lage"]) in ("ausserhalb", "aussen", "draussen", "vorderstadt", "vordermauer"):
+        v["ausserhalb"] = True   # Armenviertel vor der Stadtmauer
+        del v["lage"]
+    _harbor_size(v)
+    if v.get("ausserhalb"):
+        v["ausserhalb"] = True
+    else:
+        v.pop("ausserhalb", None)
+    if v.get("lage"):
+        v["lage"] = norm(v["lage"])
+        if v["lage"] not in DIRS:
+            raise ValueError(f"Unbekannte Lage bei Viertel {v.get('name')}: {v['lage']}")
+
+
+def _harbor_size(v):
+    """Größe des Hafenviertels: klein | mittel | gross (Standard, wird weggelassen); andere Viertel haben keine."""
+    if v["typ"] == "hafen":
+        gr = norm(v.get("groesse") or OPTIONAL["viertel.groesse"])
+        gr = {"gross": "gross", "groß": "gross", "klein": "klein", "mittel": "mittel", "normal": "mittel"}.get(gr, gr)
+        if gr not in ("klein", "mittel", "gross"):
+            raise ValueError(f"Viertel {v.get('name')}: groesse {v.get('groesse')} - möglich sind klein, mittel, gross")
+        if gr == OPTIONAL["viertel.groesse"]:
             v.pop("groesse", None)
-        if v.get("ausserhalb"):
-            v["ausserhalb"] = True
         else:
-            v.pop("ausserhalb", None)
-        if v.get("lage"):
-            v["lage"] = norm(v["lage"])
-            if v["lage"] not in DIRS:
-                raise ValueError(f"Unbekannte Lage bei Viertel {v.get('name')}: {v['lage']}")
-    if cfg.get("kennung") is not None:   # feste Kennung für das Web-Paket (Ordner- und Dateiname)
+            v["groesse"] = gr
+    else:
+        v.pop("groesse", None)
+
+
+def _ident(cfg):
+    """Feste Kennung für das Web-Paket (Ordner- und Dateiname)."""
+    if cfg.get("kennung") is not None:
         cfg["kennung"] = str(cfg["kennung"]).strip()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", cfg["kennung"]):
             raise ValueError(f"Kennung '{cfg['kennung']}': nur Kleinbuchstaben a-z, Ziffern, '-' und '_' "
                              "(keine Umlaute oder Leerzeichen)")
-    for i, o in enumerate(cfg["orte"], 1):
-        o["typ"] = norm(o.get("typ") or "laden")
-        o["typ"] = PLACE_ALIASES.get(o["typ"], o["typ"])
-        o["name"] = text(o.get("name"), f"orte[{i}].name", o["typ"].capitalize())
-        if o["typ"] not in PLACE_TYPES:
-            raise ValueError(f"Ort {o['name']}: unbekannter Typ '{o['typ']}' (möglich: {', '.join(sorted(PLACE_TYPES))})")
-        if o.get("kuerzel") is not None:
-            o["kuerzel"] = text(o["kuerzel"], f"orte[{i}].kuerzel") or None
-        if o.get("viertel") is not None:
-            o["viertel"] = text(o["viertel"], f"orte[{i}].viertel")
-        if o.get("lage"):   # wie bei Vierteln: "Außerhalb", "vor der Stadt" ... einheitlich schreiben
-            o["lage"] = norm(o["lage"])
-            if o["typ"] in FORT_TYPES and o["lage"] not in FORT_PLACES:
-                raise ValueError(f"Ort {o['name']}: lage {o['lage']} - möglich sind {', '.join(FORT_PLACES)}")
-    cfg["orte"] = numbered_places(cfg["orte"])
-    cfg["beschriftung"] = label_offsets(cfg["beschriftung"])
-    return cfg
+
+
+def _place(o, i):
+    """Ein besonderer Ort (i-ter Eintrag, von 1 an gezählt): Typ, Name, Kürzel, Viertel, Lage."""
+    o["typ"] = norm(o.get("typ") or "laden")
+    o["typ"] = PLACE_ALIASES.get(o["typ"], o["typ"])
+    o["name"] = text(o.get("name"), f"orte[{i}].name", o["typ"].capitalize())
+    if o["typ"] not in PLACE_TYPES:
+        raise ValueError(f"Ort {o['name']}: unbekannter Typ '{o['typ']}' (möglich: {', '.join(sorted(PLACE_TYPES))})")
+    if o.get("kuerzel") is not None:
+        o["kuerzel"] = text(o["kuerzel"], f"orte[{i}].kuerzel") or None
+    if o.get("viertel") is not None:
+        o["viertel"] = text(o["viertel"], f"orte[{i}].viertel")
+    if o.get("lage"):   # wie bei Vierteln: "Außerhalb", "vor der Stadt" ... einheitlich schreiben
+        o["lage"] = norm(o["lage"])
+        if o["typ"] in FORT_TYPES and o["lage"] not in FORT_PLACES:
+            raise ValueError(f"Ort {o['name']}: lage {o['lage']} - möglich sind {', '.join(FORT_PLACES)}")
 
 
 MAX_ANZAHL = 50

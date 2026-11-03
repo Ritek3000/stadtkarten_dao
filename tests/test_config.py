@@ -150,6 +150,86 @@ class Formate(unittest.TestCase):
             cfg_of("ausgabe: {formate: 5}\n")
 
 
+class GezeichneteMauer(unittest.TestCase):
+    def test_punkte_werden_geprueft_und_gerundet(self):
+        c = config.from_dict({"stadtform": "eigene",
+                              "mauer": {"punkte": [[10.12345, 20, "Tor"], [50, 20], [90, 90, "turm"]]}})
+        self.assertEqual(c["mauer"]["punkte"], [[10.123, 20, "tor"], [50, 20, "turm"], [90, 90, "turm"]])
+
+    def test_ungueltige_punkte(self):
+        for punkte, teil in (("abc", "erwartet eine Liste"), (["x"], r"punkte\[0\]: erwartet"),
+                             ([[1, 2, "tor"], 7], r"punkte\[1\]: erwartet"), ([[1]], r"punkte\[0\]: erwartet"),
+                             ([[150, 2, "tor"]], "von 0 bis 100"), ([[1, 2, "wall"]], "Art turm oder tor")):
+            with self.subTest(punkte):
+                with self.assertRaisesRegex(ValueError, teil):
+                    config.from_dict({"stadtform": "eigene", "mauer": {"punkte": punkte}})
+
+    def test_nicht_im_gebirge(self):
+        with self.assertRaisesRegex(ValueError, "Gebirge"):
+            config.from_dict({"stadtform": "eigene", "gelaende": {"biotop": "gebirge"}})
+
+    def test_gezeichnet_wird_auf_der_ganzen_karte(self):
+        c = config.from_dict({"stadtform": "gezeichnet", "ausgabe": {"ausschnitt": "nah"}})
+        self.assertEqual(c["stadtform"], "eigene")
+        self.assertNotIn("ausschnitt", c["ausgabe"])
+
+
+class Hafenviertel(unittest.TestCase):
+    @staticmethod
+    def hafen(**angaben):
+        return config.from_dict({"viertel": [{"name": "H", "typ": "hafen", **angaben}]})["viertel"][0]
+
+    def test_groesse_standard_entfaellt(self):
+        self.assertNotIn("groesse", self.hafen())
+        self.assertNotIn("groesse", self.hafen(groesse="Groß"))
+
+    def test_andere_schreibweisen(self):
+        self.assertEqual(self.hafen(groesse="normal")["groesse"], "mittel")
+        self.assertEqual(self.hafen(groesse="Klein")["groesse"], "klein")
+
+    def test_unbekannte_groesse(self):
+        with self.assertRaisesRegex(ValueError, "groesse riesig"):
+            self.hafen(groesse="riesig")
+
+    def test_andere_viertel_haben_keine_groesse(self):
+        v = config.from_dict({"viertel": [{"name": "A", "typ": "adel", "groesse": "klein"}]})["viertel"][0]
+        self.assertNotIn("groesse", v)
+
+
+class Kennung(unittest.TestCase):
+    def test_gueltige_kennung(self):
+        self.assertEqual(config.from_dict({"kennung": " ok_1-2 "})["kennung"], "ok_1-2")
+        self.assertEqual(config.from_dict({"kennung": 12})["kennung"], "12")
+
+    def test_ungueltige_kennung(self):
+        for kennung in ("Ä b", "", "-x"):
+            with self.subTest(kennung):
+                with self.assertRaisesRegex(ValueError, "Kennung"):
+                    config.from_dict({"kennung": kennung})
+
+
+class Reihenfolge(unittest.TestCase):
+    """Sind mehrere Angaben falsch, meldet from_dict immer dieselbe zuerst (die Reihenfolge der Prüfungen)."""
+
+    def test_erster_fehler_gewinnt(self):
+        for roh, teil in (({"gelaende": {"biotop": "x"}, "einwohner": "abc"}, "Biotop"),
+                          ({"einwohner": "abc", "seed": ""}, "einwohner"),
+                          ({"seed": "", "stadtform": "x"}, "seed fehlt"),
+                          ({"stadtform": "x", "ausgabe": {"stil": "x"}}, "Stadtform"),
+                          ({"bebauung": "x", "ausgabe": {"stil": "x"}}, "Bebauung"),
+                          ({"ausgabe": {"stil": "x", "ausschnitt": "x"}}, "Stil"),
+                          ({"ausgabe": {"ausschnitt": "x", "formate": ["jpg"]}}, "Ausschnitt"),
+                          ({"ausgabe": {"formate": ["jpg"]}, "gelaende": {"staub": 5}}, "Ausgabeformat"),
+                          ({"gelaende": {"staub": 5, "wald": ["x"]}}, "staub"),
+                          ({"gelaende": {"wald": ["x"]}, "viertel": [{"typ": "x"}]}, "gelaende.wald"),
+                          ({"viertel": [{"typ": "x"}], "orte": [{"typ": "x"}]}, "Viertel"),
+                          ({"kennung": "Ä", "orte": [{"typ": "x"}]}, "Kennung"),
+                          ({"orte": [{"typ": "x"}], "beschriftung": 5}, "Ort")):
+            with self.subTest(roh):
+                with self.assertRaisesRegex(ValueError, teil):
+                    config.from_dict(roh)
+
+
 class Kommandozeile(unittest.TestCase):
     def test_fehler_als_meldung_ohne_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:
