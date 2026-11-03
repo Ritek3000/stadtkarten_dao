@@ -3,8 +3,6 @@ import argparse
 import pathlib
 import time
 
-import yaml
-
 from . import config, webpaket
 from .generator import generate
 from .interaktiv import interactive_html
@@ -20,16 +18,18 @@ def main():
     ap.add_argument("--nacht", action="store_true", help="Nachtmodus (überschreibt die Datei)")
     args = ap.parse_args()
 
-    with open(args.datei, encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh) or {}
-    cfg = config.from_dict(raw)
-    if args.seed is not None:
-        cfg["seed"] = args.seed
-    if args.nacht:
-        cfg["ausgabe"]["nacht"] = True
-    t0 = time.time()
-    prewarm(cfg)   # Texturen, die nicht von der Stadt abhängen, rechnen schon während des Generators
-    m = generate(cfg)
+    try:   # fehlerhafte Angaben (und Eingaben, die der Generator ablehnt) als Meldung statt als Traceback
+        raw = config.read_yaml(args.datei)
+        cfg = config.from_dict(raw)
+        if args.seed is not None:
+            cfg["seed"] = args.seed
+        if args.nacht:
+            cfg["ausgabe"]["nacht"] = True
+        t0 = time.time()
+        prewarm(cfg)   # Texturen, die nicht von der Stadt abhängen, rechnen schon während des Generators
+        m = generate(cfg)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"Fehler: {e}") from None
     svg = render_svg(m)
     out = pathlib.Path(args.ausgabe)
     out.mkdir(parents=True, exist_ok=True)

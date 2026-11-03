@@ -64,6 +64,7 @@ PLACE_TYPES = ["gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "konto
 RESULTS = {}            # Ergebnis-ID -> erzeugte Karte (die letzten paar bleiben im Speicher)
 GEN_LOCK = threading.Lock()
 RESULTS_LOCK = threading.Lock()   # RESULTS wird von parallelen Anfragen verändert
+MAX_BODY = 8 * 1024 * 1024        # Stadtbeschreibung, Einstellungen und Beschriftungen sind winzig
 
 
 def options():
@@ -79,6 +80,8 @@ def options():
 
 def example(name):
     path = EXAMPLES / f"{pathlib.Path(name).name}.yaml"
+    if not path.is_file():
+        raise FileNotFoundError(name)
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
@@ -293,10 +296,26 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def body(self):
-        n = int(self.headers.get("Content-Length", 0))
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            raise ValueError("Ungültige Längenangabe der Anfrage.") from None
+        if not 0 <= n <= MAX_BODY:   # negativ würde bis zum Verbindungsende lesen und den Thread blockieren
+            raise ValueError(f"Die Anfrage ist zu groß (höchstens {MAX_BODY // 1024 // 1024} MB).")
         return self.rfile.read(n).decode("utf-8")
 
+    def from_here(self):
+        """Nur Anfragen der Werkstatt selbst: Host und, wenn der Browser sie mitschickt, Origin müssen die eigene
+        Adresse sein. Das hält Aufrufe fremder Webseiten fern (z.B. ein Formular, das /api/generate anstößt) und
+        schützt vor DNS-Rebinding, bei dem eine fremde Adresse auf 127.0.0.1 zeigt."""
+        port = self.server.server_address[1]
+        hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+        host, origin = self.headers.get("Host"), self.headers.get("Origin")
+        return (host is None or host.lower() in hosts) and (origin is None or origin.lower() in {f"http://{h}" for h in hosts})
+
     def do_GET(self):
+        if not self.from_here():
+            return self.send(403, {"error": "Anfrage von fremder Herkunft abgelehnt."})
         url = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         try:
@@ -334,12 +353,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.send(200, data, ctype, {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
             else:
                 self.send(404, {"error": "Nicht gefunden"})
+        except FileNotFoundError:
+            self.send(404, {"error": "Nicht gefunden."})
         except ValueError as e:
             self.send(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001 - Fehler an die Oberfläche melden
-            self.send(500, {"error": str(e)})
+            traceback.print_exc()
+            self.send(500, {"error": f"{type(e).__name__}: {e}"})
 
     def do_POST(self):
+        if not self.from_here():
+            return self.send(403, {"error": "Anfrage von fremder Herkunft abgelehnt."})
         url = urlparse(self.path)
         try:
             if url.path == "/api/generate":
