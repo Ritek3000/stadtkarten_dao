@@ -56,6 +56,7 @@ def make_coast(rng, W, s, has_coast, depth=0.17, amp=1.0):
 
 def make_islands(rng, W, s, sea, coast_y, count):
     islands = []
+    inner = None   # sea.buffer(-25 * s) ist für alle Kandidaten gleich: beim ersten Bedarf, dann nur einmal berechnen
     for _ in range(count * 4):
         if len(islands) >= count:
             break
@@ -64,7 +65,9 @@ def make_islands(rng, W, s, sea, coast_y, count):
         if y < 10 * s:
             continue
         isl = blob(rng, x, y, rng.uniform(18, 50) * s, rough=0.35, stretch=(rng.uniform(1, 1.8), 1))
-        if sea.buffer(-25 * s).contains(isl) and all(isl.distance(o) > 40 * s for o in islands):
+        if inner is None:
+            inner = sea.buffer(-25 * s)
+        if inner.contains(isl) and all(isl.distance(o) > 40 * s for o in islands):
             islands.append(isl)
     return islands
 

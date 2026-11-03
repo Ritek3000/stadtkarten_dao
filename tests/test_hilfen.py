@@ -2,12 +2,16 @@
 import base64
 import io
 import math
+import random
 import unittest
+from unittest import mock
 
 from PIL import Image
+import shapely.affinity
+import shapely.geometry.base
 from shapely.geometry import Polygon, box
 
-from stadtkarte import bilder, geo
+from stadtkarte import bilder, geo, terrain
 
 
 class Geometrie(unittest.TestCase):
@@ -35,6 +39,49 @@ class Geometrie(unittest.TestCase):
         senkrecht = geo.ship_footprint(0, 0, 40, 10, 90)
         self.assertEqual(tuple(round(v, 6) for v in senkrecht.bounds), (-5, -20, 5, 20))
         self.assertTrue(math.isclose(senkrecht.area, 400))
+
+
+class Rechteck(unittest.TestCase):
+    """geo.fit_rect: größtes Rechteck im Grundstück. Die Sollwerte stammen aus der Fassung, die jedes Polygon einzeln
+    erzeugte; die jetzige erzeugt die Rechtecke gebündelt und muss dieselben Ecken liefern."""
+
+    def pruefe(self, poly, soll):
+        rect = geo.fit_rect(poly, 4.0, 3.2)
+        ist = list(rect.exterior.coords)
+        self.assertEqual(len(ist), len(soll))
+        for (x, y), (sx, sy) in zip(ist, soll):
+            self.assertAlmostEqual(x, sx, places=3)
+            self.assertAlmostEqual(y, sy, places=3)
+
+    def test_gedrehtes_rechteck_bleibt_ganz(self):
+        poly = shapely.affinity.rotate(Polygon([(0, 0), (30, 0), (30, 12), (0, 12)]), 25, origin=(0, 0))
+        self.pruefe(poly, [(0.0, 0.0), (27.1892, 12.6785), (22.1178, 23.5542), (-5.0714, 10.8757), (0.0, 0.0)])
+
+    def test_trapez(self):
+        poly = Polygon([(0, 0), (40, 0), (34, 14), (6, 14)])
+        self.pruefe(poly, [(6.1497, 13.72), (33.8511, 13.72), (33.8511, 0.28), (6.1497, 0.28), (6.1497, 13.72)])
+
+    def test_l_form_wird_auf_den_laengeren_schenkel_gekuerzt(self):
+        poly = Polygon([(0, 0), (30, 0), (30, 10), (12, 10), (12, 28), (0, 28)])
+        self.pruefe(poly, [(0.0, 0.0), (11.7317, 0.0), (11.7317, 28.0), (0.0, 28.0), (0.0, 0.0)])
+
+
+class Inseln(unittest.TestCase):
+    def test_kuestenstreifen_wird_nur_einmal_berechnet(self):
+        """sea.buffer(-25 * s) ist für alle Inselkandidaten gleich. Es je Kandidat neu zu berechnen kostet auf einer langen
+        Küste bis zu 36 ms pro Kandidat."""
+        meer = box(0, 0, 2000, 600)
+        aufrufe = []
+        echt = shapely.geometry.base.BaseGeometry.buffer
+
+        def zaehlen(self, distance, *args, **kwargs):
+            if distance < 0:
+                aufrufe.append(distance)
+            return echt(self, distance, *args, **kwargs)
+        with mock.patch.object(shapely.geometry.base.BaseGeometry, "buffer", zaehlen):
+            inseln = terrain.make_islands(random.Random(3), 2000, 1.0, meer, lambda x: 520.0, 6)
+        self.assertGreaterEqual(len(inseln), 2)
+        self.assertEqual(len(aufrufe), 1)
 
 
 class Bilder(unittest.TestCase):

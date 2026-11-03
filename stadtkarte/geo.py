@@ -274,21 +274,27 @@ def fit_rect(poly, min_short=0.0, max_ratio=None, iters=60):
         return None
     u, v = e1 / l1, e2 / l2
 
+    def rects(spans):
+        """Rechtecke (a0, a1, b0, b1) im Achsensystem des Grundstücks in einem Aufruf erzeugen. Die Eckpunkte sind
+        dieselben Zahlen wie bei o + u * a + v * b einzeln gerechnet, nur ohne den Aufwand je Polygon."""
+        sp = np.asarray(spans, np.float64)
+        aa, bb = sp[:, [0, 1, 1, 0]], sp[:, [2, 2, 3, 3]]
+        return shapely.polygons(o + u * aa[..., None] + v * bb[..., None])
+
     def make(a0, a1, b0, b1):
-        return Polygon([o + u * a0 + v * b0, o + u * a1 + v * b0, o + u * a1 + v * b1, o + u * a0 + v * b1])
+        return rects([(a0, a1, b0, b1)])[0]
 
     a0, a1, b0, b1 = 0.0, l1, 0.0, l2
     fit = poly.buffer(0.05)
     for _ in range(iters):
-        rect = make(a0, a1, b0, b1)
+        da, db = (a1 - a0) * 0.12, (b1 - b0) * 0.12
+        rect, *sides = rects([(a0, a1, b0, b1), (a0, a0 + da, b0, b1), (a1 - da, a1, b0, b1),
+                              (a0, a1, b0, b0 + db), (a0, a1, b1 - db, b1)])
         out = rect.difference(fit)
         if out.area <= 0.003 * rect.area:
             break
-        da, db = (a1 - a0) * 0.12, (b1 - b0) * 0.12
-        sides = [make(a0, a0 + da, b0, b1), make(a1 - da, a1, b0, b1),
-                 make(a0, a1, b0, b0 + db), make(a0, a1, b1 - db, b1)]
         # Überstand je Seite, bezogen auf die Seitenlänge (sonst würde immer die lange Seite gekürzt)
-        score = [out.intersection(sd).area / L for sd, L in zip(sides, (b1 - b0, b1 - b0, a1 - a0, a1 - a0))]
+        score = shapely.area(shapely.intersection(out, sides)) / np.array([b1 - b0, b1 - b0, a1 - a0, a1 - a0])
         k = int(np.argmax(score))
         step_a, step_b = max(0.3, (a1 - a0) * 0.04), max(0.3, (b1 - b0) * 0.04)
         if k == 0:

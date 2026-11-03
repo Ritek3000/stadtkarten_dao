@@ -1275,9 +1275,10 @@ class CityBuilder:
             k = (d - 0.8 * s) / d
             cand = shapely.affinity.translate(poly, dx * k, dy * k)
             # der Suchbaum kennt nur die alten Lagen: schon verschobene Häuser zusätzlich prüfen
-            near = [j for j in set(tree.query(cand.buffer(0.8 * s))) | shifted if j != i]
+            halo = cand.buffer(0.8 * s)
+            near = [j for j in set(tree.query(halo)) | shifted if j != i]
             ok = (self.city_land.contains(cand) and cand.intersection(net).area < 0.5 * s * s
-                  and not any(cand.buffer(0.8 * s).intersects(alive[j]["poly"]) for j in near))
+                  and not any(halo.intersects(alive[j]["poly"]) for j in near))
             if ok:
                 b["poly"] = cand
                 shifted.add(i)
@@ -1630,8 +1631,10 @@ class CityBuilder:
                                  + [g.buffer(2 * s) for g, _ in self.out["grounds"]]
                                  + ([self.shape.exterior.buffer(12 * s)] if self.walled else []))
         shapely.prepare(keep_clear)
+        water_1 = None   # water.buffer(1 * s) ist für alle Kandidaten gleich: beim ersten Bedarf, dann nur einmal berechnen
 
         def search(area, hw):
+            nonlocal water_1
             sw = hw / 2                               # Schiffsbreite
             cands = []
             for ln in lines(water.boundary.intersection(area.buffer(2 * s))):
@@ -1678,7 +1681,9 @@ class CityBuilder:
                     c = np.array([q.x, q.y]) + n_ * (hl / 2 - out_len)
                     hull = ship_footprint(c[0], c[1], hl, sw, math.degrees(math.atan2(-ny, -nx)))
                     bow = hull.difference(hall.buffer(0.5 * s))   # über dem Helling darf ein schmaler Landstreifen liegen
-                    if bow.difference(water.buffer(1 * s)).area > 0.25 * bow.area or crossings.intersects(hull):
+                    if water_1 is None:
+                        water_1 = water.buffer(1 * s)
+                    if bow.difference(water_1).area > 0.25 * bow.area or crossings.intersects(hull):
                         continue
                     q0, bd = np.array([q.x, q.y]), -n_
                     lw = sw / 2 + 6 * s
@@ -1734,6 +1739,7 @@ class CityBuilder:
         rad = math.sqrt(need) * 1.05
         gap = 3.6 * s * (1 + 0.5 * (self.spread - 1))   # überbrückt Gassen und Quartiersstraßen, nicht die Hauptstraßen
         best = None
+        streets_1 = None   # main_streets.buffer(1 * s) ist für alle Kandidaten gleich: beim ersten Bedarf berechnen
         # findet sich kein Bauplatz (z.B. lockere Bebauung: Gärten und breitere Gassen trennen die Blöcke),
         # im größeren Umkreis suchen
         for rad in (rad, rad * 1.5):
@@ -1743,7 +1749,9 @@ class CityBuilder:
                 c = bk["poly"].centroid
                 near = [free[j] for j in tree.query(c.buffer(rad)) if free[j]["poly"].centroid.distance(c) < rad]
                 area = unary_union([b["poly"].buffer(gap, join_style="mitre") for b in near]).buffer(-gap, join_style="mitre")
-                area = area.difference(self.main_streets.buffer(1 * s))
+                if streets_1 is None:
+                    streets_1 = self.main_streets.buffer(1 * s)
+                area = area.difference(streets_1)
                 parts = polys(area)
                 if not parts:
                     continue
@@ -1837,6 +1845,12 @@ class CityBuilder:
         oder andere Stege und Schiffe."""
         s, rng = self.s, self.rng
         water, sea, river = self.t["water"], self.t["sea"], self.t["river"]
+        grown = {}   # water.buffer(d) je Abstand nur einmal: die Schleifen unten brauchen dieselbe Fläche immer wieder
+
+        def water_grown(d):
+            if d not in grown:
+                grown[d] = water.buffer(d)
+            return grown[d]
         # Brückenbereiche (Straßen über Wasser) und schon belegte Flächen
         occupied = [ln.buffer(w / 2 + 14 * s).intersection(water.buffer(10 * s))
                     for ln, w in self.out["internal_roads"] if ln.intersects(water)]
@@ -1876,7 +1890,7 @@ class CityBuilder:
                                     (p.x + tx * wid / 2 - nx * 4 * s, p.y + ty * wid / 2 - ny * 4 * s),
                                     (p.x + tx * wid / 2 + nx * length, p.y + ty * wid / 2 + ny * length),
                                     (p.x - tx * wid / 2 + nx * length, p.y - ty * wid / 2 + ny * length)])
-                    if not water.buffer(6 * s).contains(pier) or any(pier.buffer(3 * s).intersects(o) for o in occupied):
+                    if not water_grown(6 * s).contains(pier) or any(pier.buffer(3 * s).intersects(o) for o in occupied):
                         continue
                     self.out["piers"].append(pier)
                     occupied.append(pier.buffer(2 * s))
@@ -1915,9 +1929,9 @@ class CityBuilder:
                     if not in_river:
                         far = max(3.0 * hl, 140 * s)
                         lane = LineString([(cx, cy), (cx + nx * far, cy + ny * far)]).buffer(hw / 2 + 3 * s, cap_style="flat")
-                        if not water.buffer(1 * s).contains(lane) or any(lane.intersects(o) for o in others):
+                        if not water_grown(1 * s).contains(lane) or any(lane.intersects(o) for o in others):
                             continue
-                    if water.buffer(1 * s).contains(hull) and not any(hull.buffer(2 * s).intersects(o) for o in others):
+                    if water_grown(1 * s).contains(hull) and not any(hull.buffer(2 * s).intersects(o) for o in others):
                         self.out["ships"].append({"x": cx, "y": cy, "len": hl, "wid": hw, "angle": angle, "big": big,
                                                   "depart": lane})
                         occupied.append(hull.buffer(2 * s))
