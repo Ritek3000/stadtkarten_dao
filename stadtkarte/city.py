@@ -910,18 +910,12 @@ class CityBuilder:
 
     # ---------------------------------------------------------------- Bebauung
     def buildings(self, internal):
-        s, rng = self.s, self.rng
-        s2 = s * s
+        """Häuser und Straßen der Stadt: Hauptstraßen und Plätze bleiben frei, der Rest wird in Quartiere, Häuserblöcke
+        und Parzellen zerlegt und mit Häusern (Großstadt: geschlossene Häuserzeilen) und Hofbäumen besetzt. Die
+        Reihenfolge ist verbindlich, alle Schritte ziehen Zufallszahlen aus demselben rng."""
         main = unary_union([ln.buffer(w / 2) for ln, w in internal]).intersection(self.city_land)
         self.main_streets = main
-        blockers = [main, unary_union(self.out["plazas"]), self.t["water"].buffer(3 * s)]
-        if self.walled:
-            blockers.append(self.shape.exterior.buffer(30 * s))
-        if getattr(self, "old_wall", None) is not None:
-            blockers.append(self.old_wall.buffer(8 * s))
-        if self.t["biome"]["terraces"]:
-            blockers.append(self.terraces(main).buffer(4 * s))
-        blocker = unary_union(blockers)
+        blocker = self._blocker(main)
         streets = [main, unary_union(self.out["plazas"])]
         self.blocks = []
         pools = self.t.get("pools")
@@ -929,6 +923,31 @@ class CityBuilder:
             pools = None
         if pools is not None:
             shapely.prepare(pools)
+        quarters = self._quarters(blocker, streets)
+        for quarter, di in quarters:
+            self._quarter_buildings(quarter, di, pools, streets)
+        self.out["streets"] = [unary_union(streets).intersection(self.city_land)]
+        self.connect_to_streets()
+
+    def _blocker(self, main):
+        """Was nicht bebaut wird: Hauptstraßen, Plätze, Wasser, Streifen an der Mauer, Altstadtmauer, Terrassen."""
+        s = self.s
+        blockers = [main, unary_union(self.out["plazas"]), self.t["water"].buffer(3 * s)]
+        if self.walled:
+            blockers.append(self.shape.exterior.buffer(30 * s))
+        if getattr(self, "old_wall", None) is not None:
+            blockers.append(self.old_wall.buffer(8 * s))
+        if self.t["biome"]["terraces"]:
+            blockers.append(self.terraces(main).buffer(4 * s))
+        return unary_union(blockers)
+
+    def _quarters(self, blocker, streets):
+        """Zerlegt die bebaubare Fläche in Quartiere und ordnet jedes einem Viertel zu. Liefert [(Fläche, Index des
+        Viertels)]; die Gassen zwischen den Quartieren kommen nach streets, die Flächen der Viertel werden an die
+        Quartiere angepasst."""
+        s = self.s
+        s2 = s * s
+        rng = self.rng
         dl = self.district_list
         for d in dl:
             d["cell"] = d["poly"]
@@ -943,7 +962,6 @@ class CityBuilder:
         # damit Viertelgrenzen auf Gassen statt quer durch Häuserblöcke laufen.
         rest = self.city_land.difference(blocker).difference(unary_union([dl[i]["poly"] for i in paved]))
         cands = [i for i in range(len(dl)) if i not in paved and not dl[i]["poly"].is_empty]
-        g = self.g
         for piece in clean(rest, 300 * s2):
             if self.grand:   # Großstadt: kleinere Quartiere, schmalere Quartiersstraßen
                 qs = subdivide(piece, 11000 * s2, 6 * s, rng, min_area=250 * s2, var=0.25)
@@ -957,7 +975,16 @@ class CityBuilder:
                     owner = min(cands, key=lambda i: dl[i]["poly"].distance(rp))
                 if owner is not None:
                     quarters.append((q, owner))
-        # kleine Viertel, die kein Quartier abbekommen haben, erhalten das am stärksten überlappende
+        self._quarters_for_small_districts(quarters, cands, paved)
+        for i in cands:
+            mine = [q.buffer(6 * s) for q, o in quarters if o == i]
+            dl[i]["poly"] = unary_union(mine).buffer(-6 * s) if mine else Polygon()
+        return quarters
+
+    def _quarters_for_small_districts(self, quarters, cands, paved):
+        """Kleine Viertel, die kein Quartier abbekommen haben, erhalten das am stärksten überlappende (aus einem Viertel
+        mit mehreren Quartieren)."""
+        dl = self.district_list
         for i in cands:
             if any(o == i for _, o in quarters):
                 continue
@@ -969,71 +996,85 @@ class CityBuilder:
                 k = max(options, key=lambda k: quarters[k][0].intersection(dl[i]["cell"]).area
                         - quarters[k][0].distance(dl[i]["cell"]))
                 quarters[k] = (quarters[k][0], i)
-        for i in cands:
-            mine = [q.buffer(6 * s) for q, o in quarters if o == i]
-            dl[i]["poly"] = unary_union(mine).buffer(-6 * s) if mine else Polygon()
-        for quarter, di in quarters:
-            d = dl[di]
-            st = DISTRICT_TYPES.get(d["typ"], DISTRICT_TYPES["wohn"])
-            poor = st.get("poor", False)
-            lot = st["lot"] * s2
-            grand = self.grand and not st.get("paved")   # der Hafen behält seine einzelnen Lagerhäuser
-            if grand:
-                block_area, alley = st["block"] * 0.5 / g ** 0.5 * s2, max(2.2, st["alley"] * 0.5 / g ** 0.5) * s
-            else:
-                block_area, alley = st["block"] * s2, st["alley"] * s
-            # lockere Bebauung: größere Grundstücke mit Abstand zwischen den Häusern, breitere Gassen, mehr Gärten;
-            # zusammen mit der größeren Stadtfläche bleibt die Zahl der Häuser etwa gleich
-            A = 1.0 if st.get("paved") else self.spread
-            density, inner = st["density"] / A ** 0.5, st.get("inner", 0.0) / A
-            if A > 1:
-                lot *= A ** 0.5
-                block_area *= A ** 0.5
-                alley *= 1 + 0.5 * (A - 1)
-            for piece in clean(quarter, lot * 0.5):
-                blocks = subdivide(piece, block_area, alley, rng, min_area=min(lot, block_area) * 0.5)
-                streets.append(piece.difference(unary_union(blocks)) if blocks else piece)
-                for blk in blocks:
-                    entry = {"poly": blk, "district": di, "ids": []}
-                    self.blocks.append(entry)
-                    if grand:   # ganzer Block als geschlossene Häuserzeile, selten ein Garten
-                        if rng.random() < max(0.9, st["density"]) / A ** 0.5:
-                            b = self.block_mass(blk, st, di, poor)
-                            if b is not None:
-                                entry["ids"].append(len(self.out["buildings"]))
-                                self.out["buildings"].append(b)
-                        continue
-                    # Armenviertel: gleichmäßigere Parzellen, sonst entstehen zu viele zu schmale Restflächen
-                    lots = subdivide(blk, lot, 0, rng, min_area=lot * 0.12, var=0.25 if poor else 0.5, jitter=0.1)
-                    edge = blk.exterior.buffer(0.8 * s)
-                    for lp in lots:
-                        # über Sumpfwasser: Pfahlhäuser mit Wasser dazwischen, etwas lockerer
-                        wet = pools is not None and pools.contains(lp.representative_point())
-                        perim = (not st["perimeter"]) or lp.exterior.intersection(edge).length > 2 * s
-                        back = not perim and rng.random() < inner * (0.3 if wet else 1)
-                        if (perim and rng.random() < density * (0.75 if wet else 1)) or back:
-                            inset = (4 if d["typ"] == "hafen" else 2.4 if wet else 1.0) * s
-                            if A > 1 and d["typ"] != "hafen":
-                                inset += 2.5 * (A - 1) * s   # Abstand zu den Nachbarhäusern
-                            for part in clean(lp.buffer(-inset, join_style="mitre"), lot * 0.12):
-                                # nur erlaubte geometrische Formen mit Mindestbreite; zu schmale Restflächen bleiben Hof
-                                bp, form = house_shape(part, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO,
-                                                       special_chance=0.0 if poor else 0.12)
-                                if bp is not None and poor:   # Hütten stehen schief auf dem Grundstück
-                                    tilt = shapely.affinity.rotate(bp, rng.uniform(-8, 8), origin="centroid")
-                                    if part.buffer(0.6 * s).contains(tilt):
-                                        bp = tilt
-                                if bp is not None:
-                                    entry["ids"].append(len(self.out["buildings"]))
-                                    self.out["buildings"].append(
-                                        {"poly": bp, "form": form, "color": self.roof_color(st), "district": di,
-                                         "poor": poor})
-                        elif (not perim or A > 1) and rng.random() < 0.35 * A:   # Hof bzw. Garten mit Baum
-                            c = lp.representative_point()
-                            rad = max(5 * s, min(14 * s, math.sqrt(lp.area) * 0.4))
-                            self.out["yard_trees"].append((c.x, c.y, rad))
-        self.out["streets"] = [unary_union(streets).intersection(self.city_land)]
-        self.connect_to_streets()
+
+    def _quarter_buildings(self, quarter, di, pools, streets):
+        """Häuserblöcke, Parzellen und Häuser eines Quartiers (di: Index seines Viertels). Gassen zwischen den Blöcken
+        kommen nach streets."""
+        s, rng = self.s, self.rng
+        s2 = s * s
+        g = self.g
+        d = self.district_list[di]
+        st = DISTRICT_TYPES.get(d["typ"], DISTRICT_TYPES["wohn"])
+        poor = st.get("poor", False)
+        lot = st["lot"] * s2
+        grand = self.grand and not st.get("paved")   # der Hafen behält seine einzelnen Lagerhäuser
+        if grand:
+            block_area, alley = st["block"] * 0.5 / g ** 0.5 * s2, max(2.2, st["alley"] * 0.5 / g ** 0.5) * s
+        else:
+            block_area, alley = st["block"] * s2, st["alley"] * s
+        # lockere Bebauung: größere Grundstücke mit Abstand zwischen den Häusern, breitere Gassen, mehr Gärten;
+        # zusammen mit der größeren Stadtfläche bleibt die Zahl der Häuser etwa gleich
+        A = 1.0 if st.get("paved") else self.spread
+        density, inner = st["density"] / A ** 0.5, st.get("inner", 0.0) / A
+        if A > 1:
+            lot *= A ** 0.5
+            block_area *= A ** 0.5
+            alley *= 1 + 0.5 * (A - 1)
+        for piece in clean(quarter, lot * 0.5):
+            blocks = subdivide(piece, block_area, alley, rng, min_area=min(lot, block_area) * 0.5)
+            streets.append(piece.difference(unary_union(blocks)) if blocks else piece)
+            for blk in blocks:
+                entry = {"poly": blk, "district": di, "ids": []}
+                self.blocks.append(entry)
+                if grand:   # ganzer Block als geschlossene Häuserzeile, selten ein Garten
+                    if rng.random() < max(0.9, st["density"]) / A ** 0.5:
+                        b = self.block_mass(blk, st, di, poor)
+                        if b is not None:
+                            entry["ids"].append(len(self.out["buildings"]))
+                            self.out["buildings"].append(b)
+                    continue
+                self._block_lots(blk, entry, di, st, pools, lot, A, density, inner)
+
+    def _block_lots(self, blk, entry, di, st, pools, lot, A, density, inner):
+        """Parzellen eines Häuserblocks: je Parzelle ein Haus (oder mehrere Teile) oder ein Hof bzw. Garten mit Baum."""
+        s, rng = self.s, self.rng
+        poor = st.get("poor", False)
+        d = self.district_list[di]
+        # Armenviertel: gleichmäßigere Parzellen, sonst entstehen zu viele zu schmale Restflächen
+        lots = subdivide(blk, lot, 0, rng, min_area=lot * 0.12, var=0.25 if poor else 0.5, jitter=0.1)
+        edge = blk.exterior.buffer(0.8 * s)
+        for lp in lots:
+            # über Sumpfwasser: Pfahlhäuser mit Wasser dazwischen, etwas lockerer
+            wet = pools is not None and pools.contains(lp.representative_point())
+            perim = (not st["perimeter"]) or lp.exterior.intersection(edge).length > 2 * s
+            back = not perim and rng.random() < inner * (0.3 if wet else 1)
+            if (perim and rng.random() < density * (0.75 if wet else 1)) or back:
+                inset = (4 if d["typ"] == "hafen" else 2.4 if wet else 1.0) * s
+                if A > 1 and d["typ"] != "hafen":
+                    inset += 2.5 * (A - 1) * s   # Abstand zu den Nachbarhäusern
+                self._houses_on_lot(lp, inset, entry, di, st, lot)
+            elif (not perim or A > 1) and rng.random() < 0.35 * A:   # Hof bzw. Garten mit Baum
+                c = lp.representative_point()
+                rad = max(5 * s, min(14 * s, math.sqrt(lp.area) * 0.4))
+                self.out["yard_trees"].append((c.x, c.y, rad))
+
+    def _houses_on_lot(self, lp, inset, entry, di, st, lot):
+        """Häuser auf einer Parzelle, um inset eingerückt; zu schmale Restflächen bleiben Hof."""
+        s, rng = self.s, self.rng
+        poor = st.get("poor", False)
+        for part in clean(lp.buffer(-inset, join_style="mitre"), lot * 0.12):
+            # nur erlaubte geometrische Formen mit Mindestbreite; zu schmale Restflächen bleiben Hof
+            bp, form = house_shape(part, rng, MIN_HOUSE * s, MAX_HOUSE_RATIO,
+                                   special_chance=0.0 if poor else 0.12)
+            if bp is not None and poor:   # Hütten stehen schief auf dem Grundstück
+                tilt = shapely.affinity.rotate(bp, rng.uniform(-8, 8), origin="centroid")
+                if part.buffer(0.6 * s).contains(tilt):
+                    bp = tilt
+            if bp is not None:
+                entry["ids"].append(len(self.out["buildings"]))
+                self.out["buildings"].append(
+                    {"poly": bp, "form": form, "color": self.roof_color(st), "district": di,
+                     "poor": poor})
 
     def block_mass(self, blk, st, di, poor):
         """Großstadt: ein Häuserblock als geschlossene Zeile schmaler Häuser um einen Innenhof. Jedes Haus ist eine
