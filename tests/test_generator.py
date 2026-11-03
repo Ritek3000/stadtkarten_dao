@@ -13,9 +13,9 @@ from unittest import mock
 
 import shapely
 import yaml
-from shapely.geometry import Polygon, box
+from shapely.geometry import Point, Polygon, box
 
-from stadtkarte import config, generator
+from stadtkarte import config, fortress, generator
 from stadtkarte.generator import generate
 from stadtkarte.render import render_svg
 from tests.golden import klein
@@ -97,6 +97,27 @@ class Festung(unittest.TestCase):
         self.assertEqual([h for h in m["hints"] if "Festung" in h],
                          ["Kein Platz für eine Zitadelle in der Mauer - Festung vor der Stadt.",
                           "Kein Platz für die Festung gefunden."])
+
+
+class Inselsuche(unittest.TestCase):
+    def test_flussflaeche_wird_nur_einmal_berechnet(self):
+        """Die Fläche des Flusses außerhalb des Meeres ist für alle Kandidaten gleich. Sie je Kandidat neu zu berechnen
+        (sea.buffer(-1) auf der langen Küste) machte die Inselsuche zum Zeitfresser: bis zu 24 s statt unter 1 s."""
+        sea = box(0, 0, 1000, 600)                   # Meer im Norden, Stadt darunter
+        stadt = box(0, 600, 1000, 1000)
+        fluss = box(-10, 560, 1010, 700)             # überquert die Küste: Kandidaten nahe der Küste fallen weg
+        differenzen = []
+        echt = shapely.geometry.base.BaseGeometry.difference
+
+        def zaehlen(self, other, *args, **kwargs):
+            differenzen.append(1)
+            return echt(self, other, *args, **kwargs)
+        with mock.patch.object(shapely.geometry.base.BaseGeometry, "difference", zaehlen):
+            p = fortress._sea_site(1.0, sea, fluss, stadt, Point(500, 400), [])
+        self.assertIsNotNone(p)
+        self.assertEqual(len(differenzen), 1)
+        self.assertGreater(p.distance(stadt), 120)   # Inselplatz 120 bis 230 vor der Stadt
+        self.assertFalse(Point(p).buffer(80 + 25).intersects(fluss))
 
 
 class Zuschnitt(unittest.TestCase):
