@@ -17,7 +17,7 @@ import yaml
 from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
-from stadtkarte import config, fortress, generator
+from stadtkarte import config, fortress, generator, render, umgebung
 from stadtkarte.generator import generate
 from stadtkarte.render import render_svg
 from tests.golden import klein
@@ -141,6 +141,57 @@ class Bruecken(unittest.TestCase):
             ueber_wasser = ln.intersection(m["water"])
             self.assertFalse(ueber_wasser.is_empty)
             self.assertTrue(flaeche.contains(ueber_wasser), "die Maske muss das Wasser unter jeder Brücke decken")
+
+
+class Nachtkarte(unittest.TestCase):
+    """Die Nachtkarte entsteht aus derselben Stadt wie die Tagkarte (Werkstatt: erst Tag, dann Nacht). Gebäude und die
+    Texturen, die von der Stadt abhängen, sind in beiden gleich und werden nicht noch einmal gerechnet; das Ergebnis
+    bleibt aber Zeichen für Zeichen dasselbe wie beim Zeichnen ohne Tagkarte davor."""
+
+    @staticmethod
+    def stadt():
+        return generate(config.from_dict(klein(ausgabe={"bildgroesse": 300, "formate": ["svg"]})))
+
+    def test_nacht_nach_tag_ist_dasselbe_wie_nacht_allein(self):
+        m = self.stadt()
+        render_svg(m, nacht=False)
+        nach_tag = render_svg(m, nacht=True)
+        allein = render_svg(self.stadt(), nacht=True)
+        self.assertEqual(nach_tag, allein)
+
+    def test_daecher_und_stadttexturen_werden_nur_einmal_gerechnet(self):
+        dach, textur = [], []
+        echt_dach, echt_textur = render.detailed_roof, umgebung.image
+
+        def zaehle_dach(*a, **k):
+            dach.append(1)
+            return echt_dach(*a, **k)
+
+        def zaehle_textur(*a, **k):
+            textur.append(1)
+            return echt_textur(*a, **k)
+        m = self.stadt()
+        with mock.patch.object(render, "detailed_roof", zaehle_dach), mock.patch.object(umgebung, "image", zaehle_textur):
+            render_svg(m, nacht=False)
+            tag = (len(dach), len(textur))
+            render_svg(m, nacht=True)
+            self.assertEqual((len(dach), len(textur)), tag)   # die Nacht rechnet weder Dächer noch die Umgebungstextur neu
+            self.assertGreater(tag[0], 0)
+            self.assertEqual(tag[1], 1)
+
+    def test_wurde_die_stadt_veraendert_wird_die_textur_neu_gerechnet(self):
+        textur = []
+        echt = umgebung.image
+
+        def zaehle(*a, **k):
+            textur.append(1)
+            return echt(*a, **k)
+        m = self.stadt()
+        with mock.patch.object(umgebung, "image", zaehle):
+            render_svg(m, nacht=False)
+            m["forest"] = Polygon()   # die Umgebungstextur hängt vom Wald ab
+            render_svg(m, nacht=True)
+        self.assertEqual(len(textur), 2)
 
 
 class Zuschnitt(unittest.TestCase):
