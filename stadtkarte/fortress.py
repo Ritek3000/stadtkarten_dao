@@ -47,6 +47,7 @@ def _sea_site(s, sea, river, city_land, anchor, islands, avoid=None):
     """Sucht einen Inselplatz 120-230 px vor der Stadt, möglichst nah am Anker (Hafen)."""
     minx, miny, maxx, maxy = sea.bounds
     inner = sea.buffer(-14 * s)
+    river_land = None   # Fluss außerhalb des Meeres: gilt für alle Kandidaten gleich, wird nur einmal berechnet
     best, bd = None, 1e18
     for x in np.arange(minx, maxx, 18 * s):
         for y in np.arange(miny, maxy, 18 * s):
@@ -57,8 +58,11 @@ def _sea_site(s, sea, river, city_land, anchor, islands, avoid=None):
             disk = p.buffer(80 * s)
             if not inner.contains(disk):
                 continue
-            if river is not None and disk.buffer(25 * s).intersects(river.difference(sea.buffer(-1))):
-                continue
+            if river is not None:
+                if river_land is None:
+                    river_land = river.difference(sea.buffer(-1))
+                if disk.buffer(25 * s).intersects(river_land):
+                    continue
             if any(disk.buffer(30 * s).intersects(i) for i in islands):
                 continue
             if avoid is not None and disk.buffer(20 * s).intersects(avoid):
