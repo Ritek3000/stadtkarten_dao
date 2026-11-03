@@ -2,12 +2,15 @@
 import base64
 import io
 import math
+import random
 import unittest
+from unittest import mock
 
 from PIL import Image
+import shapely.geometry.base
 from shapely.geometry import Polygon, box
 
-from stadtkarte import bilder, geo
+from stadtkarte import bilder, geo, terrain
 
 
 class Geometrie(unittest.TestCase):
@@ -35,6 +38,24 @@ class Geometrie(unittest.TestCase):
         senkrecht = geo.ship_footprint(0, 0, 40, 10, 90)
         self.assertEqual(tuple(round(v, 6) for v in senkrecht.bounds), (-5, -20, 5, 20))
         self.assertTrue(math.isclose(senkrecht.area, 400))
+
+
+class Inseln(unittest.TestCase):
+    def test_kuestenstreifen_wird_nur_einmal_berechnet(self):
+        """sea.buffer(-25 * s) ist für alle Inselkandidaten gleich. Es je Kandidat neu zu berechnen kostet auf einer langen
+        Küste bis zu 36 ms pro Kandidat."""
+        meer = box(0, 0, 2000, 600)
+        aufrufe = []
+        echt = shapely.geometry.base.BaseGeometry.buffer
+
+        def zaehlen(self, distance, *args, **kwargs):
+            if distance < 0:
+                aufrufe.append(distance)
+            return echt(self, distance, *args, **kwargs)
+        with mock.patch.object(shapely.geometry.base.BaseGeometry, "buffer", zaehlen):
+            inseln = terrain.make_islands(random.Random(3), 2000, 1.0, meer, lambda x: 520.0, 6)
+        self.assertGreaterEqual(len(inseln), 2)
+        self.assertEqual(len(aufrufe), 1)
 
 
 class Bilder(unittest.TestCase):
