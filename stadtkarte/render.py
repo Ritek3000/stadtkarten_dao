@@ -1633,11 +1633,15 @@ def bridges_svg(o, m):
         # Kontur und Brüstung nur über dem Wasser (enden am Ufer wie Widerlager), die Fahrbahn blendet an Land
         # weich in Gasse, Platz oder Landstraße aus statt als eckiges Brett darauf zu liegen
         wet = m["water"]
+        # Die Maske wirkt nur auf den Fahrbahnen. Weichgezeichnet wird deshalb nur das Wasser rund um die Brücken (40 px
+        # Rand, der Weichzeichner reicht knapp 10 px): dasselbe Bild, aber resvg musste den Weichzeichner sonst über der
+        # ganzen Wasserfläche rechnen, für jede Brücke neu (rund 1 s je Brücke bei voller Größe)
+        near = unary_union([ln.buffer(w + 40 * s) for ln, w in m["bridges"]])
         o.append(f'<clipPath id="bridgeWet"><path d="{path_d(wet.buffer(1.5 * s))}"/></clipPath>'
                  f'<filter id="bridgeSoft" x="-5%" y="-5%" width="110%" height="110%">'
                  f'<feGaussianBlur stdDeviation="{f(3 * s)}"/></filter>'
                  f'<mask id="bridgeFade" maskUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{W}">'
-                 f'<path d="{path_d(wet.buffer(5 * s))}" fill="#fff" filter="url(#bridgeSoft)"/></mask>')
+                 f'<path d="{path_d(wet.buffer(5 * s).intersection(near))}" fill="#fff" filter="url(#bridgeSoft)"/></mask>')
     for ln, w in m["bridges"]:   # an Land ein kurzes Stück Weg bis zum Platz bzw. zur Straße (schließt den Uferstreifen)
         dry = ln.difference(m["water"].buffer(1 * s))
         if not dry.is_empty:
