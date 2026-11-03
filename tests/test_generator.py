@@ -6,6 +6,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import re
 import tempfile
 import threading
 import unittest
@@ -14,6 +15,7 @@ from unittest import mock
 import shapely
 import yaml
 from shapely.geometry import Point, Polygon, box
+from shapely.ops import unary_union
 
 from stadtkarte import config, fortress, generator
 from stadtkarte.generator import generate
@@ -118,6 +120,27 @@ class Inselsuche(unittest.TestCase):
         self.assertEqual(len(differenzen), 1)
         self.assertGreater(p.distance(stadt), 120)   # Inselplatz 120 bis 230 vor der Stadt
         self.assertFalse(Point(p).buffer(80 + 25).intersects(fluss))
+
+
+class Bruecken(unittest.TestCase):
+    """Die Maske, die die Fahrbahn einer Brücke am Ufer ausblendet, gilt nur auf den Brücken. Weichgezeichnet wird daher
+    nur das Wasser rund um die Brücken und nicht die ganze Wasserfläche: resvg rechnete den Weichzeichner sonst für jede
+    Brücke über der ganzen Karte (bei voller Größe fast eine Sekunde je Brücke)."""
+
+    def test_maske_deckt_nur_die_umgebung_der_bruecken(self):
+        roh = klein(ausgabe={"bildgroesse": 300, "formate": ["svg"]})
+        m = generate(config.from_dict(roh))
+        svg = render_svg(m, nacht=False)
+        self.assertTrue(m["bridges"])
+        maske = re.search(r'<mask id="bridgeFade"[^>]*><path d="([^"]*)"', svg).group(1)
+        wasser = re.search(r'<clipPath id="bridgeWet"><path d="([^"]*)"', svg).group(1)
+        self.assertLess(len(maske), 0.1 * len(wasser))   # statt der ganzen Wasserfläche nur die Umgebung der Brücken
+        ringe = [Polygon([tuple(map(float, pt.split(","))) for pt in ring.split("L")]) for ring in re.findall(r"M([^MZ]*)Z", maske)]
+        flaeche = unary_union([r.buffer(0) for r in ringe]).buffer(0.2)   # der Pfad ist auf 0,1 gerundet
+        for ln, _ in m["bridges"]:
+            ueber_wasser = ln.intersection(m["water"])
+            self.assertFalse(ueber_wasser.is_empty)
+            self.assertTrue(flaeche.contains(ueber_wasser), "die Maske muss das Wasser unter jeder Brücke decken")
 
 
 class Zuschnitt(unittest.TestCase):
