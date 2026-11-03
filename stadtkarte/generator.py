@@ -9,7 +9,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, polylabel, split, unary_union
 
 from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, varied_shape
-from .config import ROTATION, place_info, to_canonical
+from .config import OPTIONAL, ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from . import leuchtturm, staub
 from .geo import Noise1D, axes, blob, lines, oriented_rect, polys, roof, ship_footprint, unit, vlen
@@ -37,7 +37,7 @@ def generate(cfg):
     Titel bleiben in Kartengröße. "fuellend" misst zuerst Stadt, Hafen, Festung und Orte vor der Stadt und erzeugt
     die Welt dann so groß, dass all das gerade auf die Karte passt."""
     W = int(cfg["ausgabe"]["bildgroesse"])
-    mode = cfg["ausgabe"].get("ausschnitt", "weit")
+    mode = cfg["ausgabe"].get("ausschnitt", OPTIONAL["ausgabe.ausschnitt"])
     if mode not in AUSSCHNITT or cfg["stadtform"] == "eigene":
         return _generate(cfg, W)
     frac = city_radius(W, cfg["einwohner"], spread(cfg)) / W

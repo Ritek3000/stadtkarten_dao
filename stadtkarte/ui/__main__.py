@@ -21,6 +21,7 @@ import yaml
 
 from .. import __version__, config, webpaket
 from ..bilder import png_to_webp
+from ..city import GROSS
 from ..generator import building_count, generate
 from ..interaktiv import interactive_html
 from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
@@ -74,6 +75,10 @@ def options():
         "examples": sorted(p.stem for p in EXAMPLES.glob("*.yaml")),
         "output_dir": str(OUTPUT),
         "version": __version__,
+        # Standardwerte und Grenzen kommen aus config.py bzw. city.py; die Seite wiederholt sie nicht
+        "defaults": config.ui_defaults(),          # was eine neue oder geladene Beschreibung enthält, wenn es fehlt
+        "optional": config.OPTIONAL,               # Angaben, die fehlen dürfen, und ihr Wert, wenn sie fehlen
+        "limits": {"einwohner_max": config.MAX_EINWOHNER, "grossstadt": GROSS},
     }
 
 

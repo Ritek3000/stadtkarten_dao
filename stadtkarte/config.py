@@ -50,6 +50,25 @@ DEFAULTS = {
                                        # Werkstatt berechnet zusätzlich zur Tagkarte die Nachtkarte zum Umschalten
 }
 
+# Angaben, die fehlen dürfen: Der Wert gilt, wenn die Angabe fehlt; die Oberfläche lässt sie dann aus der Beschreibung
+# weg. Schlüssel: Abschnitt.Angabe (ohne Abschnitt: oberste Ebene).
+OPTIONAL = {
+    "bebauung": "dicht",
+    "gelaende.plateau": "oben",        # Hochplateau: Stadt oben auf dem Plateau (oben) oder am Fuß (unten)
+    "gelaende.kante": "direkt",        # Hochplateau: direkt an der Kante oder mit Abstand
+    "ausgabe.stil": "pergament",
+    "ausgabe.ausschnitt": "weit",
+    "viertel.groesse": "gross",        # Größe des Hafenviertels
+}
+
+
+def ui_defaults():
+    """Die Standardwerte, die die Oberfläche in eine neue oder geladene Beschreibung einträgt: DEFAULTS ohne Angaben, die
+    nur für die Kommandozeile gelten (ausgabe.nacht)."""
+    out = copy.deepcopy(DEFAULTS)
+    out["ausgabe"].pop("nacht", None)
+    return out
+
 
 def norm(word):
     """'Südost' -> 'suedost' usw."""
@@ -145,12 +164,14 @@ def from_dict(raw):
     if BIOMES[g["biotop"]]["plateau"]:
         pl = {"auf": "oben", "aufdemplateau": "oben", "drauf": "oben", "fuss": "unten", "amfuss": "unten",
               "unterhalb": "unten", "darunter": "unten"}
-        g["plateau"] = pl.get(norm(g.get("plateau") or "oben"), norm(g.get("plateau") or "oben"))
+        wert = norm(g.get("plateau") or OPTIONAL["gelaende.plateau"])
+        g["plateau"] = pl.get(wert, wert)
         if g["plateau"] not in ("oben", "unten"):
             raise ValueError(f"gelaende.plateau: {g['plateau']} - möglich sind oben (auf dem Plateau) und unten (am Fuß)")
         ka = {"an": "direkt", "anderkante": "direkt", "kante": "direkt", "weg": "abstand", "entfernt": "abstand",
               "mitabstand": "abstand"}
-        g["kante"] = ka.get(norm(g.get("kante") or "direkt"), norm(g.get("kante") or "direkt"))
+        wert = norm(g.get("kante") or OPTIONAL["gelaende.kante"])
+        g["kante"] = ka.get(wert, wert)
         if g["kante"] not in ("direkt", "abstand"):
             raise ValueError(f"gelaende.kante: {g['kante']} - möglich sind direkt (an der Kante) und abstand")
     if g["kueste"] not in ROTATION:
@@ -194,28 +215,28 @@ def from_dict(raw):
             pts.append([round(x, 3), round(y, 3), kind])
         cfg["mauer"]["punkte"] = pts
         cfg["ausgabe"].pop("ausschnitt", None)   # gezeichnet wird auf der ganzen Karte
-    beb = norm(cfg.get("bebauung") or "dicht")   # lockere Bebauung: gleiche Einwohner auf mehr Fläche
+    beb = norm(cfg.get("bebauung") or OPTIONAL["bebauung"])   # lockere Bebauung: gleiche Einwohner auf mehr Fläche
     beb = {"normal": "dicht", "eng": "dicht", "aufgelockert": "locker", "weit": "weitlaeufig", "sehrlocker": "weitlaeufig",
            "laendlich": "weitlaeufig"}.get(beb, beb)
     if beb not in ("dicht", "locker", "weitlaeufig"):
         raise ValueError(f"Unbekannte Bebauung: {cfg.get('bebauung')} (möglich: dicht, locker, weitlaeufig)")
-    if beb == "dicht":
+    if beb == OPTIONAL["bebauung"]:
         cfg.pop("bebauung", None)
     else:
         cfg["bebauung"] = beb
-    stil = norm(cfg["ausgabe"].get("stil") or "pergament")   # Zeichenstil der fertigen Karte (Standard: Pergament)
+    stil = norm(cfg["ausgabe"].get("stil") or OPTIONAL["ausgabe.stil"])   # Zeichenstil der fertigen Karte
     stil = {"normal": "standard", "modern": "standard", "papier": "pergament", "alt": "pergament",
             "historisch": "pergament"}.get(stil, stil)
     if stil not in ("standard", "pergament"):
         raise ValueError(f"Unbekannter Stil: {cfg['ausgabe'].get('stil')} (möglich: standard, pergament)")
     cfg["ausgabe"]["stil"] = stil
-    aus = norm(cfg["ausgabe"].get("ausschnitt") or "weit")   # wie viel der Karte die Stadt einnimmt
+    aus = norm(cfg["ausgabe"].get("ausschnitt") or OPTIONAL["ausgabe.ausschnitt"])   # wie viel der Karte die Stadt einnimmt
     aus = {"fuellen": "fuellend", "voll": "fuellend", "ganz": "fuellend", "auto": "fuellend", "mittel": "normal",
            "eng": "nah", "gross": "nah"}.get(aus, aus)
     if aus not in ("weit", "normal", "nah", "fuellend"):
         raise ValueError(f"Unbekannter Ausschnitt: {cfg['ausgabe'].get('ausschnitt')} "
                          "(möglich: weit, normal, nah, fuellend)")
-    if aus == "weit":
+    if aus == OPTIONAL["ausgabe.ausschnitt"]:
         cfg["ausgabe"].pop("ausschnitt", None)
     else:
         cfg["ausgabe"]["ausschnitt"] = aus
@@ -271,11 +292,11 @@ def from_dict(raw):
             v["ausserhalb"] = True   # Armenviertel vor der Stadtmauer
             del v["lage"]
         if v["typ"] == "hafen":   # Größe des Hafenviertels: klein | mittel | gross (Standard)
-            gr = norm(v.get("groesse") or "gross")
+            gr = norm(v.get("groesse") or OPTIONAL["viertel.groesse"])
             gr = {"gross": "gross", "groß": "gross", "klein": "klein", "mittel": "mittel", "normal": "mittel"}.get(gr, gr)
             if gr not in ("klein", "mittel", "gross"):
                 raise ValueError(f"Viertel {v.get('name')}: groesse {v.get('groesse')} - möglich sind klein, mittel, gross")
-            if gr == "gross":
+            if gr == OPTIONAL["viertel.groesse"]:
                 v.pop("groesse", None)
             else:
                 v["groesse"] = gr

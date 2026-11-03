@@ -20,7 +20,7 @@ from shapely.ops import unary_union
 from .geo import axes, lines, polys, rings, ship_footprint, unit, vlen
 from . import gebirge, noise, papier, parallel, schlucht, staub, umgebung, wasser
 from .roofs import detailed_roof, material_for
-from .config import ROTATION
+from .config import OPTIONAL, ROTATION
 from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
 
 
@@ -617,7 +617,7 @@ def prewarm(cfg):
         if (os.cpu_count() or 1) < 3:   # sonst nähmen die Texturen dem Generator nur die Rechenzeit
             return
         g, aus = cfg["gelaende"], cfg["ausgabe"]
-        if aus.get("ausschnitt", "weit") != "weit":   # anderer Maßstab (m["s"]): Schlüssel nicht vorhersagbar
+        if aus.get("ausschnitt", OPTIONAL["ausgabe.ausschnitt"]) != OPTIONAL["ausgabe.ausschnitt"]:   # anderer Maßstab (m["s"]): Schlüssel nicht vorhersagbar
             return
         B = BIOMES[g["biotop"]]
         if B["mountain"] or B["plateau"]:
