@@ -247,8 +247,10 @@ def _ring_arc(ring, d0, d1):
 
 
 def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands, hints):
-    """Liefert dict mit Festungsgeometrie, Gebäuden, Türmen, Brücke/Straße und Landergänzung."""
-    sea, river, water = terrain["sea"], terrain["river"], terrain["water"]
+    """Liefert dict mit Festungsgeometrie, Gebäuden, Türmen, Brücke/Straße und Landergänzung. Den Platz sucht die
+    Stufe, die zur Lage passt: Felssporn (Gebirge, Hochplateau), Landzunge, Insel, Zitadelle in der Mauer oder freier
+    Platz vor der Mauer. Findet eine Stufe keinen Platz, fällt die Festung auf die nächste Lage zurück (mit Hinweis)."""
+    sea, water = terrain["sea"], terrain["water"]
     shape, city_land = city["shape"], city["city_land"]
     paved = unary_union(city["paved"]) if city["paved"] else None
     anchor = paved.representative_point() if paved is not None and not paved.is_empty else city_land.centroid
@@ -258,146 +260,37 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands, hints):
     walled = bool(city["wall"])          # mit Mauer liegt der Zugang immer innerhalb der Mauer
     gates = [Point(x, y) for x, y, _ in city["gates"]]
 
-    def road_to_gate(p):
-        if not gates:
-            return
-        g = min(gates, key=lambda q: q.distance(p))
-        mid = ((p.x + g.x) / 2, (p.y + g.y) / 2)
-        res["roads"].append((LineString([(p.x, p.y), mid, (g.x, g.y)]), 12 * s))
-
     if (terrain.get("mountain") or terrain.get("plateau")) and sea is not None and lage != "land":
-        # Gebirge: Festung auf einem Felssporn, Bergpfad hinunter zur Stadt (Hochplateau: auf der anderen Stufe)
-        p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
-        if p is None:
-            hints.append("Kein Felssporn für die Festung gefunden - sie wird an Land gebaut.")
+        site = _rock_site(s, terrain, city, ext_roads, anchor, islands, res, hints)
+        if site is None:
             lage = "land"
         else:
-            center = p
-            shore = nearest_points(city_land, p)[0]
-            ux, uy = unit((shore.x - p.x, shore.y - p.y))
-            ang = math.degrees(math.atan2(uy, ux))
-            road = LineString([(p.x, p.y), (shore.x + ux * 15 * s, shore.y + uy * 15 * s)])
-            lift = _plateau_lift(s, road, sea, (ux, uy), terrain.get("plateau_oben")) if terrain.get("plateau") else None
-            if lift is None:
-                res["roads"].append((road, 10 * s))
-            else:   # Hochplateau: der Weg endet an beiden Enden des Aufzugs, der die Felswand überwindet
-                res["lift"] = lift
-                if Point(p).distance(Point(lift["a"])) > 2 * s:
-                    res["roads"].append((LineString([(p.x, p.y), lift["a"]]), 10 * s))
-                _lift_to_streets(s, city, lift, sea, river, ext_roads, res, hints)
+            center, ang = site
             lage = "fels"
     if sea is not None and lage not in ("land", "fels"):
         if lage == "landzunge":
-            # Küstenpunkt außerhalb der Mauer, dann Landzunge ins Meer (intern liegt das Meer immer im Norden)
-            if walled:   # Landzunge wächst aus dem Ufer innerhalb der Mauer
-                cands = [ln.interpolate(k) for ln in _inner_shore(s, city, sea)   # nur Meeresufer, nicht Flussufer
-                         for k in np.arange(0, ln.length, 8 * s)]
-                cands = [p for p in cands if (river is None or p.distance(river) > 100 * s)
-                         and (paved is None or p.distance(paved) > 20 * s)]
-            else:        # ohne Mauer: Küstenpunkt außerhalb der Stadt
-                coast = [Point(c) for c in sea.exterior.coords if 0 < c[0] < W and c[1] > 0]
-                cands = [p for p in coast if 90 * s < shape.distance(p) < 260 * s
-                         and (river is None or p.distance(river) > 120 * s)]
-            slips = _slip_zone(s, city)        # Landzunge nicht vor die Werft (Ausfahrt bleibt frei)
-            cands = [p for p in cands if not unary_union([LineString([(p.x, p.y), (p.x, p.y - 90 * s)]).buffer(32 * s),
-                                                          Point(p.x, p.y - 90 * s).buffer(72 * s)]).intersects(slips)]
-            if cands:
-                q = min(cands, key=lambda p: p.distance(anchor))
-                tip = Point(q.x, q.y - 90 * s)
-                tongue = unary_union([LineString([(q.x, q.y + 10 * s), (tip.x, tip.y)]).buffer(30 * s),
-                                      blob(rng, tip.x, tip.y, 62 * s, rough=0.2)]).difference(
-                    city["city_land"].buffer(2 * s) if walled else Polygon())
-                res["land_add"] = tongue
-                center = tip
-                ang = rng.uniform(-15, 15)
-                res["roads"].append((LineString([(tip.x, tip.y), (q.x, q.y)]), 12 * s))
-                if walled:
-                    _connect_inside(s, city, q)
-                else:
-                    road_to_gate(Point(q.x, q.y + 20 * s))
-            else:
+            site = _tongue_site(rng, W, s, terrain, city, paved, anchor, walled, gates, res)
+            if site is None:
                 lage = "insel"
+            else:
+                center, ang = site
         if lage != "landzunge":
-            p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
-            if p is None:
-                hints.append("Kein Platz für eine Inselfestung gefunden - sie wird an Land gebaut.")
+            site = _island_site(rng, s, terrain, city, paved, anchor, islands, walled, a, res, hints)
+            if site is None:
                 lage = "land"
             else:
-                center = p
-                res["land_add"] = blob(rng, p.x, p.y, 76 * s, rough=0.22).union(p.buffer(66 * s))
-                shore = _landing_inside(s, city, water, p) if walled else None
-                if shore is None:
-                    if walled:
-                        hints.append("Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer.")
-                    target = paved if paved is not None and not paved.is_empty else city_land
-                    free = target.difference(_slip_zone(s, city))
-                    shore = nearest_points(free if not free.is_empty else target, p)[0]
-                ux, uy = unit((shore.x - p.x, shore.y - p.y))
-                ang = math.degrees(math.atan2(uy, ux))
-                # der berechnete Uferpunkt kann vor der gezeichneten (gewellten) Küste im Wasser liegen:
-                # bis zum ersten Land hinter dem Uferpunkt weitergehen
-                ray = LineString([(p.x, p.y), (shore.x + ux * 40 * s, shore.y + uy * 40 * s)])
-                wet = [g for g in lines(ray.intersection(water).difference(res["land_add"])) if g.length > 1]
-                if wet:
-                    far = max((Point(c) for g in wet for c in (g.coords[0], g.coords[-1])), key=p.distance)
-                    if far.distance(p) > shore.distance(p):
-                        shore = far
-                # Brücke nur über das Wasser zwischen Inselufer und Stadtufer, auf der Insel eine Straße zum Tor
-                line = LineString([(p.x, p.y), (shore.x, shore.y)])
-                off = [g for g in lines(line.difference(res["land_add"])) if g.length > 2 * s]
-                edge = Point(off[0].coords[0]) if off else p
-                e = 6 * s   # Widerlager: Brückenenden liegen ein Stück auf dem Ufer
-                res["bridges"].append((LineString([(edge.x - ux * e, edge.y - uy * e),
-                                                   (shore.x + ux * 2 * e, shore.y + uy * 2 * e)]), 15 * s))
-                # Brückenkopf: füllt kleine Buchten der gewellten Küste neben Brückenende und Weg auf; nicht auf dem
-                # gepflasterten Hafen (dort gibt es keine Buchten, der Brückenkopf wäre ein Grasbuckel am Pflaster)
-                if walled and (paved is None or paved.distance(shore) > 10 * s):
-                    head = LineString([(shore.x - ux * 2 * s, shore.y - uy * 2 * s),
-                                       (shore.x + ux * 45 * s, shore.y + uy * 45 * s)])
-                    res["land_add"] = res["land_add"].union(head.buffer(14 * s))   # runde Enden, keine eckigen Schultern
-                if edge.distance(p) > a:
-                    res["roads"].append((LineString([(p.x, p.y), (edge.x - ux * e * 0.5, edge.y - uy * e * 0.5)]), 12 * s))
-                if walled:
-                    # Weg so breit wie die Brücke, beginnt unter dem Brückenende: kein Breitensprung am Übergang
-                    _connect_inside(s, city, Point(shore.x + ux * 2 * s, shore.y + uy * 2 * s), (ux, uy), width=15)
+                center, ang = site
     if (sea is None or lage == "land") and walled:
-        # Zitadelle: in die Stadtmauer eingebaut, Tor zur Stadt hin
-        site = _citadel_site(s, W, city, water, a)
+        site = _citadel(s, W, a, water, city, hints)
         if site is not None:
-            center, ang, q, (nx, ny) = site
-            fort, _ = star_fort(center.x, center.y, a, ang)
-            city["wall"] = [ln for w in city["wall"] for ln in lines(w.difference(fort.buffer(-2 * s)))]
-            city["towers"] = [tw for tw in city["towers"] if not fort.buffer(10 * s).contains(Point(tw[0], tw[1]))]
-            city["buildings"] = [b for b in city["buildings"] if not b["poly"].intersects(fort.buffer(6 * s))]
-            city["yard_trees"] = [t for t in city["yard_trees"] if not fort.buffer(6 * s).contains(Point(t[0], t[1]))]
-            gate = Point(center.x + nx * a * 0.5, center.y + ny * a * 0.5)   # Festungstor auf der Stadtseite
-            _connect_inside(s, city, gate)
+            center, ang = site
             lage = "zitadelle"
-        else:
-            hints.append("Kein Platz für eine Zitadelle in der Mauer - Festung vor der Stadt.")
     if (sea is None or lage == "land") and lage != "zitadelle":
-        # an Land: freier Platz vor der Mauer, möglichst nahe an einem Tor
-        roads_u = unary_union([ln.buffer(w / 2 + 40 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
-        best = None
-        c = shape.centroid
-        rim = shape.exterior.distance(c)   # beides ändert sich in der Schleife nicht
-        for _ in range(400):
-            t = rng.uniform(0, 2 * math.pi)
-            d = rng.uniform(170, 250) * s
-            p = Point(c.x + math.cos(t) * (rim + d), c.y + math.sin(t) * (rim + d))
-            disk = p.buffer(75 * s)
-            if not (0 < p.x < W and 0 < p.y < W) or disk.intersects(water.buffer(20 * s)) \
-                    or disk.intersects(shape.buffer(60 * s)) or disk.intersects(roads_u):
-                continue
-            score = min([p.distance(g) for g in gates] or [0])
-            if best is None or score < best[0]:
-                best = (score, p)
-        if best is None:
-            hints.append("Kein Platz für die Festung gefunden.")
+        site = _free_site(rng, W, s, shape, water, ext_roads, gates, hints)
+        if site is None:
             return None
-        center = best[1]
-        ang = rng.uniform(0, 90)
-        road_to_gate(center)
+        center, ang = site
+        _road_to_gate(s, res, gates, center)
 
     fort, towers = star_fort(center.x, center.y, a, ang)
     area = fort.buffer(15 * s) if res["land_add"] is None else res["land_add"].union(fort)
@@ -407,3 +300,160 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands, hints):
                label={"x": center.x, "y": center.y, "text": spec.get("kuerzel") or spec["name"],
                       "kind": "festung", "lift": a * 0.75, "ort": place_info(spec)})
     return res
+
+
+def _road_to_gate(s, res, gates, p):
+    """Weg von p zum nächsten Stadttor (ohne Tore keiner)."""
+    if not gates:
+        return
+    g = min(gates, key=lambda q: q.distance(p))
+    mid = ((p.x + g.x) / 2, (p.y + g.y) / 2)
+    res["roads"].append((LineString([(p.x, p.y), mid, (g.x, g.y)]), 12 * s))
+
+
+def _rock_site(s, terrain, city, ext_roads, anchor, islands, res, hints):
+    """Gebirge: Festung auf einem Felssporn, Bergpfad hinunter zur Stadt (Hochplateau: auf der anderen Stufe, mit
+    Aufzug über die Felswand). Liefert (Mittelpunkt, Winkel) oder None, wenn kein Sporn frei ist; Weg und Aufzug
+    kommen nach res."""
+    sea, river, city_land = terrain["sea"], terrain["river"], city["city_land"]
+    p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
+    if p is None:
+        hints.append("Kein Felssporn für die Festung gefunden - sie wird an Land gebaut.")
+        return None
+    shore = nearest_points(city_land, p)[0]
+    ux, uy = unit((shore.x - p.x, shore.y - p.y))
+    ang = math.degrees(math.atan2(uy, ux))
+    road = LineString([(p.x, p.y), (shore.x + ux * 15 * s, shore.y + uy * 15 * s)])
+    lift = _plateau_lift(s, road, sea, (ux, uy), terrain.get("plateau_oben")) if terrain.get("plateau") else None
+    if lift is None:
+        res["roads"].append((road, 10 * s))
+    else:   # Hochplateau: der Weg endet an beiden Enden des Aufzugs, der die Felswand überwindet
+        res["lift"] = lift
+        if Point(p).distance(Point(lift["a"])) > 2 * s:
+            res["roads"].append((LineString([(p.x, p.y), lift["a"]]), 10 * s))
+        _lift_to_streets(s, city, lift, sea, river, ext_roads, res, hints)
+    return p, ang
+
+
+def _tongue_site(rng, W, s, terrain, city, paved, anchor, walled, gates, res):
+    """Landzunge: Küstenpunkt (mit Mauer innerhalb, sonst außerhalb der Stadt), von dort ins Meer (intern liegt das
+    Meer immer im Norden). Liefert (Mittelpunkt, Winkel) oder None, wenn kein Küstenpunkt passt; Landzunge, Weg und
+    Zugang kommen nach res."""
+    sea, river, shape = terrain["sea"], terrain["river"], city["shape"]
+    if walled:   # Landzunge wächst aus dem Ufer innerhalb der Mauer
+        cands = [ln.interpolate(k) for ln in _inner_shore(s, city, sea)   # nur Meeresufer, nicht Flussufer
+                 for k in np.arange(0, ln.length, 8 * s)]
+        cands = [p for p in cands if (river is None or p.distance(river) > 100 * s)
+                 and (paved is None or p.distance(paved) > 20 * s)]
+    else:        # ohne Mauer: Küstenpunkt außerhalb der Stadt
+        coast = [Point(c) for c in sea.exterior.coords if 0 < c[0] < W and c[1] > 0]
+        cands = [p for p in coast if 90 * s < shape.distance(p) < 260 * s
+                 and (river is None or p.distance(river) > 120 * s)]
+    slips = _slip_zone(s, city)        # Landzunge nicht vor die Werft (Ausfahrt bleibt frei)
+    cands = [p for p in cands if not unary_union([LineString([(p.x, p.y), (p.x, p.y - 90 * s)]).buffer(32 * s),
+                                                  Point(p.x, p.y - 90 * s).buffer(72 * s)]).intersects(slips)]
+    if not cands:
+        return None
+    q = min(cands, key=lambda p: p.distance(anchor))
+    tip = Point(q.x, q.y - 90 * s)
+    tongue = unary_union([LineString([(q.x, q.y + 10 * s), (tip.x, tip.y)]).buffer(30 * s),
+                          blob(rng, tip.x, tip.y, 62 * s, rough=0.2)]).difference(
+        city["city_land"].buffer(2 * s) if walled else Polygon())
+    res["land_add"] = tongue
+    ang = rng.uniform(-15, 15)
+    res["roads"].append((LineString([(tip.x, tip.y), (q.x, q.y)]), 12 * s))
+    if walled:
+        _connect_inside(s, city, q)
+    else:
+        _road_to_gate(s, res, gates, Point(q.x, q.y + 20 * s))
+    return tip, ang
+
+
+def _island_site(rng, s, terrain, city, paved, anchor, islands, walled, a, res, hints):
+    """Inselfestung samt Brücke zum Ufer der Stadt (mit Mauer zu einem Brückenkopf innerhalb der Mauer). Liefert
+    (Mittelpunkt, Winkel) oder None, wenn keine Insel Platz hat; Insel, Brücke, Brückenkopf und Inselstraße kommen
+    nach res."""
+    sea, river, water, city_land = terrain["sea"], terrain["river"], terrain["water"], city["city_land"]
+    p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
+    if p is None:
+        hints.append("Kein Platz für eine Inselfestung gefunden - sie wird an Land gebaut.")
+        return None
+    res["land_add"] = blob(rng, p.x, p.y, 76 * s, rough=0.22).union(p.buffer(66 * s))
+    shore = _landing_inside(s, city, water, p) if walled else None
+    if shore is None:
+        if walled:
+            hints.append("Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer.")
+        target = paved if paved is not None and not paved.is_empty else city_land
+        free = target.difference(_slip_zone(s, city))
+        shore = nearest_points(free if not free.is_empty else target, p)[0]
+    ux, uy = unit((shore.x - p.x, shore.y - p.y))
+    ang = math.degrees(math.atan2(uy, ux))
+    # der berechnete Uferpunkt kann vor der gezeichneten (gewellten) Küste im Wasser liegen:
+    # bis zum ersten Land hinter dem Uferpunkt weitergehen
+    ray = LineString([(p.x, p.y), (shore.x + ux * 40 * s, shore.y + uy * 40 * s)])
+    wet = [g for g in lines(ray.intersection(water).difference(res["land_add"])) if g.length > 1]
+    if wet:
+        far = max((Point(c) for g in wet for c in (g.coords[0], g.coords[-1])), key=p.distance)
+        if far.distance(p) > shore.distance(p):
+            shore = far
+    # Brücke nur über das Wasser zwischen Inselufer und Stadtufer, auf der Insel eine Straße zum Tor
+    line = LineString([(p.x, p.y), (shore.x, shore.y)])
+    off = [g for g in lines(line.difference(res["land_add"])) if g.length > 2 * s]
+    edge = Point(off[0].coords[0]) if off else p
+    e = 6 * s   # Widerlager: Brückenenden liegen ein Stück auf dem Ufer
+    res["bridges"].append((LineString([(edge.x - ux * e, edge.y - uy * e),
+                                       (shore.x + ux * 2 * e, shore.y + uy * 2 * e)]), 15 * s))
+    # Brückenkopf: füllt kleine Buchten der gewellten Küste neben Brückenende und Weg auf; nicht auf dem
+    # gepflasterten Hafen (dort gibt es keine Buchten, der Brückenkopf wäre ein Grasbuckel am Pflaster)
+    if walled and (paved is None or paved.distance(shore) > 10 * s):
+        head = LineString([(shore.x - ux * 2 * s, shore.y - uy * 2 * s),
+                           (shore.x + ux * 45 * s, shore.y + uy * 45 * s)])
+        res["land_add"] = res["land_add"].union(head.buffer(14 * s))   # runde Enden, keine eckigen Schultern
+    if edge.distance(p) > a:
+        res["roads"].append((LineString([(p.x, p.y), (edge.x - ux * e * 0.5, edge.y - uy * e * 0.5)]), 12 * s))
+    if walled:
+        # Weg so breit wie die Brücke, beginnt unter dem Brückenende: kein Breitensprung am Übergang
+        _connect_inside(s, city, Point(shore.x + ux * 2 * s, shore.y + uy * 2 * s), (ux, uy), width=15)
+    return p, ang
+
+
+def _citadel(s, W, a, water, city, hints):
+    """Zitadelle: in die Stadtmauer eingebaut, Tor zur Stadt hin. Liefert (Mittelpunkt, Winkel) oder None, wenn in
+    der Mauer kein Platz ist; Mauer, Türme, Gebäude und Bäume der Stadt weichen der Zitadelle."""
+    site = _citadel_site(s, W, city, water, a)
+    if site is None:
+        hints.append("Kein Platz für eine Zitadelle in der Mauer - Festung vor der Stadt.")
+        return None
+    center, ang, q, (nx, ny) = site
+    fort, _ = star_fort(center.x, center.y, a, ang)
+    city["wall"] = [ln for w in city["wall"] for ln in lines(w.difference(fort.buffer(-2 * s)))]
+    city["towers"] = [tw for tw in city["towers"] if not fort.buffer(10 * s).contains(Point(tw[0], tw[1]))]
+    city["buildings"] = [b for b in city["buildings"] if not b["poly"].intersects(fort.buffer(6 * s))]
+    city["yard_trees"] = [t for t in city["yard_trees"] if not fort.buffer(6 * s).contains(Point(t[0], t[1]))]
+    gate = Point(center.x + nx * a * 0.5, center.y + ny * a * 0.5)   # Festungstor auf der Stadtseite
+    _connect_inside(s, city, gate)
+    return center, ang
+
+
+def _free_site(rng, W, s, shape, water, ext_roads, gates, hints):
+    """An Land: freier Platz vor der Mauer, möglichst nahe an einem Tor. Liefert (Mittelpunkt, Winkel) oder None,
+    wenn nirgends Platz ist."""
+    roads_u = unary_union([ln.buffer(w / 2 + 40 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
+    best = None
+    c = shape.centroid
+    rim = shape.exterior.distance(c)   # beides ändert sich in der Schleife nicht
+    for _ in range(400):
+        t = rng.uniform(0, 2 * math.pi)
+        d = rng.uniform(170, 250) * s
+        p = Point(c.x + math.cos(t) * (rim + d), c.y + math.sin(t) * (rim + d))
+        disk = p.buffer(75 * s)
+        if not (0 < p.x < W and 0 < p.y < W) or disk.intersects(water.buffer(20 * s)) \
+                or disk.intersects(shape.buffer(60 * s)) or disk.intersects(roads_u):
+            continue
+        score = min([p.distance(g) for g in gates] or [0])
+        if best is None or score < best[0]:
+            best = (score, p)
+    if best is None:
+        hints.append("Kein Platz für die Festung gefunden.")
+        return None
+    return best[1], rng.uniform(0, 90)

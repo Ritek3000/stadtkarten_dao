@@ -9,10 +9,11 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 import shapely
 import yaml
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
 
 from stadtkarte import config, generator
 from stadtkarte.generator import generate
@@ -77,6 +78,25 @@ class Hinweise(unittest.TestCase):
                                          text=True, encoding="utf-8", cwd=ROOT, timeout=200)
                     self.assertEqual(res.returncode, 0, res.stderr)
                     self.assertIn("Hinweis: " + HINWEISE[0], res.stdout.splitlines())
+
+
+class Festung(unittest.TestCase):
+    """Findet sich für die Festung nirgends ein Platz, gibt es keine Festung und einen Hinweis. Den Platzmangel erzeugt
+    der Test, indem er der Festung verdorbene Geländedaten gibt (Wasser überall)."""
+
+    def test_ohne_jeden_platz_gibt_es_keine_festung(self):
+        echt = generator.build_fortress
+
+        def mit_wasser_ueberall(rng, W, s, spec, terrain, city, ext_roads, islands, hints):
+            return echt(rng, W, s, spec, {**terrain, "water": box(-W, -W, 2 * W, 2 * W)}, city, ext_roads, islands, hints)
+        roh = klein(orte=[{"name": "Burg", "typ": "festung", "lage": "land", "kuerzel": "B"}],
+                    ausgabe={"bildgroesse": 300, "formate": ["svg"]})
+        with mock.patch.object(generator, "build_fortress", mit_wasser_ueberall):
+            m = generate(config.from_dict(roh))
+        self.assertEqual(m["forts"], [])
+        self.assertEqual([h for h in m["hints"] if "Festung" in h],
+                         ["Kein Platz für eine Zitadelle in der Mauer - Festung vor der Stadt.",
+                          "Kein Platz für die Festung gefunden."])
 
 
 class Zuschnitt(unittest.TestCase):
