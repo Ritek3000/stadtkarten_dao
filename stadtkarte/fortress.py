@@ -185,7 +185,7 @@ def _plateau_lift(s, road, level, u, oben):
             "area": unary_union([shaft, house, landing])}
 
 
-def _lift_to_streets(s, city, lift, level, river, ext_roads, res):
+def _lift_to_streets(s, city, lift, level, river, ext_roads, res, hints):
     """Der Aufzug hängt immer am Straßennetz: endet er in der Stadt, führt ein Weg zur nächsten Gasse; sonst ein Weg
     zur nächsten Landstraße bzw. zum nächsten Tor (mit Mauer) oder an den Stadtrand und weiter zur nächsten Gasse,
     ohne durch die Stadt, über die Felskante oder durch den Fluss zu laufen."""
@@ -234,7 +234,7 @@ def _lift_to_streets(s, city, lift, level, river, ext_roads, res):
     if best is not None:
         res["roads"].append((best[1], 10 * s))
     elif cands:
-        print("Hinweis: Kein freier Weg vom Aufzug zum Straßennetz - Weg zum nächsten Anschluss.")
+        hints.append("Kein freier Weg vom Aufzug zum Straßennetz - Weg zum nächsten Anschluss.")
         res["roads"].append((LineString([(q.x, q.y), (cands[0].x, cands[0].y)]), 10 * s))
 
 
@@ -246,7 +246,7 @@ def _ring_arc(ring, d0, d1):
     return list(shapely.ops.substring(ring, d0, R).coords) + list(shapely.ops.substring(ring, 0, d1).coords)[1:]
 
 
-def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
+def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands, hints):
     """Liefert dict mit Festungsgeometrie, Gebäuden, Türmen, Brücke/Straße und Landergänzung."""
     sea, river, water = terrain["sea"], terrain["river"], terrain["water"]
     shape, city_land = city["shape"], city["city_land"]
@@ -269,7 +269,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
         # Gebirge: Festung auf einem Felssporn, Bergpfad hinunter zur Stadt (Hochplateau: auf der anderen Stufe)
         p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
         if p is None:
-            print("Hinweis: Kein Felssporn für die Festung gefunden - sie wird an Land gebaut.")
+            hints.append("Kein Felssporn für die Festung gefunden - sie wird an Land gebaut.")
             lage = "land"
         else:
             center = p
@@ -284,7 +284,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                 res["lift"] = lift
                 if Point(p).distance(Point(lift["a"])) > 2 * s:
                     res["roads"].append((LineString([(p.x, p.y), lift["a"]]), 10 * s))
-                _lift_to_streets(s, city, lift, sea, river, ext_roads, res)
+                _lift_to_streets(s, city, lift, sea, river, ext_roads, res, hints)
             lage = "fels"
     if sea is not None and lage not in ("land", "fels"):
         if lage == "landzunge":
@@ -320,7 +320,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
         if lage != "landzunge":
             p = _sea_site(s, sea, river, city_land, anchor, islands, _slip_zone(s, city))
             if p is None:
-                print("Hinweis: Kein Platz für eine Inselfestung gefunden - sie wird an Land gebaut.")
+                hints.append("Kein Platz für eine Inselfestung gefunden - sie wird an Land gebaut.")
                 lage = "land"
             else:
                 center = p
@@ -328,7 +328,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
                 shore = _landing_inside(s, city, water, p) if walled else None
                 if shore is None:
                     if walled:
-                        print("Hinweis: Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer.")
+                        hints.append("Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer.")
                     target = paved if paved is not None and not paved.is_empty else city_land
                     free = target.difference(_slip_zone(s, city))
                     shore = nearest_points(free if not free.is_empty else target, p)[0]
@@ -374,7 +374,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
             _connect_inside(s, city, gate)
             lage = "zitadelle"
         else:
-            print("Hinweis: Kein Platz für eine Zitadelle in der Mauer - Festung vor der Stadt.")
+            hints.append("Kein Platz für eine Zitadelle in der Mauer - Festung vor der Stadt.")
     if (sea is None or lage == "land") and lage != "zitadelle":
         # an Land: freier Platz vor der Mauer, möglichst nahe an einem Tor
         roads_u = unary_union([ln.buffer(w / 2 + 40 * s) for ln, w in ext_roads]) if ext_roads else Polygon()
@@ -393,7 +393,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
             if best is None or score < best[0]:
                 best = (score, p)
         if best is None:
-            print("Hinweis: Kein Platz für die Festung gefunden.")
+            hints.append("Kein Platz für die Festung gefunden.")
             return None
         center = best[1]
         ang = rng.uniform(0, 90)

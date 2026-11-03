@@ -1,7 +1,5 @@
 """Setzt Gelände, Stadt und Umland zu einem Kartenmodell zusammen."""
-import contextlib
 import copy
-import io
 import math
 import random
 
@@ -18,6 +16,11 @@ from .geo import Noise1D, axes, blob, lines, oriented_rect, polys, roof, ship_fo
 from .styles import BIOMES, FORT_TYPES
 from .surroundings import hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
 from .terrain import make_coast, make_islands, make_pools, make_river
+
+
+def hint_lines(m):
+    """Die Hinweise des Generators als Zeilen für die Konsole ("Hinweis: ...")."""
+    return ["Hinweis: " + h for h in m["hints"]]
 
 
 def building_count(m):
@@ -41,9 +44,8 @@ def generate(cfg):
     z = max(1.0, AUSSCHNITT[mode] / (2 * frac))
     if mode == "fuellend":
         # Probedurchlauf zum Ausmessen: mit einer Kopie der Beschreibung (die Erzeugung passt sie z.B. bei
-        # unpassenden Vierteln an) und ohne seine Hinweise - die gelten nur für die verworfene Probekarte
-        with contextlib.redirect_stdout(io.StringIO()):
-            m = _generate(copy.deepcopy(cfg), round(W * z))
+        # unpassenden Vierteln an); seine Hinweise stehen im verworfenen Modell und kommen nicht zum Nutzer
+        m = _generate(copy.deepcopy(cfg), round(W * z))
         minx, miny, maxx, maxy = _important(m).bounds
         side = max(maxx - minx, maxy - miny) * 1.1 + 2 * 50 * m["s"]   # Rand für Beschriftung
         z = max(1.0, min(W * z / side, 2.5 * z))   # die Welt so groß, dass 'side' gerade die Kartenbreite ist
@@ -107,6 +109,7 @@ def crop_model(m, cx, cy, W, z):
     y0 = min(max(cy - W / 2, 0), Wv - W)
     keep = {"cfg", "biome", "W", "s", "rot", "name"}
     out = {k: (v if k in keep else _shift(v, -x0, -y0)) for k, v in m.items()}
+    out["hints"] = list(m["hints"])
     if m.get("great_gate"):
         out["great_gate"] = (m["great_gate"][0] - x0, m["great_gate"][1] - y0) + tuple(m["great_gate"][2:])
     pad = 80 * m["s"]   # Bäume, Felsen und Felder weit außerhalb des Fensters braucht niemand
@@ -126,12 +129,13 @@ def crop_model(m, cx, cy, W, z):
                and not (0 < lb["x"] < W and 0 < lb["y"] < W)]
     if missing:
         extra = "" if m["cfg"]["ausgabe"].get("ausschnitt") == "fuellend" else " (Ausschnitt 'fuellend' zeigt mehr)"
-        print("Hinweis: Außerhalb des Ausschnitts: " + ", ".join(missing) + extra + ".")
+        out["hints"].append("Außerhalb des Ausschnitts: " + ", ".join(missing) + extra + ".")
     return out
 
 
 def _generate(cfg, W):
     rng = random.Random(cfg["seed"])
+    hints = []   # Hinweise an den Nutzer (m["hints"]); jede Karte hat ihre eigene Liste
     s = W / 2000
     g = cfg["gelaende"]
     rot = ROTATION[g["kueste"]]
@@ -246,13 +250,13 @@ def _generate(cfg, W):
     terrain["pools"] = pools if biome["stilts"] else Polygon()
 
     if form == "eigene" and custom is None:   # erster Schritt: nur das Gelände, die Mauer wird darauf gezeichnet
-        return terrain_model(cfg, W, s, rot, terrain, pools, oases, biome)
+        return terrain_model(cfg, W, s, rot, terrain, pools, oases, biome, hints)
     if custom is not None:
         terrain["custom"] = custom
         cx, cy = custom["center"]
         r = custom["radius"]
 
-    builder = CityBuilder(cfg, rng, W, s, terrain, (cx, cy), r, rot)
+    builder = CityBuilder(cfg, rng, W, s, terrain, (cx, cy), r, rot, hints)
     city, ext_roads, internal = builder.build()
     cx, cy = builder.center   # liegt der Umriss im Wasser, rückt die Stadt ans Ufer (sonst unverändert)
     shape = city["shape"]
@@ -263,7 +267,7 @@ def _generate(cfg, W):
     forts, fort_bridges = [], []
     fort_specs = [o for o in cfg["orte"] if o["typ"] in FORT_TYPES]
     for spec in fort_specs[:1]:
-        fort = build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands)
+        fort = build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands, hints)
         if fort is None:
             continue
         add = fort["land_add"]
@@ -288,7 +292,7 @@ def _generate(cfg, W):
             city["legend"].append((spec["kuerzel"], spec["name"]))
         forts.append(fort)
     if len(fort_specs) > 1:
-        print("Hinweis: Es wird nur eine Festung gebaut.")
+        hints.append("Es wird nur eine Festung gebaut.")
     forts_u = unary_union([f["area"] for f in forts]) if forts else Polygon()
     # Schiffe, deren Ausfahrt eine Festung, ihre Insel oder Brücke versperrt, legen hier gar nicht erst an
     if forts:
@@ -461,6 +465,7 @@ def _generate(cfg, W):
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         "lighthouse": light,
         "dust": staub.areas(cfg, W, (cx, cy), r, rot),
+        "hints": hints,
         **city,
     }
 
@@ -524,7 +529,7 @@ def close_custom(custom, sea, W, s):
                 offen=shape is not ring)
 
 
-def terrain_model(cfg, W, s, rot, terrain, pools, oases, biome):
+def terrain_model(cfg, W, s, rot, terrain, pools, oases, biome, hints):
     """Kartenmodell nur mit Gelände (Land, Meer, Inseln, Fluss, Tümpel, Oasen) ohne Stadt und Umland."""
     empty = CityBuilder.empty_out()
     empty.update(shape=Polygon(), city_land=Polygon())
@@ -534,7 +539,7 @@ def terrain_model(cfg, W, s, rot, terrain, pools, oases, biome):
         "fields": [], "forest": Polygon(), "trees": [], "suburbs": [], "ext_roads": [], "bridges": [],
         "forts": [], "biome": biome, "pools": pools, "reeds": [], "lilies": [], "oases": oases, "rocks": [],
         "dunes": [], "floes": [], "river_line": terrain["river_line"], "mines": [], "paths": [],
-        "plateau": False, "plateau_level": None, "plateau_oben": False, "gelaende_nur": True, **empty,
+        "plateau": False, "plateau_level": None, "plateau_oben": False, "gelaende_nur": True, "hints": hints, **empty,
     }
 
 
@@ -597,7 +602,7 @@ def outside_cemetery(rng, s, spec, builder, ext_roads, shape, water, pools, take
     L, B = rng.uniform(95, 120) * s, rng.uniform(65, 80) * s
     poly = roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken)
     if poly is None:
-        print(f"Hinweis: Kein Platz für den Friedhof '{spec['name']}' gefunden.")
+        builder.hint(f"Kein Platz für den Friedhof '{spec['name']}' gefunden.")
         return None
     chapel = builder._cemetery(poly, "#8f8a80", -1)
     if chapel is None:
@@ -649,7 +654,7 @@ def outside_windmill(rng, s, spec, builder, ext_roads, shape, water, pools, take
     span = 54 * s                                   # Flügel brauchen Platz
     area = roadside_spot(rng, s, span, span, ext_roads, shape, water, pools, taken, start=90, gap=20, max_wet=0.0)
     if area is None:
-        print(f"Hinweis: Kein Platz für die Windmühle '{spec['name']}' gefunden.")
+        builder.hint(f"Kein Platz für die Windmühle '{spec['name']}' gefunden.")
         return None
     c = area.centroid
     tower = c.buffer(10 * s, quad_segs=4)           # Achteck
@@ -666,7 +671,7 @@ def outside_farm(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
     L, B = rng.uniform(70, 85) * s, rng.uniform(52, 62) * s
     area = roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken, start=80, gap=20, max_wet=0.1)
     if area is None:
-        print(f"Hinweis: Kein Platz für den Bauernhof '{spec['name']}' gefunden.")
+        builder.hint(f"Kein Platz für den Bauernhof '{spec['name']}' gefunden.")
         return None
     o, e1, e2 = axes(area)
     l1, l2 = vlen(e1), vlen(e2)

@@ -4,7 +4,7 @@ import pathlib
 import time
 
 from . import config, webpaket
-from .generator import building_count, generate
+from .generator import building_count, generate, hint_lines
 from .interaktiv import interactive_html
 from .parallel import png_async
 from .render import prewarm, render_svg, split_labels, to_pdf
@@ -30,6 +30,8 @@ def main():
         m = generate(cfg)
     except (OSError, ValueError) as e:
         raise SystemExit(f"Fehler: {e}") from None
+    for line in hint_lines(m):
+        print(line)
     svg = render_svg(m)
     out = pathlib.Path(args.ausgabe)
     out.mkdir(parents=True, exist_ok=True)
