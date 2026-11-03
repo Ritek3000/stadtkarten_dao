@@ -70,11 +70,12 @@ Sinus, Kosinus usw. in der letzten Nachkommastelle anders runden. Wer eine Karte
 besten die erzeugte Datei weiter. `packaging/determinismus.py` prüft das bei jedem Paketbau: Es erzeugt Karten
 mehrfach und ahmt dabei andere Prozessoren nach (andere OpenBLAS-Rechenkerne, numpy ohne AVX-512).
 
-Auch die Bibliotheksversionen spielen hinein. Beim Vergleich von Python 3.10 (NumPy 2.2, Shapely 2.1, Pillow 12) mit 3.13
-(NumPy 2.5, Shapely 2.2, Pillow 13) war der Kartenaufbau (Straßen, Häuser, Beschriftung) identisch; je Karte wich nur ein
-eingebettetes Texturbild in einzelnen Bytes ab. Damit Pakete und Tests nicht unbemerkt davon abhängen, legt
-`requirements-lock.txt` die Versionen fest. Aktualisieren: neue Versionen in einer frischen Umgebung installieren, Tests und
-`packaging/determinismus.py` laufen lassen, dann in der Datei eintragen.
+Auch die Bibliotheksversionen spielen hinein. Eine andere Shapely-/GEOS-Version rechnet einzelne Eckpunkte anders: Die Karte
+hat dieselben Häuser, Bäume, Straßen und Hinweise, aber einzelne Linien haben ein paar Punkte mehr oder weniger, die Datei ist
+dann nicht byte-gleich. Eine andere NumPy- oder Pillow-Version ändert nur einzelne Bytes der eingebetteten Texturbilder.
+`requirements-lock.txt` legt die Versionen fest, mit denen Tests und Pakete entstehen. Aktualisieren: neue Versionen in einer
+frischen Umgebung installieren, Tests und `packaging/determinismus.py` laufen lassen, bei gewollt anderen Karten die
+Vergleichstests neu schreiben (siehe Tests), dann die Versionen in der Datei eintragen.
 
 ## Mehrere Prozessorkerne
 
@@ -464,9 +465,26 @@ Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [nordhafen.yaml](beispiel
 
 Die Tests liegen in `tests/` und brauchen nur die Pakete aus `requirements.txt`. Sie prüfen die Stadtbeschreibung (fehlerhafte
 Angaben ergeben eine klare Meldung statt eines Absturzes), die Einrichtung der Umgebung, die Render-Prozesse, die
-Sicherheitsregeln des lokalen Webservers und Karten, die früher beim Zeichnen abgestürzt sind. Die Karten-Tests dauern etwa
-15 Sekunden; mit `STADTKARTE_SCHNELL=1` bleiben sie aus. Ob dieselbe Karte auf jedem Prozessor entsteht, prüft weiterhin
-`packaging/determinismus.py`. Auf GitHub laufen die Tests bei jeder Änderung und bei Pull Requests (siehe unten).
+Sicherheitsregeln des lokalen Webservers und Karten, die früher beim Zeichnen abgestürzt sind. Ob dieselbe Karte auf jedem
+Prozessor entsteht, prüft weiterhin `packaging/determinismus.py`. Auf GitHub laufen die Tests bei jeder Änderung und bei Pull
+Requests (siehe unten).
+
+**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 21 feste Karten (die
+Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster u.a.) und vergleicht sie mit den
+Fingerabdrücken in `tests/golden/karten.json`: Hinweise des Generators, Zahlen (Häuser, Bäume, Straßen …), das Kartenmodell
+nach dem Generator, das gezeichnete SVG ohne Bilder und die Bilder einzeln. Eine Abweichung nennt die Stufe: Ändert sich schon
+das Modell, liegt es am Generator; bleibt es gleich und nur das SVG ändert sich, am Zeichnen. Bibliotheken und Betriebssystem
+bestimmen, wie streng verglichen wird (Einzelheiten im Kopf von `tests/golden.py`); auf GitHub mit den Versionen aus
+`requirements-lock.txt` wird alles verglichen. Die Läufe dauern ein bis zwei Minuten.
+
+```bash
+python -m tests.golden                  # alle Karten vergleichen, Abweichungen mit Stufe ausgeben
+python -m tests.golden hafen            # nur Karten mit "hafen" im Namen
+python -m tests.golden --update         # nach einer GEWOLLTEN Änderung der Karten: Fingerabdrücke neu schreiben
+```
+
+Nach `--update` gehört die geänderte `tests/golden/karten.json` mit in den Commit; im Review zeigt sie, welche Karten sich
+verändert haben. Mit `STADTKARTE_SCHNELL=1` bleiben die langsamen Tests (Karten) aus.
 
 ## Weitergeben
 

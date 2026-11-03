@@ -1,0 +1,704 @@
+{
+ "umgebung": {
+  "plattform": "linux",
+  "numpy": "2.5.4",
+  "shapely": "2.2.0",
+  "geos": "3.14.1",
+  "pillow": "13.0.0"
+ },
+ "faelle": {
+  "hafenstadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 539,
+    "baeume": 1871,
+    "landstrassen": 5,
+    "gassen": 9,
+    "bruecken": 2,
+    "viertel": 5,
+    "beschriftungen": 18,
+    "tore": 4,
+    "tuerme": 13,
+    "schiffe": 5,
+    "felder": 163,
+    "stadtflaeche": 39017
+   },
+   "modell": "e36f710af1e79e867a49",
+   "karten": {
+    "tag": {
+     "svg": "78bbe804b8c3c5da1910",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "844adf147e0131f64095",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "e26cf877182406b4987f",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    },
+    "nacht": {
+     "svg": "2146d4e042c48698a620",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "844adf147e0131f64095",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "e26cf877182406b4987f",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "hafenstadt_standard": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 539,
+    "baeume": 1871,
+    "landstrassen": 5,
+    "gassen": 9,
+    "bruecken": 2,
+    "viertel": 5,
+    "beschriftungen": 18,
+    "tore": 4,
+    "tuerme": 13,
+    "schiffe": 5,
+    "felder": 163,
+    "stadtflaeche": 39017
+   },
+   "modell": "e36f710af1e79e867a49",
+   "karten": {
+    "tag": {
+     "svg": "5103c105f587941a0197",
+     "bilder": [
+      "844adf147e0131f64095",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "e26cf877182406b4987f",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "hafenstadt_nah": {
+   "hinweise": [
+    "Hinweis: Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer."
+   ],
+   "zahlen": {
+    "gebaeude": 535,
+    "baeume": 284,
+    "landstrassen": 5,
+    "gassen": 9,
+    "bruecken": 2,
+    "viertel": 5,
+    "beschriftungen": 18,
+    "tore": 4,
+    "tuerme": 13,
+    "schiffe": 8,
+    "felder": 60,
+    "stadtflaeche": 126697
+   },
+   "modell": "21e0f6154305709463e8",
+   "karten": {
+    "tag": {
+     "svg": "0dc40f0756470bc1dd62",
+     "bilder": [
+      "4c0c574408f7fc762442",
+      "ae3f7abbeb7f7c2969fd",
+      "64cd5d6e6681c93433af",
+      "3b7474655099dd939b47",
+      "c3828ae574fa30c952ca",
+      "b594a84c7f86819aff51"
+     ]
+    }
+   }
+  },
+  "hauptstadt_fuellend": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 5707,
+    "baeume": 1014,
+    "landstrassen": 7,
+    "gassen": 14,
+    "bruecken": 2,
+    "viertel": 8,
+    "beschriftungen": 18,
+    "tore": 11,
+    "tuerme": 35,
+    "schiffe": 8,
+    "felder": 153,
+    "stadtflaeche": 84187
+   },
+   "modell": "d6a19f346af4da98656d",
+   "karten": {
+    "tag": {
+     "svg": "496a96f6c5cde92337a3",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "8135e5011b66a08c318d",
+      "5abccc48280ce0f14b67",
+      "1f39df82ae8cc5903d08",
+      "fe2a2b1e49d48b9f360d",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "zwergenstadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 441,
+    "baeume": 857,
+    "landstrassen": 4,
+    "gassen": 10,
+    "bruecken": 2,
+    "viertel": 4,
+    "beschriftungen": 11,
+    "tore": 3,
+    "tuerme": 14,
+    "schiffe": 0,
+    "felder": 52,
+    "stadtflaeche": 32514
+   },
+   "modell": "72ffe587133cca2295eb",
+   "karten": {
+    "tag": {
+     "svg": "83fc8f36a2dc8ae01851",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "2e3d0d6ff4ee8cd6f320",
+      "337559d927c365245d46",
+      "61ca65c44f339228e9a4",
+      "b7ed340063377aea4354",
+      "c2c20562736bb9ccc68c",
+      "96ebdfea7d0bfec8e4e2",
+      "24ec45b78dbde2b41c5d"
+     ]
+    },
+    "nacht": {
+     "svg": "fb845a78e29329aa349d",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "2e3d0d6ff4ee8cd6f320",
+      "337559d927c365245d46",
+      "61ca65c44f339228e9a4",
+      "b7ed340063377aea4354",
+      "c2c20562736bb9ccc68c",
+      "96ebdfea7d0bfec8e4e2",
+      "24ec45b78dbde2b41c5d"
+     ]
+    }
+   }
+  },
+  "oasenstadt_normal": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 472,
+    "baeume": 236,
+    "landstrassen": 4,
+    "gassen": 5,
+    "bruecken": 0,
+    "viertel": 4,
+    "beschriftungen": 8,
+    "tore": 4,
+    "tuerme": 21,
+    "schiffe": 0,
+    "felder": 109,
+    "stadtflaeche": 76113
+   },
+   "modell": "3860ed0084c74692961d",
+   "karten": {
+    "tag": {
+     "svg": "f00144dd37cc15e4367c",
+     "bilder": [
+      "d2e8cc30879b8103d411",
+      "73fad9f0083173013909",
+      "3110c83dca494958d1d2",
+      "c11c1df09e81d5c4d992",
+      "44a7216be4e0639ecbb0"
+     ]
+    }
+   }
+  },
+  "plateaustadt_nah": {
+   "hinweise": [
+    "Hinweis: Außerhalb des Ausschnitts: Wachturm am Abgrund (Ausschnitt 'fuellend' zeigt mehr)."
+   ],
+   "zahlen": {
+    "gebaeude": 651,
+    "baeume": 245,
+    "landstrassen": 4,
+    "gassen": 8,
+    "bruecken": 1,
+    "viertel": 5,
+    "beschriftungen": 9,
+    "tore": 3,
+    "tuerme": 23,
+    "schiffe": 0,
+    "felder": 84,
+    "stadtflaeche": 125587
+   },
+   "modell": "6852e284c049d0086ebc",
+   "karten": {
+    "tag": {
+     "svg": "28dc56aa2f1ba365da34",
+     "bilder": [
+      "11a5fbf0cdb879aa997f",
+      "93e8a653ac4f7d8c78b2",
+      "1c99e84d9c9f3942abe8",
+      "5eb5382b0cdfb203a5a4",
+      "c3cf8a7e586b0b85870e",
+      "a2d8c4f665658bc1ee28",
+      "db8760e3103146bbc25e"
+     ]
+    }
+   }
+  },
+  "nordhafen": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 296,
+    "baeume": 2619,
+    "landstrassen": 4,
+    "gassen": 8,
+    "bruecken": 2,
+    "viertel": 4,
+    "beschriftungen": 9,
+    "tore": 3,
+    "tuerme": 12,
+    "schiffe": 4,
+    "felder": 30,
+    "stadtflaeche": 22760
+   },
+   "modell": "f7491fe108f8077ec24d",
+   "karten": {
+    "tag": {
+     "svg": "2003d7f4c25a646cce26",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "4abe65b15a1285475ab7",
+      "5abccc48280ce0f14b67",
+      "bb42d17ae322341db31a",
+      "797e112b3ec97071772e",
+      "acaa64473ddbdc77d898"
+     ]
+    },
+    "nacht": {
+     "svg": "a7736bee6d03637a51ad",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "4abe65b15a1285475ab7",
+      "5abccc48280ce0f14b67",
+      "bb42d17ae322341db31a",
+      "797e112b3ec97071772e",
+      "acaa64473ddbdc77d898"
+     ]
+    }
+   }
+  },
+  "sumpfdorf": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 109,
+    "baeume": 3183,
+    "landstrassen": 3,
+    "gassen": 8,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 6,
+    "tore": 3,
+    "tuerme": 11,
+    "schiffe": 0,
+    "felder": 26,
+    "stadtflaeche": 10640
+   },
+   "modell": "fbf955a3d18f323b1f68",
+   "karten": {
+    "tag": {
+     "svg": "70715a01cbdc241f6126",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "89c45bb1f899e53ea29a",
+      "5abccc48280ce0f14b67",
+      "d0b76443e26eabf122ae",
+      "862c07d25c40b6613bea",
+      "3da14f5c8479faf2738a",
+      "e7dd847f0c8ae9b365c6"
+     ]
+    }
+   }
+  },
+  "kueste_ost": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 550,
+    "baeume": 2329,
+    "landstrassen": 5,
+    "gassen": 9,
+    "bruecken": 2,
+    "viertel": 5,
+    "beschriftungen": 18,
+    "tore": 4,
+    "tuerme": 13,
+    "schiffe": 11,
+    "felder": 66,
+    "stadtflaeche": 39017
+   },
+   "modell": "27ad8d4771ff57a995b1",
+   "karten": {
+    "tag": {
+     "svg": "55f458f5ab76c91b4f46",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "2ba853c59f1e321dc1ad",
+      "5abccc48280ce0f14b67",
+      "9397afc3eafe6897b256",
+      "a62e4ba8de79b146aaf9",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "binnenland": {
+   "hinweise": [
+    "Hinweis: Kein passender Block für 'Dom' gefunden."
+   ],
+   "zahlen": {
+    "gebaeude": 350,
+    "baeume": 382,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 1,
+    "viertel": 2,
+    "beschriftungen": 11,
+    "tore": 4,
+    "tuerme": 23,
+    "schiffe": 0,
+    "felder": 125,
+    "stadtflaeche": 16257
+   },
+   "modell": "c5d2239648d4e7a49a72",
+   "karten": {
+    "tag": {
+     "svg": "115e4e64d0ab52777953",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "0a768c69d270d374634b",
+      "5abccc48280ce0f14b67",
+      "5bcdd70af40f8d82fafc",
+      "87ceb290cc121443abf5",
+      "f7a1cec5b91751e733a0"
+     ]
+    }
+   }
+  },
+  "eigene_mauer": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 95,
+    "baeume": 1202,
+    "landstrassen": 2,
+    "gassen": 7,
+    "bruecken": 1,
+    "viertel": 3,
+    "beschriftungen": 6,
+    "tore": 2,
+    "tuerme": 5,
+    "schiffe": 0,
+    "felder": 104,
+    "stadtflaeche": 32300
+   },
+   "modell": "619b61798847ba1189a9",
+   "karten": {
+    "tag": {
+     "svg": "c15426c8bcdd10fcbdef",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "b3b79aa6faf217b4d469",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "e3ec4382d32bda1a8ff1",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "eigene_gelaende": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 0,
+    "baeume": 0,
+    "landstrassen": 0,
+    "gassen": 0,
+    "bruecken": 0,
+    "viertel": 0,
+    "beschriftungen": 0,
+    "tore": 0,
+    "tuerme": 0,
+    "schiffe": 0,
+    "felder": 0,
+    "stadtflaeche": 0
+   },
+   "modell": "ca0562d265de1fb9fa28",
+   "karten": {
+    "tag": {
+     "svg": "8e4b0dc915a65c3f80e9",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "b3b79aa6faf217b4d469",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "2d6c6d3d387832dbac75"
+     ]
+    }
+   }
+  },
+  "ohne_details": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 112,
+    "baeume": 880,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 2,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 112,
+    "stadtflaeche": 9754
+   },
+   "modell": "7a5cad4739360654399c",
+   "karten": {
+    "tag": {
+     "svg": "9f187d032f0623ba9880",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "faa9079634833c5aa377",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "staub_weitlaeufig": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 119,
+    "baeume": 1028,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 1,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 16,
+    "schiffe": 3,
+    "felder": 110,
+    "stadtflaeche": 18533
+   },
+   "modell": "764c6353dae240ab42d1",
+   "karten": {
+    "tag": {
+     "svg": "6ba3169614bca54c0a27",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "fda18f71ec3d046e9417",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "5ae9f86377c2d1fc6f37",
+      "e6a92c3b3292e2e67c8c",
+      "be944dd5ed745fbfc5e6"
+     ]
+    }
+   }
+  },
+  "form_oval": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 80,
+    "baeume": 1162,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 5,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 9,
+    "schiffe": 1,
+    "felder": 78,
+    "stadtflaeche": 9754
+   },
+   "modell": "add343005670f8d60269",
+   "karten": {
+    "tag": {
+     "svg": "29a07d22f50c6cc9f07d",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "46f4e4ec1e0c1044d9f4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "15acf557046000e8b85f",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "form_vieleck": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 97,
+    "baeume": 772,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 1,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 8,
+    "schiffe": 0,
+    "felder": 104,
+    "stadtflaeche": 9754
+   },
+   "modell": "f7e2a01a89d5f88cb301",
+   "karten": {
+    "tag": {
+     "svg": "21636e35248661bbc764",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "29446c47938af623d6ac",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "2d7384653e4e54e38f17",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "form_gewachsen": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 116,
+    "baeume": 1017,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 1,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 14,
+    "schiffe": 0,
+    "felder": 67,
+    "stadtflaeche": 9754
+   },
+   "modell": "bc691a08d65243a89127",
+   "karten": {
+    "tag": {
+     "svg": "826d30fe12c908b8c42b",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "60d809695a3ce3090ca2",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "6645f21258d09a4f7079",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "form_unregelmaessig": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 101,
+    "baeume": 998,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 6,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 18,
+    "schiffe": 1,
+    "felder": 98,
+    "stadtflaeche": 9754
+   },
+   "modell": "c0e79093a4a609950d13",
+   "karten": {
+    "tag": {
+     "svg": "a89c3ac4bd34caa50d8f",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "1c714d7b4feb54c8b4dd",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "fcfb718b2a588b3cd375",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "abstuerz_wueste_west": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 470,
+    "baeume": 156,
+    "landstrassen": 5,
+    "gassen": 10,
+    "bruecken": 1,
+    "viertel": 3,
+    "beschriftungen": 10,
+    "tore": 5,
+    "tuerme": 18,
+    "schiffe": 0,
+    "felder": 0,
+    "stadtflaeche": 182264
+   },
+   "modell": "47ee4eb5ef2ab05c1e05",
+   "karten": {
+    "tag": {
+     "svg": "527c4a600b25831068ae",
+     "bilder": [
+      "96317e32f3998954246b",
+      "450cdcbc8b4d02ec340e",
+      "ab4d67caa31b9a2bd18e",
+      "1416421480354f7b5231",
+      "7011f1e85d2c2396f492"
+     ]
+    }
+   }
+  },
+  "abstuerz_gemaessigt_vieleck": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 342,
+    "baeume": 148,
+    "landstrassen": 7,
+    "gassen": 8,
+    "bruecken": 0,
+    "viertel": 2,
+    "beschriftungen": 4,
+    "tore": 7,
+    "tuerme": 6,
+    "schiffe": 2,
+    "felder": 21,
+    "stadtflaeche": 81159
+   },
+   "modell": "3b0350d0453984669363",
+   "karten": {
+    "tag": {
+     "svg": "951df585e3f0551d9df7",
+     "bilder": [
+      "e709cf5f96f691a913d8",
+      "eb039e4d5612a38590f9",
+      "921bfbd69098360fb2f8",
+      "fcc4bf4be50c852dd43f",
+      "0a4e58aa36940868e069",
+      "08277fb2dda97f2efa02"
+     ]
+    }
+   }
+  }
+ }
+}
