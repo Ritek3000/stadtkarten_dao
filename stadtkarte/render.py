@@ -6,6 +6,7 @@ import os
 import random
 import re
 import threading
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from html import unescape
 from xml.sax.saxutils import escape, quoteattr
@@ -16,10 +17,9 @@ import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
-from .geo import axes, lines, polys, unit, vlen
+from .geo import axes, lines, polys, rings, ship_footprint, unit, vlen
 from . import gebirge, noise, papier, parallel, schlucht, staub, umgebung, wasser
 from .roofs import detailed_roof, material_for
-from .city import ship_footprint
 from .config import ROTATION
 from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
 
@@ -509,9 +509,6 @@ def umgebung_daten(m):
     """Flächen und Farben für die Bodentönung nach der Umgebung (umgebung.image)."""
     B, s = m["biome"], m["s"]
 
-    def rings(g):
-        return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
-
     def col(key, auto):
         v = B.get(key, "auto")
         return auto if v == "auto" else v
@@ -538,8 +535,6 @@ def wasser_daten(m):
     oder Plateaustufe). Im Gebirge liegt die Schlucht über dem Fluss und blendet flussabwärts aus (chasm_svg)."""
     B = m["biome"]
 
-    def rings(g):
-        return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
     coastal = m["sea"] is not None and not B["mountain"] and not m.get("plateau")
     river = m["river"] is not None
     return {"sea": rings(m["sea"]) if coastal else [], "river": rings(m["river"]) if river else [],
@@ -656,7 +651,8 @@ def prewarm(cfg):
                 if fut is not None:
                     noise.remote([(cache, key) for _, cache, key, _ in grp], fut)
     except Exception:   # ein Vorlauf darf nie etwas kaputt machen: dann rechnet render_svg wie früher selbst
-        pass
+        if os.environ.get("STADTKARTE_DEBUG"):   # Entwickler: Grund des Fehlschlags zeigen (Vorlauf passt nicht mehr zu render_svg)
+            traceback.print_exc()
 
 
 def shadow_layer(shapes, dx, dy, opacity, s):
@@ -1485,7 +1481,7 @@ def render_svg(m, nacht=None):
                      f'<path d="{d}" fill="none" stroke="#a9a493" stroke-width="{f(2.4 * s)}"/>')
         elif kind == "garden":     # Barockgarten: Hecke, Beete und Wegkreuz
             c = g.centroid
-            o_, e1, e2 = axes(g)
+            _, e1, e2 = axes(g)
             cross = unary_union([LineString([(c.x - e1[0], c.y - e1[1]), (c.x + e1[0], c.y + e1[1])]),
                                  LineString([(c.x - e2[0], c.y - e2[1]), (c.x + e2[0], c.y + e2[1])])]
                                 ).intersection(g.buffer(-3 * s))
@@ -1718,7 +1714,7 @@ def render_svg(m, nacht=None):
     patches, overall = m.get("dust") or ([], None)
     if patches or overall:   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
         tex = m.setdefault("_tex", {})
-        tex["staub"] = _tex_pool().submit(staub.image, W, s, [(staub.rings(p), lv) for p, lv in patches], overall)
+        tex["staub"] = _tex_pool().submit(staub.image, W, s, [(rings(p), lv) for p, lv in patches], overall)
         o.append('<use href="#tex_staub"/>')
     o.append("</g>")  # Ende Drehung
 

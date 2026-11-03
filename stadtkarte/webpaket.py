@@ -12,9 +12,9 @@ import zipfile
 from collections import Counter
 
 import yaml
-from PIL import Image
 
 from . import __version__
+from .bilder import png_to_webp
 from .config import slug
 from .render import rot_xy, split_labels, strip_grid
 
@@ -84,16 +84,10 @@ def description(raw, cfg):
     return yaml.safe_dump(out, allow_unicode=True, sort_keys=False)
 
 
-def webp(png, quality=88):
-    buf = io.BytesIO()
-    Image.open(io.BytesIO(png)).convert("RGB").save(buf, "WEBP", quality=quality)
-    return buf.getvalue()
-
-
 def files(svg, orte, raw, cfg, base_png):
     """Die vier Dateien des Pakets: {Dateiname: Bytes}. base_png: gerenderte base_svg(svg)."""
     W = orte["breite"]
-    return {"karte.webp": webp(base_png),
+    return {"karte.webp": png_to_webp(base_png, 88),
             "beschriftung.svg": labels_svg(svg, W).encode("utf-8"),
             "orte.json": (json.dumps(orte, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
             "stadt.yaml": description(raw, cfg).encode("utf-8")}

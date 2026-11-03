@@ -7,9 +7,8 @@ from shapely.affinity import rotate
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points, unary_union
 
-from .city import ship_footprint
 from .config import place_info
-from .geo import blob, lines, roof, unit
+from .geo import blob, lines, roof, ship_footprint, unit
 from .styles import LANDMARK_COLORS
 
 
@@ -29,7 +28,7 @@ def _rect(c, u, v, lu, lv):
     return Polygon([c - u * lu - v * lv, c + u * lu - v * lv, c + u * lu + v * lv, c - u * lu + v * lv])
 
 
-def _inner_buildings(cx, cy, a, ang, s):
+def _inner_buildings(cx, cy, a, ang):
     """Bergfried in der Mitte, zwei Mannschaftshäuser an den Seiten."""
     t = math.radians(ang)
     u, v = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
@@ -404,7 +403,7 @@ def build_fortress(rng, W, s, spec, terrain, city, ext_roads, islands):
     area = fort.buffer(15 * s) if res["land_add"] is None else res["land_add"].union(fort)
     if res.get("lift"):
         area = area.union(res["lift"]["area"])
-    res.update(fort=fort, towers=towers, buildings=_inner_buildings(center.x, center.y, a, ang, s), area=area,
+    res.update(fort=fort, towers=towers, buildings=_inner_buildings(center.x, center.y, a, ang), area=area,
                label={"x": center.x, "y": center.y, "text": spec.get("kuerzel") or spec["name"],
                       "kind": "festung", "lift": a * 0.75, "ort": place_info(spec)})
     return res

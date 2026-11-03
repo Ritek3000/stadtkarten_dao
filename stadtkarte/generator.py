@@ -10,14 +10,19 @@ import shapely.affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, polylabel, split, unary_union
 
-from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, ship_footprint, varied_shape
+from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, varied_shape
 from .config import ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from . import leuchtturm, staub
-from .geo import Noise1D, axes, blob, lines, polys, roof, unit, vlen
+from .geo import Noise1D, axes, blob, lines, oriented_rect, polys, roof, ship_footprint, unit, vlen
 from .styles import BIOMES, FORT_TYPES
 from .surroundings import hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
 from .terrain import make_coast, make_islands, make_pools, make_river
+
+
+def building_count(m):
+    """Anzahl der Gebäude einer Karte (bei Häuserblöcken der Großstadt die einzelnen Häuser der Blöcke)."""
+    return sum(len(b["segments"]) if b.get("form") == "block" else 1 for b in m["buildings"] + m["suburbs"])
 
 
 AUSSCHNITT = {"normal": 0.62, "nah": 0.8, "fuellend": 0.8}   # Anteil des Stadtdurchmessers an der Kartenbreite
@@ -147,11 +152,11 @@ def _generate(cfg, W):
     cy = coast_y(cx) + r * 1.0 if has_coast else W / 2
     city_shape = None
     form = pick_shape(cfg["seed"], cfg["stadtform"])
-    custom = custom_wall(cfg, W, rot, s) if form == "eigene" else None
+    custom = custom_wall(cfg, W, rot) if form == "eigene" else None
     if form == "eigene":
         # Gelände entsteht wie bei einer runden Stadt (Fluss und Küste bleiben gleich, ob schon eine Mauer
         # gezeichnet ist oder nicht); die gezeichnete Mauer wird erst danach zum Stadtumriss
-        city_shape = None   # Umriss erst, wenn Küste bzw. Plateaukante feststehen (sie können Mauer sein)
+        pass   # city_shape bleibt None: der Umriss entsteht erst, wenn Küste bzw. Plateaukante feststehen (sie können Mauer sein)
     elif biome["mountain"] and has_coast:
         # Felskessel: Stadt rückt tief ins Massiv, Felsflanken links und rechts, unten offen
         # Der Kessel folgt exakt dem Stadtumriss, damit der Fels oben und seitlich direkt an die Stadt grenzt.
@@ -159,7 +164,7 @@ def _generate(cfg, W):
         if form == "rund":
             city_shape = make_shape(rng, (cx, cy), r)
         else:
-            city_shape = varied_shape(rng, (cx, cy), r, form, W, s, True)
+            city_shape = varied_shape(rng, (cx, cy), r, form, s, True)
             city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s, top=coast_y(cx) - r * 0.65)
         spurs = [blob(rng, cx + side * r * 1.2, cy - r * 0.1, r * 0.65, rough=0.3, stretch=(1.0, 1.3))
                  for side in (-1, 1)]
@@ -169,7 +174,7 @@ def _generate(cfg, W):
         # direkt an der Kante: die Felskante ersetzt dort die Mauer; mit Abstand: Mauer ringsum, davor ein Streifen Land
         direkt = g["kante"] == "direkt"
         cy = coast_y(cx) + (r * 0.8 if direkt else r * 1.25 + 60 * s)
-        city_shape = make_shape(rng, (cx, cy), r) if form == "rund" else varied_shape(rng, (cx, cy), r, form, W, s, True)
+        city_shape = make_shape(rng, (cx, cy), r) if form == "rund" else varied_shape(rng, (cx, cy), r, form, s, True)
         top = coast_y(cx) - (0.4 * r if direkt else -60 * s)
         city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s, top=top)
         if not direkt:   # Buchten der Kante dürfen nicht an die Mauer reichen
@@ -178,7 +183,7 @@ def _generate(cfg, W):
                     break
                 city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s, top=city_shape.bounds[1] + 10 * s)
     elif form != "rund":   # andere Stadtform: Umriss vor dem Fluss festlegen, an der Küste mit der Oberkante am Ufer
-        city_shape = varied_shape(rng, (cx, cy), r, form, W, s, has_coast)
+        city_shape = varied_shape(rng, (cx, cy), r, form, s, has_coast)
         city_shape, (cx, cy) = fit_into_map(city_shape, (cx, cy), W, s,
                                             top=coast_y(cx) - 0.2 * r if has_coast else None)
     elif spread(cfg) > 1:   # runde Stadt mit lockerer Bebauung: so groß, dass sie sonst über den Kartenrand ragt
@@ -357,7 +362,7 @@ def _generate(cfg, W):
     if not pools.is_empty:   # Bruchwald: über Tümpeln nur vereinzelte Bäume; auf Eis und in Oasen keine
         keep = 0.3 if biome["pool_style"] == "sumpf" else 0.0
         forest_trees = [tr for tr in forest_trees if not pools.contains(Point(tr[0], tr[1])) or rng.random() < keep]
-    trees = forest_trees + scatter_trees(rng, W, s, allowed, shape)
+    trees = forest_trees + scatter_trees(rng, s, allowed, shape)
     if plateau:   # die andere Geländestufe: Felder, ein Wäldchen und verstreute Bäume, nicht direkt an der Kante
         level = sea.buffer(-35 * s).difference(unary_union(
             [river.buffer(14 * s) if river is not None else Polygon(), forts_u.buffer(30 * s)]
@@ -373,11 +378,11 @@ def _generate(cfg, W):
             fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
             forest = forest.union(wood)
             spare = level.difference(unary_union([wood.buffer(10 * s), fields_u.buffer(12 * s)]))
-            trees += wood_trees + scatter_trees(rng, W, s, spare, Point(-W, -W).buffer(1), count=45)
+            trees += wood_trees + scatter_trees(rng, s, spare, Point(-W, -W).buffer(1), count=45)
     trees = [(x, y, rad, rng.choice(biome["trees"])) for x, y, rad, _ in trees]
     trees += oasis_palms(rng, s, oases, biome, unary_union([shape.buffer(10 * s), roads_u, fields_u, water]))
     rocks = make_rocks(rng, s, biome["rocks"], allowed.difference(pools.buffer(6 * s)))
-    dunes = make_dunes(rng, W, s, land.difference(unary_union([
+    dunes = make_dunes(rng, s, land.difference(unary_union([
         shape.buffer(50 * s), water.buffer(40 * s), fields_u.buffer(10 * s), forest.buffer(10 * s),
         unary_union(oases).buffer(70 * s) if oases else Polygon(), roads_u]))) if biome["dunes"] else []
     floes = make_floes(rng, s, sea, land) if biome["floes"] and sea is not None else []
@@ -455,12 +460,12 @@ def _generate(cfg, W):
         "klamm_fade": (gorge["y_a"], gorge["y_b"]) if gorge and river is not None else None,
         "plateau": plateau, "plateau_level": level_full, "plateau_oben": plateau and g.get("plateau") == "oben",
         "lighthouse": light,
-        "dust": staub.areas(cfg, W, s, (cx, cy), r, rot),
+        "dust": staub.areas(cfg, W, (cx, cy), r, rot),
         **city,
     }
 
 
-def custom_wall(cfg, W, rot, s):
+def custom_wall(cfg, W, rot):
     """Selbst gezeichnete Mauer (mauer.punkte, % der fertigen Karte) in Kartenkoordinaten: Eckpunkte, Türme und
     Tore. None, solange weniger als drei Punkte gezeichnet sind. Den Umriss bildet erst close_custom."""
     pts = cfg["mauer"].get("punkte") or []
@@ -600,7 +605,7 @@ def outside_cemetery(rng, s, spec, builder, ext_roads, shape, water, pools, take
     chapel["ridges"], chapel["shade"] = roof(chapel["poly"])
     chapel["landmark"] = True
     builder.out["buildings"].append(chapel)
-    _outside_label(builder, spec, poly, B / 2 + 6 * s, s)
+    _outside_label(builder, spec, poly, B / 2 + 6 * s)
     return poly
 
 
@@ -618,8 +623,7 @@ def roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken, start=60,
             tx, ty = unit((q.x - p.x, q.y - p.y))
             off = gap * s + B / 2
             cx, cy = p.x - ty * off * side, p.y + tx * off * side
-            poly = Polygon([(cx + tx * a * L / 2 - ty * b * B / 2, cy + ty * a * L / 2 + tx * b * B / 2)
-                            for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+            poly = oriented_rect(cx, cy, tx, ty, L, B)
             k += 15 * s
             if poly.intersects(blocked):
                 continue
@@ -632,7 +636,7 @@ def roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken, start=60,
     return best[1] if best else None
 
 
-def _outside_label(builder, spec, poly, lift, s):
+def _outside_label(builder, spec, poly, lift):
     if spec.get("kuerzel"):
         builder.out["legend"].append((spec["kuerzel"], spec["name"]))
     c = poly.centroid
@@ -653,7 +657,7 @@ def outside_windmill(rng, s, spec, builder, ext_roads, shape, water, pools, take
     mill["ridges"], mill["shade"] = roof(tower)
     builder.out["buildings"].append(mill)
     builder.out["windmills"].append({"x": c.x, "y": c.y, "len": 24 * s, "angle": rng.uniform(0, 360)})   # Windrichtung
-    _outside_label(builder, spec, tower, 30 * s, s)
+    _outside_label(builder, spec, tower, 30 * s)
     return area
 
 
@@ -683,7 +687,7 @@ def outside_farm(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
     for k in range(rng.randint(2, 4)):                                               # Obstbäume am Haus
         t = o + u * (8 + k * 9) * s + v * (l2 - 6 * s)
         builder.out["yard_trees"].append((float(t[0]), float(t[1]), rng.uniform(5, 7) * s))
-    _outside_label(builder, spec, area, B / 2 + 6 * s, s)
+    _outside_label(builder, spec, area, B / 2 + 6 * s)
     return area
 
 
@@ -739,7 +743,7 @@ def make_rocks(rng, s, density, allowed):
     return rocks
 
 
-def make_dunes(rng, W, s, free):
+def make_dunes(rng, s, free):
     """Wüste: geschwungene Dünenkämme, grob in Windrichtung ausgerichtet."""
     dunes = []
     if free.is_empty:

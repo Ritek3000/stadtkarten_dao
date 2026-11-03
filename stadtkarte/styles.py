@@ -1,4 +1,5 @@
 """Viertel-Typen, Farben und Größen (Flächen gelten für Bildgröße 2000 px)."""
+import pathlib
 
 DISTRICT_TYPES = {
     "hafen": dict(block=7000, lot=2000, alley=16, density=0.8, perimeter=False, paved=True,
@@ -49,7 +50,7 @@ COLORS = dict(
 
 # Mitgelieferte freie Schrift (SIL OFL), damit Karten unter Windows und Linux gleich aussehen
 FONT = "'EB Garamond', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif"
-FONT_FILE = __import__("pathlib").Path(__file__).with_name("fonts") / "EBGaramond-Variable.ttf"
+FONT_FILE = pathlib.Path(__file__).with_name("fonts") / "EBGaramond-Variable.ttf"
 
 # Biotope: Farben, Vegetation und Bauweise. Jedes Biotop überschreibt nur, was es anders macht.
 _BIOME_BASE = dict(

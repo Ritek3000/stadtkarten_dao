@@ -19,10 +19,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
 import yaml
-from PIL import Image
 
 from .. import __version__, config, webpaket
-from ..generator import generate
+from ..bilder import png_to_webp
+from ..generator import building_count, generate
 from ..interaktiv import interactive_html
 from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
 from ..render import font_face_css, move_labels, prewarm, render_svg, split_labels, to_pdf
@@ -86,12 +86,6 @@ def example(name):
         return yaml.safe_load(f) or {}
 
 
-def webp(png, quality):
-    buf = io.BytesIO()
-    Image.open(io.BytesIO(png)).convert("RGB").save(buf, "WEBP", quality=quality)
-    return buf.getvalue()
-
-
 class Abgebrochen(Exception):
     """Die Nachtkarte wurde nicht mehr gebraucht, weil eine neue Karte angefordert wurde."""
 
@@ -138,11 +132,11 @@ def build(raw):
         "id": rid,
         "W": m["W"],
         "labels": tag["labels"],
-        "preview": "data:image/webp;base64," + base64.b64encode(webp(small, 88)).decode(),
+        "preview": "data:image/webp;base64," + base64.b64encode(png_to_webp(small, 88)).decode(),
         "hints": [ln.replace("Hinweis: ", "") for ln in out.getvalue().splitlines() if ln.strip()],
         "gelaende_nur": bool(m.get("gelaende_nur")),
         "nacht": night,
-        "stats": {"gebaeude": sum(len(b["segments"]) if b.get("form") == "block" else 1 for b in m["buildings"] + m["suburbs"]), "baeume": len(m["trees"]),
+        "stats": {"gebaeude": building_count(m), "baeume": len(m["trees"]),
                   "sekunden": round(time.time() - t0, 1), "rendern": render_mode()},
     }
 
@@ -265,7 +259,7 @@ def file_bytes(res, fmt, name="tag"):
     if fmt == "png":
         return full_png(res, ver), "image/png"
     if fmt == "webp":
-        return webp(full_png(res, ver), 92), "image/webp"
+        return png_to_webp(full_png(res, ver), 92), "image/webp"
     if fmt == "pdf":
         buf = io.BytesIO()
         to_pdf(full_png(res, ver), buf)
@@ -334,12 +328,12 @@ class Handler(BaseHTTPRequestHandler):
                 res = RESULTS.get(q.get("id", ""))
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher."})
-                self.send(200, webp(view_png(get_version(res, q.get("version"))), 88), "image/webp")
+                self.send(200, png_to_webp(view_png(get_version(res, q.get("version"))), 88), "image/webp")
             elif url.path == "/api/nacht":   # Vorschau der Nachtkarte (wartet, bis sie gezeichnet ist)
                 res = RESULTS.get(q.get("id", ""))
                 if res is None:
                     return self.send(404, {"error": "Karte nicht mehr im Speicher."})
-                self.send(200, webp(get_version(res, "nacht")["klein"].result(), 88), "image/webp")
+                self.send(200, png_to_webp(get_version(res, "nacht")["klein"].result(), 88), "image/webp")
             elif url.path == "/api/font.css":
                 self.send(200, font_face_css(), "text/css; charset=utf-8")
             elif url.path == "/api/download":

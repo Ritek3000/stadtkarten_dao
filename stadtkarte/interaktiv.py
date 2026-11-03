@@ -9,6 +9,7 @@ from html import escape
 
 from PIL import Image
 
+from .bilder import webp_bytes
 from .render import font_face_css, split_labels, to_png
 
 # Gruppen-ID aus render_svg -> Beschriftung des Schalters
@@ -147,9 +148,8 @@ def interactive_html(svg, name, quality=90, base_png=None):
     ohne Beschriftung (spart ein erneutes Rendern)."""
     base, labels = split_labels(svg)
     img = Image.open(io.BytesIO(base_png or to_png(base)))
-    buf = io.BytesIO()
-    img.convert("RGB").save(buf, "WEBP", quality=quality)
+    image = webp_bytes(img.convert("RGB"), quality=quality)
     toggles = "\n".join(f'<label><input type="checkbox" data-gruppe="{gid}" checked>{text}</label>'
                         for gid, text in GROUPS)
-    return PAGE.format(title=escape(name), font=font_face_css(), W=img.width, image=base64.b64encode(buf.getvalue()).decode(),
+    return PAGE.format(title=escape(name), font=font_face_css(), W=img.width, image=base64.b64encode(image).decode(),
                        labels=labels, toggles=toggles)

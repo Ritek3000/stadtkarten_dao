@@ -2,12 +2,11 @@
 trockener, an Landstraßen, vor den Toren und rund um die Mauer ausgetreten und erdig, am Waldrand moosig, an der
 Küste ein Sand- bzw. Kiesstreifen. Die Flächen der Karte werden als weiche Masken gerastert, Simplex-Rauschen
 macht ihre Ränder unregelmäßig. Ergebnis: ein halbdurchsichtiges Bild, das über der Bodentextur liegt."""
-import base64
-import io
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
+from .bilder import webp_uri
 from .noise import _fbm, _hex_rgb
 
 
@@ -73,6 +72,4 @@ def image(W, s, data, res=None):
     img = np.empty((res, res, 4), np.uint8)
     img[..., :3] = np.clip(out_rgb / np.maximum(out_a, 1e-6)[..., None] * 255, 0, 255).astype(np.uint8)
     img[..., 3] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(img, "RGBA").save(buf, "WEBP", quality=85, alpha_quality=80, method=0)
-    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
+    return webp_uri(Image.fromarray(img, "RGBA"), quality=85, alpha_quality=80, method=0)

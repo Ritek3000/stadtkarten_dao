@@ -127,8 +127,7 @@ def main():
     else:
         results = [build_linux_archive(app)]
     for p in results:
-        if p is not None:
-            print(f"fertig: {p}  ({p.stat().st_size / 1e6:.0f} MB)")
+        print(f"fertig: {p}  ({p.stat().st_size / 1e6:.0f} MB)")
 
 
 if __name__ == "__main__":
