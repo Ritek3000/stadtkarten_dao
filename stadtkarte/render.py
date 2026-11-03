@@ -7,7 +7,7 @@ import random
 import re
 import threading
 import traceback
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from html import unescape
 from xml.sax.saxutils import escape, quoteattr
 
@@ -604,6 +604,27 @@ def noise_boden(m, base):
     return noise_open(m, *keys, **kw)
 
 
+def model_texture(m, key, fn, *args):
+    """Textur, die von den Flächen dieser Stadt abhängt (Gebirge, Schlucht, Wasser, Umgebung, Staub; anders als die
+    Biotop-Texturen in noise.py liegt sie nicht im Zwischenspeicher nach Rezept): im Hintergrund rechnen, abgeholt wird
+    sie in textures_svg. Beim zweiten Zeichnen derselben Stadt (Nachtkarte nach der Tagkarte) mit gleichen Eingaben
+    wird das fertige Bild wiederverwendet statt neu gerechnet. Die Eingaben (args) werden verglichen, nicht nur der
+    Name: wurde die Stadt dazwischen verändert, wird neu gerechnet."""
+    tex = m.setdefault("_tex", {})
+    m.setdefault("_tex_args", {})[key] = args
+    done = m.get("_tex_fertig", {}).get(key)
+    try:
+        same = done is not None and done[0] == args
+    except ValueError:   # Eingaben, die sich nicht einfach vergleichen lassen: neu rechnen
+        same = False
+    if same:
+        fut = Future()
+        fut.set_result(done[1])
+        tex[key] = fut
+    else:
+        tex[key] = _tex_pool().submit(fn, *args)
+
+
 def prewarm(cfg):
     """Startet in Render-Prozessen die Texturen, die nicht von der Stadt abhängen (Boden, Nebel, Felder, Papier),
     schon vor dem Generator. Der Generator läuft in einem einzigen Kern; so ist der längste Teil des SVG-Aufbaus (das
@@ -998,8 +1019,7 @@ def mountain_svg(o, m, rng):
     o.append(f'<rect width="{W}" height="{W}" fill="{B["rock"]}"/>')
     if rock is None or rock.is_empty:
         return
-    tex = m.setdefault("_tex", {})
-    tex["gebirge"] = _tex_pool().submit(gebirge.image, W, s, berg_daten(m))
+    model_texture(m, "gebirge", gebirge.image, W, s, berg_daten(m))
     o.append('<use href="#tex_gebirge"/>')
     # Hangschraffur: kurze Striche bergab (intern liegt das Land im Süden)
     minx, miny, maxx, maxy = rock.bounds
@@ -1155,9 +1175,8 @@ def chasm_svg(o, m):
     s, B, W = m["s"], m["biome"], m["W"]
     fade = m.get("klamm_fade")
     rings = [(list(g.exterior.coords), [list(h.coords) for h in g.interiors]) for g in polys(m["river"])]
-    tex = m.setdefault("_tex", {})
-    tex["schlucht"] = _tex_pool().submit(schlucht.image, W, s, {"river": rings, "light": light_dir(m), "fade": fade,
-                                                              "rock_col": B["rock"], "rock_dark": B["rock_dark"]})
+    model_texture(m, "schlucht", schlucht.image, W, s, {"river": rings, "light": light_dir(m), "fade": fade,
+                                                        "rock_col": B["rock"], "rock_dark": B["rock_dark"]})
     d = path_d(m["river"])
     mask = ""
     if fade:   # Verlauf von 1 (Klamm) auf 0 (Fluss) flussabwärts, in Kartenkoordinaten (y wächst nach Süden)
@@ -1308,8 +1327,7 @@ def water_svg(o, m, rng):
         o.append(f'<path d="{path_d(m["river"])}" fill="{"#1e1c19" if B["chasm"] else B["river"]}"/>')
     wd = wasser_daten(m)
     if wd["sea"] or wd["river"]:   # Wasser mit Tiefe: Flach- und Tiefwasser, Brandung, Kräusel, Flussufer
-        tex = m.setdefault("_tex", {})
-        tex["wasser"] = _tex_pool().submit(wasser.image, W, s, wd)
+        model_texture(m, "wasser", wasser.image, W, s, wd)
         wet = unary_union(([m["sea"]] if wd["sea"] else []) + ([m["river"]] if wd["river"] else []))
         o.append(f'<clipPath id="waterClip"><path d="{path_d(wet)}"/></clipPath>'
                  f'<g clip-path="url(#waterClip)"><use href="#tex_wasser"/></g>')
@@ -1329,8 +1347,7 @@ def land_svg(o, m):
     o.append(f'<g clip-path="url(#landClip)">'
              f'{noise_boden(m, B["land"])}/>'
              f'<use href="#tex_umgebung"/></g>')
-    tex = m.setdefault("_tex", {})
-    tex["umgebung"] = _tex_pool().submit(umgebung.image, W, s, umgebung_daten(m))
+    model_texture(m, "umgebung", umgebung.image, W, s, umgebung_daten(m))
     if m["cfg"]["ausgabe"].get("stil") == "pergament":   # Küste wie mit der Feder: leicht zitternd, Tinte
         o.append(f'<filter id="feder" x="-2%" y="-2%" width="104%" height="104%">'
                  f'<feTurbulence type="fractalNoise" baseFrequency="{0.035 / s:.4f}" numOctaves="2" seed="5"/>'
@@ -1696,7 +1713,14 @@ def rocks_svg(o, m):
 
 
 def buildings_svg(o, m):
-    """Gebäude mit Schattenwurf: Dächer mit Licht, Material und Details, Häuserblöcke, Pfahlbauten."""
+    """Gebäude mit Schattenwurf: Dächer mit Licht, Material und Details, Häuserblöcke, Pfahlbauten.
+    Tag und Nacht zeichnen sie gleich (die Nacht legt Lichter darüber), und es ist mit 2 bis 2,6 s die aufwendigste
+    Ebene: beim zweiten Zeichnen derselben Stadt (Nachtkarte nach der Tagkarte) kommt sie aus dem Zwischenspeicher."""
+    done = m.get("_gebaeude_svg")
+    if done is not None:
+        o.extend(done)
+        return
+    start = len(o)
     s, B = m["s"], m["biome"]
     # Gebäude
     stilts_svg(o, m)
@@ -1722,6 +1746,7 @@ def buildings_svg(o, m):
             svg = detailed_roof(b, s, roof_rng, material, to_light, C["outline"])
         o.append(svg or building_svg(b, s, B["flat_roofs"]))
     o.append("</g>")
+    m["_gebaeude_svg"] = o[start:]
 
 
 def forges_svg(o, m):
@@ -1808,8 +1833,7 @@ def dust_svg(o, m):
     s, W = m["s"], m["W"]
     patches, overall = m.get("dust") or ([], None)
     if patches or overall:   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
-        tex = m.setdefault("_tex", {})
-        tex["staub"] = _tex_pool().submit(staub.image, W, s, [(rings(p), lv) for p, lv in patches], overall)
+        model_texture(m, "staub", staub.image, W, s, [(rings(p), lv) for p, lv in patches], overall)
         o.append('<use href="#tex_staub"/>')
 
 
@@ -1892,7 +1916,12 @@ def grid_svg(o, m):
 def textures_svg(o, m):
     """Wartet auf die Texturen und bettet jede einmal ein; Verwendungen verweisen per <use> darauf."""
     W = m["W"]
+    args = m.pop("_tex_args", {})
     tex = {k: fut.result() for k, fut in m.pop("_tex", {}).items()}
+    done = m.setdefault("_tex_fertig", {})
+    for k, a in args.items():   # fertige Stadt-Texturen merken: die Nachtkarte braucht dieselben (siehe model_texture)
+        if k in tex:
+            done[k] = (a, tex[k])
     if tex:   # jede Textur nur einmal einbetten, Verwendungen verweisen per <use> darauf
         o.append("<defs>" + "".join(
             f'<image id="tex_{k}" href="{u}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none" '
