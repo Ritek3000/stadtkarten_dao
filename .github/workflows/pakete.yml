@@ -1,7 +1,9 @@
-# Baut die Stadtkarten-Werkstatt für Windows und Linux, testet beide Pakete und stellt sie zum Download bereit.
-#  - bei Änderungen am Programm auf main: Pakete unter "Actions" -> Lauf -> "Artifacts" (30 Tage)
+# Testet die Stadtkarten-Werkstatt, baut sie für Windows und Linux und stellt die Pakete zum Download bereit.
+#  - bei Änderungen am Programm auf main: erst die Tests, dann die Pakete unter "Actions" -> Lauf -> "Artifacts" (30 Tage)
 #  - bei einem Versions-Tag (z.B. v1.8.0): zusätzlich ein GitHub-Release mit beiden Paketen
+#  - bei Pull Requests: nur die Tests
 #  - jederzeit von Hand: Actions -> "Pakete bauen" -> "Run workflow"
+# Tests und Paketbau nutzen die exakten Versionen aus requirements-lock.txt (siehe dort).
 name: Pakete bauen
 
 on:
@@ -12,16 +14,67 @@ on:
       - "stadtkarte/**"
       - "packaging/**"
       - "beispiele/**"
+      - "tests/**"
+      - "einrichten.py"
       - "requirements.txt"
+      - "requirements-lock.txt"
+      - "requirements-build.txt"
+      - ".github/workflows/pakete.yml"
+  pull_request:
+    paths:
+      - "stadtkarte/**"
+      - "packaging/**"
+      - "beispiele/**"
+      - "tests/**"
+      - "einrichten.py"
+      - "requirements.txt"
+      - "requirements-lock.txt"
+      - "requirements-build.txt"
       - ".github/workflows/pakete.yml"
   workflow_dispatch:
 
+# Standard: nur lesen. Schreibrechte bekommt allein der Release-Job.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python }}, ${{ matrix.requirements }})
+    runs-on: ubuntu-22.04
+    continue-on-error: ${{ matrix.warnung }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {python: "3.12", requirements: requirements-lock.txt, warnung: false}
+          - {python: "3.13", requirements: requirements-lock.txt, warnung: false}
+          # Älteste Version, die die Startskripte erlauben, mit den losen Anforderungen, wie sie dort installiert werden.
+          # Ein Fehler hier ist eine Warnung (neue Bibliotheksversion?) und hält den Paketbau nicht auf.
+          - {python: "3.10", requirements: requirements.txt, warnung: true}
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ${{ matrix.requirements }}
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install -r ${{ matrix.requirements }} pyflakes==4.1.0
+
+      - name: Codeprüfung (pyflakes)
+        run: python -m pyflakes stadtkarte tests packaging blender einrichten.py
+
+      - name: Tests
+        run: python -m unittest -v
+
   build:
     name: Paket ${{ matrix.name }}
+    needs: tests
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -40,9 +93,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements-build.txt
 
       - name: Abhängigkeiten installieren
-        run: python -m pip install -r requirements.txt pyinstaller
+        run: python -m pip install -r requirements-build.txt
 
       - name: Paket bauen
         run: python packaging/build.py
@@ -67,13 +121,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # Release anlegen und Dateien anhängen
     steps:
       - uses: actions/download-artifact@v7
         with:
           path: pakete
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v3
+      # Drittanbieter-Action mit Schreibrecht: auf einen festen Stand (Commit von v3.0.3) festgelegt, nicht auf ein
+      # bewegliches Tag. Aktualisieren: neuen Tag prüfen und hier den Commit eintragen.
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64   # v3.0.3
         with:
           files: pakete/*
           generate_release_notes: true

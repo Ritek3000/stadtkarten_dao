@@ -4,7 +4,7 @@ import pathlib
 import time
 
 from . import config, webpaket
-from .generator import generate
+from .generator import building_count, generate
 from .interaktiv import interactive_html
 from .parallel import png_async
 from .render import prewarm, render_svg, split_labels, to_pdf
@@ -60,7 +60,7 @@ def main():
         folder = out / webpaket.folder_name(cfg)
         webpaket.write_folder(folder, webpaket.files(svg, webpaket.places(m), raw, cfg, web_job.result()))
         written.append(folder)
-    print(f"{cfg['name']}: {sum(len(b['segments']) if b.get('form') == 'block' else 1 for b in m['buildings'] + m['suburbs'])} Gebäude, {len(m['trees'])} Bäume "
+    print(f"{cfg['name']}: {building_count(m)} Gebäude, {len(m['trees'])} Bäume "
           f"({time.time() - t0:.1f} s)")
     for p in written:
         print("  ->", p)

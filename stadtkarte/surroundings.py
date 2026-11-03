@@ -6,7 +6,7 @@ import shapely
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
-from .geo import blob, clean, lines, roof, unit
+from .geo import blob, clean, lines, oriented_rect, roof, unit
 from .styles import COLORS, DISTRICT_TYPES
 
 
@@ -42,7 +42,6 @@ def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), pr
     Breite. Streifen liegen dicht an dicht (nur ein schmaler Rain dazwischen), Gewanne trennen Feldwege und
     Hecken. Felder gibt es nur, wo Platz ist; prob steuert, wie viele Streifen bestellt sind."""
     fields = []
-    cx, cy = center
     frame = box(0, 0, W, W).buffer(-4 * s)
     furlong_id = 0
     for v in dirs:
@@ -140,7 +139,7 @@ def make_forest(rng, W, s, center, r, dirs, blocked, land, spacing=1.0, scale=1.
     return forest, trees
 
 
-def scatter_trees(rng, W, s, allowed, shape, count=70):
+def scatter_trees(rng, s, allowed, shape, count=70):
     trees = []
     if allowed.is_empty:
         return trees
@@ -166,6 +165,15 @@ def scatter_trees(rng, W, s, allowed, shape, count=70):
     return trees
 
 
+def _try_house(rng, s, poly, palette, houses, taken):
+    """Setzt ein Haus, wenn der Platz frei ist; liefert die belegte Fläche (taken) zurück."""
+    if poly.intersects(taken):
+        return taken
+    ridges, shade = roof(poly)
+    houses.append({"poly": poly, "color": rng.choice(palette), "ridges": ridges, "shade": shade})
+    return taken.union(poly.buffer(4 * s))
+
+
 def suburb_houses(rng, s, roads, blocked):
     houses = []
     palette = DISTRICT_TYPES["bauern"]["palette"] + DISTRICT_TYPES["wohn"]["palette"]
@@ -183,14 +191,7 @@ def suburb_houses(rng, s, roads, blocked):
                 L, B = rng.uniform(18, 28) * s, rng.uniform(12, 16) * s
                 off = 9 * s + B / 2 + rng.uniform(0, 1.5) * s   # Hausfront direkt an der Landstraße
                 cx, cy = p.x - ty * off * side, p.y + tx * off * side
-                corners = [(cx + tx * a * L / 2 - ty * b * B / 2, cy + ty * a * L / 2 + tx * b * B / 2)
-                           for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-                poly = Polygon(corners)
-                if poly.intersects(taken):
-                    continue
-                taken = taken.union(poly.buffer(4 * s))
-                ridges, shade = roof(poly)
-                houses.append({"poly": poly, "color": rng.choice(palette), "ridges": ridges, "shade": shade})
+                taken = _try_house(rng, s, oriented_rect(cx, cy, tx, ty, L, B), palette, houses, taken)
     return houses
 
 
@@ -213,12 +214,5 @@ def hamlet(rng, s, road, blocked):
             L, B = rng.uniform(18, 26) * s, rng.uniform(12, 15) * s
             off = 9 * s + B / 2 + 1 * s
             cx, cy = q.x - ty * off * side, q.y + tx * off * side
-            corners = [(cx + tx * a * L / 2 - ty * b * B / 2, cy + ty * a * L / 2 + tx * b * B / 2)
-                       for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-            poly = Polygon(corners)
-            if poly.intersects(taken):
-                continue
-            taken = taken.union(poly.buffer(4 * s))
-            ridges, shade = roof(poly)
-            houses.append({"poly": poly, "color": rng.choice(palette), "ridges": ridges, "shade": shade})
+            taken = _try_house(rng, s, oriented_rect(cx, cy, tx, ty, L, B), palette, houses, taken)
     return houses

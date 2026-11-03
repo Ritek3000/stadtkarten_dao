@@ -18,12 +18,12 @@ import pathlib
 from shapely.geometry import box
 
 from . import config
+from .city import RING_ROAD_WIDTH   # bis zu dieser Breite (mal s) sind Straßen Ringgassen, darüber Hauptstraßen
 from .generator import generate
 from .geo import lines, polys
 
 FORMAT = "stadtkarte-blender"
 VERSION = 1
-RING_ROAD_WIDTH = 9.5      # wie in city.py: bis zu dieser Breite (mal s) sind Straßen Ringgassen, darüber Hauptstraßen
 MIN_AREA = 0.5             # kleinere Flächen (px²) sind Rundungsreste
 TOWER_RADIUS = 8.0         # Grundriss der Türme und Torhäuser wie im Kartenbild (render.py), in px mal s
 GATE_SIZE = (34.0, 22.0)

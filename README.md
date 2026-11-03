@@ -25,7 +25,7 @@ Stadtkarten-Werkstatt im Browser:
 - **Tag und Nacht:** Zu jeder Karte entsteht auch die Nachtkarte (siehe [Nachtmodus](#nachtmodus)). Die Tagkarte erscheint zuerst,
   die Nachtkarte wird danach im Hintergrund gezeichnet; sobald sie fertig ist, wird der Schalter „Tag | Nacht“ oben in der
   Kartenansicht aktiv
-- Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF, SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`;
+- Download als PNG, WebP (klein, gut für Foundry/Roll20), PDF (das Kartenbild als Raster, keine Vektoren), SVG oder als interaktive Karte, oder alles auf einmal in den Ordner `ausgabe`;
   es gilt immer die Version, die gerade angezeigt wird (Nachtkarten tragen den Zusatz `_nacht`)
 - Gestaltung nach dem Design System „Die Alte Ordnung“ (wie Webseite, Heldenmaschine und IniTracker): Pergament (hell)
   und Finsternis (dunkel), umschaltbar oben rechts mit Sonne/Mond
@@ -37,12 +37,21 @@ Debian/Ubuntu zusätzlich das Paket `python3-venv`). Beim ersten Start wird die 
 die Werkstatt im Browser. Die Karten nutzen die mitgelieferte freie Schrift EB Garamond (`stadtkarte/fonts`, SIL Open Font
 License) und sehen daher unter Windows und Linux gleich aus.
 
-## Einrichtung (einmalig)
+## Einrichtung
+
+Die Startskripte richten die Python-Umgebung (`.venv`) beim ersten Start selbst ein und halten sie aktuell: Ändert sich
+`requirements.txt` (etwa nach einem Update des Programms), werden die Pakete beim nächsten Start nachinstalliert. Eine
+abgebrochene Einrichtung (z.B. ohne Netz) wird beim nächsten Start wiederholt; läuft die vorhandene Umgebung noch, startet das
+Programm ohne Netz damit weiter. Die Arbeit macht `einrichten.py`, es lässt sich auch allein aufrufen (`python einrichten.py`).
+Von Hand geht es so:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
+
+`requirements.txt` ist bewusst locker, damit die Werkstatt auf jeder Python-Version ab 3.10 läuft (getestet mit 3.10 bis 3.13).
+Tests und Paketbau nutzen die exakten Versionen aus `requirements-lock.txt` (Python 3.12 oder neuer).
 
 ## Karte über die Kommandozeile erzeugen
 
@@ -61,6 +70,12 @@ Sinus, Kosinus usw. in der letzten Nachkommastelle anders runden. Wer eine Karte
 besten die erzeugte Datei weiter. `packaging/determinismus.py` prüft das bei jedem Paketbau: Es erzeugt Karten
 mehrfach und ahmt dabei andere Prozessoren nach (andere OpenBLAS-Rechenkerne, numpy ohne AVX-512).
 
+Auch die Bibliotheksversionen spielen hinein. Beim Vergleich von Python 3.10 (NumPy 2.2, Shapely 2.1, Pillow 12) mit 3.13
+(NumPy 2.5, Shapely 2.2, Pillow 13) war der Kartenaufbau (Straßen, Häuser, Beschriftung) identisch; je Karte wich nur ein
+eingebettetes Texturbild in einzelnen Bytes ab. Damit Pakete und Tests nicht unbemerkt davon abhängen, legt
+`requirements-lock.txt` die Versionen fest. Aktualisieren: neue Versionen in einer frischen Umgebung installieren, Tests und
+`packaging/determinismus.py` laufen lassen, dann in der Datei eintragen.
+
 ## Mehrere Prozessorkerne
 
 Die Bodentexturen entstehen gleichzeitig in mehreren Threads (bei großen Karten begrenzt, damit der Speicher
@@ -73,12 +88,22 @@ früher nacheinander.
 
 | Datei | Aufgabe |
 |---|---|
-| `stadtkarte/config.py` | YAML einlesen, Standardwerte, Himmelsrichtungen |
+| `einrichten.py` | richtet die Python-Umgebung (`.venv`) ein und hält sie aktuell (Aufruf der Startskripte) |
+| `stadtkarte/config.py` | YAML einlesen und prüfen, Standardwerte, Himmelsrichtungen |
+| `stadtkarte/generator.py` | setzt Gelände, Stadt und Umland zum Kartenmodell zusammen (Ausschnitt, Festung, Leuchtturm, Mühlen) |
+| `stadtkarte/geo.py` | Geometrie-Hilfen (Flächen, Linien, Rechtecke, Achsen) und 1D-Rauschen |
+| `stadtkarte/simplex.py` | Simplex-Rauschen, bitgenau auf jedem Prozessor |
+| `stadtkarte/bilder.py` | Bilder als WebP: Data-URIs für die Texturen, Bytes für Downloads |
 | `stadtkarte/terrain.py` | Küste, Inseln, Fluss |
 | `stadtkarte/city.py` | Stadtumriss, Mauer, Tore, Straßen, Viertel, Gebäude, besondere Orte, Hafen |
 | `stadtkarte/fortress.py` | Festung/Bastion auf Insel, Landzunge oder an Land |
 | `stadtkarte/surroundings.py` | Felder, Wald, Bäume, Vorstadthäuser, Brücken |
 | `stadtkarte/styles.py` | Viertel-Typen, Farben, Schrift |
+| `stadtkarte/leuchtturm.py` | Leuchtturm der Küstenstadt (Insel oder Hafenspitze) |
+| `stadtkarte/gebirge.py`, `stadtkarte/schlucht.py` | Gebirge mit Höhenrelief und die Klamm als Bild über dem Fels bzw. dem Fluss |
+| `stadtkarte/wasser.py` | Wasser mit Tiefe, Brandung und Flussufern als Bild |
+| `stadtkarte/umgebung.py`, `stadtkarte/papier.py`, `stadtkarte/staub.py` | Bodentönung nach Umgebung, Papierstruktur des Pergament-Stils, Staub |
+| `stadtkarte/webpaket.py` | Web-Paket: Kartenbild, Beschriftung, Ortsliste und Stadtbeschreibung |
 | `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
 | `stadtkarte/parallel.py` | Rendern in eigenen Prozessen |
@@ -91,6 +116,7 @@ früher nacheinander.
 | `stadtkarte/ui/` | Oberfläche: lokaler Webserver (`__main__.py`) und Seite (`index.html`) |
 | `stadtkarte/ui/static/` | Schriften (IM Fell English, Spectral; OFL) und Sor-Symbol aus dem Design System „Die Alte Ordnung“ |
 | `tests/` | Unit-Tests (`python -m unittest`) |
+| `requirements.txt`, `requirements-lock.txt`, `requirements-build.txt` | Pakete: locker für Anwender, exakt für Tests und Paketbau, plus PyInstaller |
 
 ## Besondere Orte
 
@@ -437,9 +463,10 @@ Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [nordhafen.yaml](beispiel
 ```
 
 Die Tests liegen in `tests/` und brauchen nur die Pakete aus `requirements.txt`. Sie prüfen die Stadtbeschreibung (fehlerhafte
-Angaben ergeben eine klare Meldung statt eines Absturzes), die Render-Prozesse, die Sicherheitsregeln des lokalen Webservers und
-Karten, die früher beim Zeichnen abgestürzt sind. Die Karten-Tests dauern etwa 15 Sekunden; mit `STADTKARTE_SCHNELL=1` bleiben sie
-aus. Ob dieselbe Karte auf jedem Prozessor entsteht, prüft weiterhin `packaging/determinismus.py`.
+Angaben ergeben eine klare Meldung statt eines Absturzes), die Einrichtung der Umgebung, die Render-Prozesse, die
+Sicherheitsregeln des lokalen Webservers und Karten, die früher beim Zeichnen abgestürzt sind. Die Karten-Tests dauern etwa
+15 Sekunden; mit `STADTKARTE_SCHNELL=1` bleiben sie aus. Ob dieselbe Karte auf jedem Prozessor entsteht, prüft weiterhin
+`packaging/determinismus.py`. Auf GitHub laufen die Tests bei jeder Änderung und bei Pull Requests (siehe unten).
 
 ## Weitergeben
 
@@ -461,7 +488,7 @@ Da das Programm nicht digital signiert ist, warnt Windows SmartScreen beim erste
 **Neu bauen** (z.B. nach Änderungen am Programm):
 
 ```bash
-.venv\Scripts\python -m pip install pyinstaller
+.venv\Scripts\python -m pip install -r requirements-build.txt    # Python 3.12 oder neuer; dieselben Versionen wie auf GitHub
 .venv\Scripts\python packaging\build.py
 ```
 
@@ -469,8 +496,10 @@ Die Version wird aus `stadtkarte/__init__.py` übernommen. Zum Aktualisieren den
 
 ### Automatisch auf GitHub bauen (Windows und Linux)
 
-Bei jedem Hochladen von Programmänderungen auf `main` baut GitHub Actions ([.github/workflows/pakete.yml](.github/workflows/pakete.yml))
-beide Versionen, startet sie zur Probe (Tag- und Nachtkarte) und stellt sie bereit:
+Bei jedem Hochladen von Programmänderungen auf `main` testet GitHub Actions ([.github/workflows/pakete.yml](.github/workflows/pakete.yml))
+zuerst den Code (pyflakes und `python -m unittest` mit Python 3.12 und 3.13 sowie zur Warnung mit 3.10), baut dann
+beide Versionen, startet sie zur Probe (Tag- und Nachtkarte) und stellt sie bereit. Bei Pull Requests laufen nur die Tests.
+Die Läufe arbeiten mit Leserechten; nur der Release-Schritt darf schreiben:
 
 - **Download:** Repository → „Actions“ → „Pakete bauen“ → letzter Lauf → unten „Artifacts“
   (`stadtkarten-werkstatt-windows`, `stadtkarten-werkstatt-linux`, je 30 Tage verfügbar)

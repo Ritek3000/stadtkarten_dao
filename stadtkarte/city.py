@@ -12,20 +12,15 @@ from shapely.ops import nearest_points, polylabel, substring, unary_union
 from .config import MAX_EINWOHNER, place_info, to_canonical
 from .shapes import cross_in_rect, house_shape
 from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, merge_polys, min_width, points, polys, roof,
-                  subdivide, unit, vlen)
+                  ship_footprint, subdivide, unit, vlen)
 from .roofs import shade as shade_hex
 from .styles import BIG_LANDMARKS, BIOMES, DISTRICT_TYPES, FORT_TYPES, LANDMARK_COLORS
 
 COMPACT = {"friedhof", "kaserne", "tempel", "palast", "kathedrale"}
+RING_ROAD_WIDTH = 9.5   # Straßen bis zu dieser Breite (mal s) sind Ringgassen, breitere Hauptstraßen (auch im Blender-Export)
 
 
-def ship_footprint(cx, cy, length, width, angle_deg):
-    """Grundfläche eines Schiffs als gedrehtes Rechteck."""
-    a = math.radians(angle_deg)
-    u, v = np.array([math.cos(a), math.sin(a)]), np.array([-math.sin(a), math.cos(a)])
-    c = np.array([cx, cy])
-    return Polygon([c - u * length / 2 - v * width / 2, c + u * length / 2 - v * width / 2,
-                    c + u * length / 2 + v * width / 2, c - u * length / 2 + v * width / 2])
+
 # Hausmaße: kürzeste Seite in px (bei 2000 px Bildgröße) und größtes Verhältnis lange/kurze Seite
 MIN_HOUSE = 8.0
 MAX_HOUSE_RATIO = 3.2
@@ -79,7 +74,7 @@ def pick_shape(seed, wanted):
     return random.Random(f"stadtform-{seed}").choice(SHAPES)
 
 
-def varied_shape(rng, center, r, kind, W, s, coastal):
+def varied_shape(rng, center, r, kind, s, coastal):
     """Andere Stadtumrisse mit etwa derselben Fläche wie der runde (die Einwohnerzahl bestimmt die Größe):
     oval     - langgestreckt, an Küste oder Fluss entlang (intern: Küste im Norden, Fluss von Süd nach Nord)
     unregelmaessig - ausgebeulter Umriss mit Ein- und Ausbuchtungen
@@ -602,7 +597,7 @@ class CityBuilder:
         cross = [(ln, w) for ln, w in roads if w >= 11 * s]
         main_pc = list(self.plaza_centers.values())
         gates = []
-        for ln, w in cross:
+        for ln, _ in cross:
             for p in points(ln.intersection(old.exterior)):
                 if not self.city_land.buffer(-4 * s).contains(p) or p.distance(water) < 20 * s:
                     continue
@@ -1191,7 +1186,7 @@ class CityBuilder:
         roads_u = unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in ext]) if ext else Polygon()
         frame = box(0, 0, W, W).buffer(-12 * s)
         kept = []
-        for ln, w in ext:
+        for ln, _ in ext:
             L = min(ln.length, reach)
             seg = substring(ln, 0, L)
             band = seg.buffer((36 + 8 * g) * s, cap_style="flat").difference(roads_u).difference(taken).intersection(frame)
@@ -1582,8 +1577,8 @@ class CityBuilder:
         # Durchgangsstraßen (Tor-, Brücken-, Hauptachsen) bleiben frei; schmale Ringstraßen nur außerhalb des Kais:
         # auf dem gepflasterten Hafen sind sie ohnehin unter dem Pflaster verschwunden
         paved = unary_union(self.out["paved"]) if self.out["paved"] else Polygon()
-        through = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w > 9.5 * s])
-        rings = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w <= 9.5 * s])
+        through = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w > RING_ROAD_WIDTH * s])
+        rings = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w <= RING_ROAD_WIDTH * s])
         keep_clear = unary_union([through, rings.difference(paved), unary_union(self.out["plazas"]).buffer(2 * s), crossings]
                                  + [b["poly"].buffer(2 * s) for b in alive if b.get("landmark")]
                                  + [g.buffer(2 * s) for g, _ in self.out["grounds"]]

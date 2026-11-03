@@ -6,14 +6,13 @@ Bild, das über der Felsfläche liegt (die Felsfläche selbst und die Felskante 
 
 Alles wird in Fließkomma gerechnet: 8-Bit-Zwischenstufen (z.B. PIL-Weichzeichner auf einer Maske) ergeben im
 Höhenfeld Treppchen, und die zeigen sich in der Schummerung als dünne Linien parallel zum Felsrand."""
-import base64
-import io
 
 import numpy as np
 from PIL import Image, ImageFilter
 
 from .geo import vlen3
-from .noise import _fbm, _hex_rgb
+from .bilder import webp_uri
+from .noise import FBM_MEAN, FBM_STD, _fbm, _hex_rgb
 from .simplex import grid
 from .umgebung import _mask
 
@@ -23,7 +22,7 @@ def _smooth(x, lo, hi):
     return t * t * (3 - 2 * t)
 
 
-def _blur(a, sigma):
+def _blur_float(a, sigma):
     """Gauß-Weichzeichner in Fließkomma: grob verkleinern, trennbar falten, glatt vergrößern."""
     n = a.shape[0]
     f = max(1, int(sigma / 3))
@@ -64,9 +63,9 @@ def image(W, s, data, res=None):
     rock_img = _mask(res, k, data["rock"])
     mask = np.asarray(rock_img, np.float32) / 255
     # Höhenhülle: je weiter im Fels, desto höher (die Weichzeichner einer Randfläche liefern am Rand 0,5)
-    near = _smooth(_blur(mask, 36 * s * k), 0.5, 1.0)
-    mid = _smooth(_blur(mask, 120 * s * k), 0.5, 1.0)
-    far = _smooth(_blur(mask, 320 * s * k), 0.5, 1.0)
+    near = _smooth(_blur_float(mask, 36 * s * k), 0.5, 1.0)
+    mid = _smooth(_blur_float(mask, 120 * s * k), 0.5, 1.0)
+    far = _smooth(_blur_float(mask, 320 * s * k), 0.5, 1.0)
     env = 0.30 * near + 0.40 * mid + 0.30 * far
     # lange Rücken des Massivs und kleinere Seitenrücken
     big = _ridges(res, 560 * s * k, 5, 311, 5.5, warp=0.7)
@@ -93,10 +92,10 @@ def image(W, s, data, res=None):
     col = col * (1 + 0.05 * ((grit - grit.mean()) / (grit.std() + 1e-6))[..., None])
     # Täler liegen tiefer als ihre Umgebung und sind verschattet
     hs1 = np.clip(hs, 0, 1).astype(np.float32)
-    ao = np.clip((_blur(hs1, 14 * s * k) - hs1) * 7.0, 0, 1)
+    ao = np.clip((_blur_float(hs1, 14 * s * k) - hs1) * 7.0, 0, 1)
     col = col * (1 - 0.5 * ao[..., None])
     # Schnee: ab einer Höhe mit fleckiger Grenze; an steilen Hängen bleibt der Fels frei
-    lvl = 0.62 + 0.05 * (_fbm(res, 150 * s * k, 3, 305, False) - 0.516) / 0.105
+    lvl = 0.62 + 0.05 * (_fbm(res, 150 * s * k, 3, 305, False) - FBM_MEAN) / FBM_STD
     snow = np.clip(_smooth(hs, lvl, lvl + 0.10) * (1 - 0.7 * np.clip(slope * 1.2, 0, 1)), 0, 1)
     white, blue = _hex_rgb(data["snow"]), np.array([0.55, 0.65, 0.78], np.float32)
     snow_col = white[None, None, :] * (0.55 + 0.45 * np.clip(shade + 0.6, 0, 1))[..., None] \
@@ -119,6 +118,4 @@ def image(W, s, data, res=None):
     img[..., :3] = np.clip(col * 255, 0, 255).astype(np.uint8)
     # auf die (genaue) Felsfläche zuschneiden; Maske um ein Pixel weiten, sonst bleibt am Rand ein Haarstrich
     img[..., 3] = np.asarray(rock_img.filter(ImageFilter.MaxFilter(3)), np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(img, "RGBA").save(buf, "WEBP", quality=88, alpha_quality=80, method=0)
-    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
+    return webp_uri(Image.fromarray(img, "RGBA"), quality=88, alpha_quality=80, method=0)

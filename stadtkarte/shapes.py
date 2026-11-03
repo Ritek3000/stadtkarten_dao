@@ -39,7 +39,7 @@ def _unit_shapes(rng, aspect):
     return out
 
 
-def _fit(poly, strict, o, u, v, l1, l2, pts):
+def _fit(strict, o, u, v, l1, l2, pts):
     """Form ins Grundstück skalieren (Binärsuche um die Mitte); liefert (Polygon, Faktor) oder (None, 0)."""
     c = o + u * l1 / 2 + v * l2 / 2
     world = np.array([o + u * (x * l1) + v * (y * l2) for x, y in pts])
@@ -84,10 +84,10 @@ def house_shape(piece, rng, min_w, max_ratio, special_chance=0.12):
     for name, pts, arm in _unit_shapes(rng, aspect):
         if not want_special and name in SPECIAL and name != "fuenfeck":   # Sonderbauten nur auf Wunsch
             continue
-        shp, k = _fit(piece, strict, o, u, v, l1, l2, pts)
+        shp, k = _fit(strict, o, u, v, l1, l2, pts)
         if shp is None or min_width(shp) < min_w:
             continue
-        if arm is not None and arm * l2 * k < min_w * 0.75:   # Flügel von L und Kreuz nicht zu schmal
+        if arm is not None and arm * l2 * k < min_w * 0.75:   # Flügel der L-Form nicht zu schmal
             continue
         cands.append((name, shp))
     if want_special:

@@ -5,18 +5,18 @@ Auflösung der Karte). Grundlage ist Simplex-Rauschen (simplex.py): ohne Kästch
 Flecken, Nebelschwaden), als Nulllinien (Felsrisse) und gestreckt (Schneeverwehungen). Helligkeit und Streuung
 entsprechen den früheren Filtern, Filterfarben gelten wie dort im linearen Farbraum.
 """
-import base64
 import contextlib
-import io
 import threading
 
 import numpy as np
 from PIL import Image, ImageFilter
 
+from .bilder import webp_uri
 from .simplex import grid
 
 # gemessene Verteilung des feTurbulence-Kanals (linearer Farbraum)
 STATS = {"fractalNoise": (0.516, 0.105), "turbulence": (0.309, 0.141)}
+FBM_MEAN, FBM_STD = STATS["fractalNoise"]   # Mittel und Streuung von _fbm ohne Turbulenz (zum Normieren)
 _CACHE = {}
 _LOCK = threading.Lock()
 _INFLIGHT = {}   # laufende Berechnungen: (Speicher, Schlüssel) -> {"fertig": Event, "wert": Ergebnis}
@@ -191,7 +191,7 @@ def _hex_rgb(h):
     return np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)], np.float32)
 
 
-def _unit(n):
+def _stretch_p2_p98(n):
     """Rauschen auf 0..1 strecken (2. und 98. Perzentil), damit Farbverläufe voll ausgeschöpft werden."""
     lo, hi = np.percentile(n, 2), np.percentile(n, 98)
     return np.clip((n - lo) / (hi - lo + 1e-6), 0, 1)
@@ -202,7 +202,7 @@ def palette_base(res, s, palette, seed):
     abgebildet (z.B. saftiges Grün - Gelbgrün - Oliv - trockene Stellen), statt einer einzigen Grundfarbe."""
     big = _fbm(res, 900 * s, 3, seed, False, warp=0.6)
     mid = _fbm(res, 260 * s, 3, seed + 1, False, warp=0.4)
-    t = _unit(0.7 * big + 0.3 * mid)
+    t = _stretch_p2_p98(0.7 * big + 0.3 * mid)
     cols = np.array([_hex_rgb(c) for c in palette], np.float32)
     x = t * (len(cols) - 1)
     i = np.clip(np.floor(x).astype(np.int32), 0, len(cols) - 2)
@@ -266,9 +266,6 @@ def _texture(W, s, layers, res, extras, base, palette, shading):
     img = np.empty((res, res, 4), np.uint8)
     img[..., :3] = np.clip(out_rgb / np.maximum(out_a, 1e-6)[..., None] * 255, 0, 255).astype(np.uint8)
     img[..., 3] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
-    buf = io.BytesIO()
     if base:
-        Image.fromarray(img[..., :3], "RGB").save(buf, "WEBP", quality=82, method=0)
-    else:
-        Image.fromarray(img, "RGBA").save(buf, "WEBP", quality=82, alpha_quality=70, method=0)
-    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
+        return webp_uri(Image.fromarray(img[..., :3], "RGB"), quality=82, method=0)
+    return webp_uri(Image.fromarray(img, "RGBA"), quality=82, alpha_quality=70, method=0)

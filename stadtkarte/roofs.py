@@ -169,7 +169,7 @@ def _weathering(poly, s, rng, material):
 def _patches(pl, s, rng, base, outline):
     """Aufgenagelte Flicken: kleine Brettstücke in anderer Farbe, entlang der Traufe ausgerichtet."""
     out = []
-    for geom, n, rd, eave, depth in pl:
+    for geom, n, rd, _, _ in pl:
         inner = geom.buffer(-1.6 * s)
         if inner.is_empty or rng.random() < 0.3:
             continue
@@ -192,13 +192,13 @@ def _dormers(poly, pl, s, rng, base, to_light, outline, material):
     ax = axes(poly)
     if ax is None or material == "schnee" or poly.area < 420 * s * s or not is_rect(poly):
         return ""
-    o, e1, e2 = ax
+    _, e1, e2 = ax
     l1, l2 = vlen(e1), vlen(e2)
     if l1 < 26 * s or l2 < 12 * s:
         return ""
     u = e1 / l1
     out = []
-    for geom, n, rd, eave, depth in pl[:2]:          # die beiden langen Dachflächen
+    for _, n, _, eave, _ in pl[:2]:                  # die beiden langen Dachflächen
         if rng.random() > 0.55:
             continue
         hw, hd = 2.4 * s, min(2.4 * s, l2 * 0.16)
@@ -259,7 +259,7 @@ def detailed_roof(b, s, rng, material, to_light, outline):
     forge = b.get("forge")
     if b.get("ridges") and (forge or rng.random() < (0.1 if b.get("poor") else 0.35)) and poly.area > 140 * s * s:
         ax = axes(poly)
-        o, e1, e2 = ax
+        _, e1, e2 = ax
         u = e1 / vlen(e1)
         v = e2 / vlen(e2)
         ridge = b["ridges"][0]

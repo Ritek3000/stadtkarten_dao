@@ -3,6 +3,7 @@ import math
 
 import numpy as np
 import shapely
+from shapely.errors import ShapelyError
 from shapely.geometry import LineString, MultiPoint, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import split, unary_union
@@ -51,6 +52,26 @@ def points(g):
     if hasattr(g, "geoms"):
         return [p for sub in g.geoms for p in points(sub)]
     return []
+
+
+def rings(g):
+    """Flächen als (Außenring, [Löcher]) in Koordinatenlisten (Eingabe der Bildmasken, z.B. umgebung._mask)."""
+    return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
+
+
+def oriented_rect(cx, cy, tx, ty, L, B):
+    """Rechteck L x B um (cx, cy), dessen lange Seite in Richtung (tx, ty) zeigt."""
+    return Polygon([(cx + tx * a * L / 2 - ty * b * B / 2, cy + ty * a * L / 2 + tx * b * B / 2)
+                    for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+
+
+def ship_footprint(cx, cy, length, width, angle_deg):
+    """Grundfläche eines Schiffs als gedrehtes Rechteck."""
+    a = math.radians(angle_deg)
+    u, v = np.array([math.cos(a), math.sin(a)]), np.array([-math.sin(a), math.cos(a)])
+    c = np.array([cx, cy])
+    return Polygon([c - u * length / 2 - v * width / 2, c + u * length / 2 - v * width / 2,
+                    c + u * length / 2 + v * width / 2, c - u * length / 2 + v * width / 2])
 
 
 def clean(g, min_area=1.0):
@@ -121,7 +142,7 @@ def cut(poly, frac, gap, jitter=0.0):
     line = LineString([q - d * ext, q + d * ext])
     try:
         res = poly.difference(line.buffer(gap / 2, cap_style="flat")) if gap > 0 else split(poly, line)
-    except Exception:
+    except (ShapelyError, ValueError):   # GEOS kann den Schnitt nicht berechnen: Fläche bleibt ungeteilt
         return [poly]
     return [p for p in polys(res) if p.area > 1]
 

@@ -1,0 +1,4 @@
+# Paketbau (packaging/build.py): die exakten Bibliotheken plus PyInstaller, damit zwei Builds desselben Standes gleich sind.
+-r requirements-lock.txt
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9

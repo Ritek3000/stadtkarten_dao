@@ -1,11 +1,8 @@
 @echo off
-rem Startet die Stadtkarten-Werkstatt im Browser. Beim ersten Mal wird die Umgebung eingerichtet.
+rem Startet die Stadtkarten-Werkstatt im Browser. Beim ersten Start (und nach Aenderungen an requirements.txt)
+rem richtet einrichten.py die Python-Umgebung ein bzw. aktualisiert sie.
 cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
-  echo Einrichtung beim ersten Start, das dauert einen Moment ...
-  python -m venv .venv || goto fehler
-  ".venv\Scripts\python.exe" -m pip install -q -r requirements.txt || goto fehler
-)
+python einrichten.py || goto fehler
 ".venv\Scripts\python.exe" -m stadtkarte.ui
 goto :eof
 :fehler

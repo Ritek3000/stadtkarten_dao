@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Startet die Stadtkarten-Werkstatt im Browser (Linux / macOS).
-# Beim ersten Start wird eine Python-Umgebung im Projektordner eingerichtet.
+# Beim ersten Start (und nach Änderungen an requirements.txt) richtet einrichten.py eine Python-Umgebung im
+# Projektordner ein bzw. aktualisiert sie.
 set -e
 cd "$(dirname "$0")"
 
@@ -16,15 +17,6 @@ if ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; t
     exit 1
 fi
 
-if [ ! -x ".venv/bin/python" ]; then
-    echo "Einrichtung beim ersten Start, das dauert einen Moment ..."
-    if ! "$PY" -m venv .venv; then
-        echo "Die Python-Umgebung konnte nicht angelegt werden."
-        echo "Unter Debian/Ubuntu fehlt meist das Paket python3-venv:  sudo apt install python3-venv"
-        exit 1
-    fi
-    .venv/bin/python -m pip install -q --upgrade pip
-    .venv/bin/python -m pip install -q -r requirements.txt
-fi
+"$PY" einrichten.py
 
 exec .venv/bin/python -m stadtkarte.ui "$@"

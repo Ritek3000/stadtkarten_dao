@@ -5,8 +5,7 @@ import math
 from shapely.geometry import Point
 from shapely.ops import nearest_points, polylabel, unary_union
 
-from .city import ship_footprint
-from .geo import lines, polys
+from .geo import lines, polys, ship_footprint
 
 RADIUS = 22        # Turm samt Sockel (Kartenpixel bei 2000 px): groß und weithin sichtbar
 

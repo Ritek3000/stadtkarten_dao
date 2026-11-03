@@ -11,13 +11,11 @@ geht in einen kleinen Bach über.
 
 Die Klamm ist schmal; ein halb aufgelöstes Bild wirkt hier grob. Deshalb wird in voller Auflösung gerechnet, aber nur im
 Rechteck um die Klamm."""
-import base64
-import io
-
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from .gebirge import _blur, _smooth
+from .bilder import webp_uri
+from .gebirge import _blur_float, _smooth
 from .geo import vlen3
 from .noise import _fbm, _hex_rgb
 
@@ -50,9 +48,7 @@ def image(W, s, data):
         x0, y0 = max(0, int(min(xs)) - pad), max(0, int(min(ys)) - pad)
         x1, y1 = min(W, int(max(xs)) + pad + 1), min(W, int(max(ys)) + pad + 1)
         out[y0:y1, x0:x1] = _relief(x1 - x0, y1 - y0, (x0, y0), s, data)
-    buf = io.BytesIO()
-    Image.fromarray(out, "RGBA").save(buf, "WEBP", quality=90, alpha_quality=85, method=0)
-    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
+    return webp_uri(Image.fromarray(out, "RGBA"), quality=90, alpha_quality=85, method=0)
 
 
 def _relief(w, h, off, s, data):
@@ -67,7 +63,7 @@ def _relief(w, h, off, s, data):
         cur = cur.filter(ImageFilter.MinFilter(3))
         dist_h += (np.asarray(cur) > 127)
     dist = np.asarray(Image.fromarray(dist_h * 2, "F").resize((w, h), Image.BICUBIC)) * (mask > 0.5)
-    dist = _blur(dist, 1.3)
+    dist = _blur_float(dist, 1.3)
     size = max(h, w)
 
     def field(period, seed, octaves=3):   # Rauschen mit Mittel 0 und Streuung 1 in Kartengröße (fest je Karte)

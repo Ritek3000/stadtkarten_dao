@@ -6,22 +6,21 @@ als Schleier über der ganzen Karte ("ueberall"); jede mit einer Stärke:
   mittel     - alles darunter nur noch schemenhaft
   finsternis - im Kern schwarz, nichts mehr erkennbar; zum Rand hin verwehend
 Gezeichnet wird ein Bild über der fertigen Karte (unter der Beschriftung, über Licht und Leuchtfeuer)."""
-import base64
-import io
 import math
 import random
 
 import numpy as np
 from PIL import Image, ImageFilter
 
-from .geo import blob, polys
-from .noise import _fbm, _hex_rgb
+from .geo import blob
+from .bilder import webp_uri
+from .noise import FBM_MEAN, FBM_STD, _fbm, _hex_rgb
 
 STUFEN = {"wenig": 0.55, "mittel": 0.8, "finsternis": 0.99}   # Deckkraft im Kern
 GRID = {c + r for c in "abcde" for r in "12345"}                # Rasterfelder über der Karte (5x5)
 
 
-def areas(cfg, W, s, center, r, rot):
+def areas(cfg, W, center, r, rot):
     """Staubflächen als [(Fläche, Stärke)] in Kartenkoordinaten (vor der Drehung) und die Stärke des Schleiers
     über der ganzen Karte. Eigener Zufall: die übrige Karte bleibt unverändert."""
     from .config import to_canonical
@@ -57,7 +56,7 @@ def image(W, s, patches, overall, res=None):
     res = res or max(256, W // 2)
     k = res / W
     alpha = np.zeros((res, res), np.float32)
-    wisp = (_fbm(res, 260 * s * k, 4, 301, False, warp=0.9) - 0.516) / 0.105        # verwehte Schwaden
+    wisp = (_fbm(res, 260 * s * k, 4, 301, False, warp=0.9) - FBM_MEAN) / FBM_STD        # verwehte Schwaden
     wisp = np.clip(0.5 + wisp * 0.22, 0, 1)
     for rings, level in patches:
         m = _mask(res, k, rings)
@@ -83,11 +82,5 @@ def image(W, s, patches, overall, res=None):
     img = np.empty((res, res, 4), np.uint8)
     img[..., :3] = np.clip(rgb * 255, 0, 255).astype(np.uint8)
     img[..., 3] = np.clip(alpha * 255, 0, 255).astype(np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(img, "RGBA").save(buf, "WEBP", quality=86, alpha_quality=90, method=0)
-    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
-
-
-def rings(g):
-    return [(list(p.exterior.coords), [list(h.coords) for h in p.interiors]) for p in polys(g)]
+    return webp_uri(Image.fromarray(img, "RGBA"), quality=86, alpha_quality=90, method=0)
 

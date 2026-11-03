@@ -1,0 +1,10 @@
+# Exakte Versionen für die Tests und den Paketbau in der CI (.github/workflows/pakete.yml).
+# "Gleicher Seed, gleiche Karte" hängt von diesen Bibliotheken ab (Shapely/GEOS, NumPy, Pillow): ein Update soll nie
+# unbemerkt Karten verändern. requirements.txt bleibt locker, damit die Werkstatt auf jeder Python-Version ab 3.10 läuft.
+# Gilt für Python 3.12 und neuer. Aktualisieren: neue Versionen in einer frischen Umgebung installieren, die Tests und
+# packaging/determinismus.py laufen lassen, dann die Versionen hier eintragen.
+numpy==2.5.4
+shapely==2.2.0
+pillow==13.0.0
+pyyaml==6.0.3
+resvg-py==0.5.0
