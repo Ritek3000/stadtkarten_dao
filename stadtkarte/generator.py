@@ -62,9 +62,20 @@ def _important(m):
 SHIFT_KEYS = ("house", "a", "b", "top", "bot")   # Punkte (x, y) in Wörterbüchern; andere Paare sind Richtungen
 
 
+def _moved(g, dx, dy):
+    """Verschobene Geometrie. Das Verschieben rundet die Koordinaten und kann nahezu entartete Flächen (schmale
+    Splitter, Schleifen) ungültig machen; mit einer ungültigen Fläche scheitert später jede Vereinigung
+    (unary_union) im Zeichnen mit einer TopologyException. Ungültige Flächen werden daher repariert."""
+    out = shapely.affinity.translate(g, dx, dy)
+    if g.geom_type in ("Polygon", "MultiPolygon") and not out.is_valid:
+        fixed = polys(shapely.make_valid(out))
+        out = unary_union(fixed) if fixed else Polygon()
+    return out
+
+
 def _shift(v, dx, dy, in_list=False):
     if hasattr(v, "geom_type"):
-        return shapely.affinity.translate(v, dx, dy)
+        return _moved(v, dx, dy)
     if isinstance(v, dict):
         out = {}
         for k, x in v.items():

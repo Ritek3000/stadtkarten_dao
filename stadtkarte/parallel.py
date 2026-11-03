@@ -14,6 +14,7 @@ import multiprocessing
 import os
 import threading
 from concurrent.futures import CancelledError, Future, ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 
 _POOL = None
 _BROKEN = False
@@ -63,7 +64,8 @@ def _give_up():
 
 
 class _Job:
-    """Wie ein Future (result()), rendert aber selbst, falls der Render-Prozess ausfällt."""
+    """Wie ein Future (result()), rendert aber selbst, falls der Render-Prozess ausfällt. Ein Fehler des Auftrags
+    selbst (z.B. ein ungültiges SVG) kommt unverändert beim Aufrufer an und lässt den Pool in Ruhe."""
 
     def __init__(self, fut, args):
         self._fut, self._args = fut, args
@@ -78,7 +80,7 @@ class _Job:
             return self._fut.result()
         except CancelledError:   # zurückgenommen und doch gebraucht: der Pool ist in Ordnung, nur selbst rendern
             return _render(*self._args)
-        except Exception:   # z.B. BrokenProcessPool, abgestürzter oder blockierter Prozess
+        except (BrokenProcessPool, OSError):   # Prozess abgestürzt, beendet oder nicht erreichbar
             _give_up()
             return _render(*self._args)
 
@@ -131,6 +133,9 @@ def png_async(svg, zoom=None):
             return _Job(pool.submit(_render, *args), args)
         except Exception:
             _give_up()
-    done = Future()
-    done.set_result(_render(*args))
+    done = Future()   # kein Pool: hier rendern; ein Fehler kommt wie beim Pool erst bei result()
+    try:
+        done.set_result(_render(*args))
+    except Exception as e:  # noqa: BLE001 - an result() weiterreichen
+        done.set_exception(e)
     return done

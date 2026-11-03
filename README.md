@@ -90,6 +90,7 @@ früher nacheinander.
 | `stadtkarte/fonts/` | Schrift EB Garamond mit Lizenz (OFL) – in PNG/PDF verwendet und in SVG eingebettet |
 | `stadtkarte/ui/` | Oberfläche: lokaler Webserver (`__main__.py`) und Seite (`index.html`) |
 | `stadtkarte/ui/static/` | Schriften (IM Fell English, Spectral; OFL) und Sor-Symbol aus dem Design System „Die Alte Ordnung“ |
+| `tests/` | Unit-Tests (`python -m unittest`) |
 
 ## Besondere Orte
 
@@ -428,6 +429,17 @@ Web-Paket enthalten jeweils die Version, die gerade angezeigt wird (das Web-Pake
 | `hochplateau` (auch `plateau`, `hochebene`) | zwei Geländestufen, getrennt von einer gut sichtbaren Felskante (Felswand mit Böschungsschraffur, heller Oberkante und Schatten am Fuß) auf der `kueste`-Seite; die Stadt liegt `plateau: oben` (auf dem Plateau, darunter das Tiefland im Dunst) oder `plateau: unten` (am Fuß, darüber das sonnige Plateau), und zwar `kante: direkt` (an der Kante, die Felswand ersetzt dort die Mauer) oder `kante: abstand` (Mauer ringsum). Ein Fluss stürzt als Wasserfall über die Kante; auf der anderen Stufe liegen Felder, ein Wäldchen und einzelne Bäume, eine Festung steht dort auf einem Felssporn; wo ihr Weg die Felswand kreuzt, bringt ein Aufzug (Holzschacht mit Fahrkorb, oben das Windenhaus, unten eine Plattform) die Leute hinauf und hinunter; der Aufzug hängt immer am Straßennetz (in der Stadt an der nächsten Gasse, sonst an der nächsten Landstraße bzw. außen an der Mauer entlang zum nächsten Tor). Hafen/Fischer werden zu Markt/Handwerk, eine Werft liegt am Fluss |
 
 Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [nordhafen.yaml](beispiele/nordhafen.yaml), [oasenstadt.yaml](beispiele/oasenstadt.yaml), [zwergenstadt.yaml](beispiele/zwergenstadt.yaml), [plateaustadt.yaml](beispiele/plateaustadt.yaml). Die Stadtgröße richtet sich nach `einwohner`, kleine Werte ergeben Dörfer.
+
+## Tests
+
+```bash
+.venv\Scripts\python -m unittest          # Linux/macOS: .venv/bin/python -m unittest
+```
+
+Die Tests liegen in `tests/` und brauchen nur die Pakete aus `requirements.txt`. Sie prüfen die Stadtbeschreibung (fehlerhafte
+Angaben ergeben eine klare Meldung statt eines Absturzes), die Render-Prozesse, die Sicherheitsregeln des lokalen Webservers und
+Karten, die früher beim Zeichnen abgestürzt sind. Die Karten-Tests dauern etwa 15 Sekunden; mit `STADTKARTE_SCHNELL=1` bleiben sie
+aus. Ob dieselbe Karte auf jedem Prozessor entsteht, prüft weiterhin `packaging/determinismus.py`.
 
 ## Weitergeben
 

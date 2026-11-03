@@ -15,7 +15,6 @@ import json
 import math
 import pathlib
 
-import yaml
 from shapely.geometry import box
 
 from . import config
@@ -188,12 +187,14 @@ def main():
     ap.add_argument("--seed", type=int, help="überschreibt den Seed aus der Datei")
     args = ap.parse_args()
 
-    with open(args.datei, encoding="utf-8") as fh:
-        cfg = config.from_dict(yaml.safe_load(fh) or {})
-    if args.seed is not None:
-        cfg["seed"] = args.seed
-    with contextlib.redirect_stdout(io.StringIO()) as hints:   # Hinweise des Generators bleiben sichtbar, aber gebündelt
-        m = generate(cfg)
+    try:   # fehlerhafte Angaben als Meldung statt als Traceback
+        cfg = config.load(args.datei)
+        if args.seed is not None:
+            cfg["seed"] = args.seed
+        with contextlib.redirect_stdout(io.StringIO()) as hints:   # Hinweise des Generators bleiben sichtbar, aber gebündelt
+            m = generate(cfg)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"Fehler: {e}") from None
     if hints.getvalue().strip():
         print(hints.getvalue().strip())
     data = export_model(m)
