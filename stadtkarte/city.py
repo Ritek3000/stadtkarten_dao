@@ -1,4 +1,5 @@
 """Stadtgrundriss: Mauer, Tore, Straßen, Viertel, Gebäude und besondere Orte."""
+import heapq
 import math
 import random
 
@@ -495,6 +496,81 @@ class CityBuilder:
                     best = tail
         return LineString(list(ln.coords) + list(best.coords)[1:]) if best is not None else None
 
+    def road_on_land(self, ln, side):
+        """Die Straße ln, auf das Land der Uferseite side zugeschnitten (als Liste von Linien). Verläuft sie ganz an
+        Land, bleibt sie, wie sie ist. Läuft sie dagegen ins Wasser oder aus dem Umriss hinaus (der Fluss biegt in den
+        Weg, eine Einbuchtung der Mauer), ließe der Zuschnitt Stummel zurück, die am Ufer ins Leere zeigen, so als
+        führte die Straße durch den Fluss: dann führt sie stattdessen an Land um das Hindernis herum."""
+        s = self.s
+        pieces = lines(ln.intersection(self.sides[side].buffer(2 * s)))
+        if len(pieces) == 1 and pieces[0].length >= ln.length - 1 * s:
+            return pieces
+        route = self._land_route(ln.coords[0], ln.coords[-1], side)
+        return [route] if route is not None else pieces
+
+    def _land_route(self, a, b, side):
+        """Kürzester Weg von a nach b, der auf dem Land der Uferseite side bleibt (7 px Abstand zu Ufer und Mauer), samt
+        sanft gerundeter Ecken; None, wenn es keinen gibt. Die Wegpunkte sind die Ecken der Landfläche (Sichtbarkeitsgraph)."""
+        s = self.s
+        land = self.sides[side].buffer(-7 * s)
+        pa, pb = Point(a), Point(b)
+        parts = polys(land)
+        if not parts:
+            return None
+        part = min(parts, key=lambda q: q.distance(pa) + q.distance(pb))
+        if part.distance(pa) > 40 * s or part.distance(pb) > 40 * s:
+            return None
+        start, goal = (nearest_points(part, q)[0] for q in (pa, pb))   # Weg beginnt am Rand bzw. in der Fläche
+        simple = part
+        for tol in (2, 4, 8, 16):   # wenige Ecken genügen, der Graph wächst mit ihrem Quadrat
+            simple = part.simplify(tol * s)
+            if sum(len(r.coords) for r in [simple.exterior, *simple.interiors]) <= 250:
+                break
+        nodes = [(start.x, start.y), (goal.x, goal.y)] + [c for r in [simple.exterior, *simple.interiors]
+                                                         for c in r.coords[:-1]]
+        pairs = [(i, j) for i in range(len(nodes)) for j in range(i + 1, len(nodes))]
+        region = part.buffer(0.3 * s)   # Toleranz: Strecken zwischen Randpunkten liegen auf dem Rand
+        shapely.prepare(region)
+        visible = shapely.covers(region, shapely.linestrings([[nodes[i], nodes[j]] for i, j in pairs]))
+        graph = {}
+        for (i, j), ok in zip(pairs, visible):
+            if ok:
+                d = math.dist(nodes[i], nodes[j])
+                graph.setdefault(i, []).append((j, d))
+                graph.setdefault(j, []).append((i, d))
+        dist, prev, queue = {0: 0.0}, {}, [(0.0, 0)]
+        while queue:
+            d, i = heapq.heappop(queue)
+            if i == 1:
+                break
+            if d > dist.get(i, math.inf):
+                continue
+            for j, w in graph.get(i, ()):
+                if d + w < dist.get(j, math.inf):
+                    dist[j], prev[j] = d + w, i
+                    heapq.heappush(queue, (d + w, j))
+        if 1 not in dist:
+            return None
+        path, i = [nodes[1]], 1
+        while i != 0:
+            i = prev[i]
+            path.append(nodes[i])
+        land_ok = self.sides[side].buffer(2 * s)   # liegt der Anfang oder das Ziel selbst im Wasser, endet der Weg am Rand
+        path = path[::-1]
+        if land_ok.contains(pa):
+            path.insert(0, tuple(a))
+        if land_ok.contains(pb):
+            path.append(tuple(b))
+        path = [q for k, q in enumerate(path) if k == 0 or math.dist(q, path[k - 1]) > 1e-6]   # keine doppelten Punkte
+        if len(path) < 2:
+            return None
+        for _ in range(2):   # Ecken abrunden (Chaikin), Anfang und Ende bleiben
+            path = [path[0]] + [q for (x0, y0), (x1, y1) in zip(path, path[1:])
+                                for q in ((0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1),
+                                          (0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1))][1:-1] + [path[-1]]
+        route = LineString(path)
+        return route if route.within(land_ok) else None
+
     def _river_crossing(self, m, d):
         """Querung des Flusses senkrecht zur Flussmittellinie am Punkt m (Bogenlänge d): das Stück der Querlinie im
         Wasser, das dem Punkt am nächsten liegt, und seine beiden Enden, je 10 px hinter dem Ufer, samt der Richtung
@@ -567,7 +643,7 @@ class CityBuilder:
                 target = nearest_points(unary_union(mine), Point(pc))[0]
                 if 30 * s < target.distance(Point(pc)) < 170 * s:   # sonst berührt der Platz die Straße schon
                     link = bezier(pc, (target.x, target.y), rng, bend=0.1, n=16)
-                    roads += [(piece, 11 * s) for piece in lines(link.intersection(self.sides[side].buffer(2 * s)))]
+                    roads += [(piece, 11 * s) for piece in self.road_on_land(link, side)]
             roads.append((LineString([ends[0][0], ends[1][0]]), 12 * s))
 
     @staticmethod
@@ -629,7 +705,7 @@ class CityBuilder:
             if target is None:
                 target = self.sides[side].representative_point().coords[0]
             ln = bezier((p.x, p.y), target, self.rng)
-            for piece in lines(ln.intersection(self.sides[side].buffer(2 * s))):
+            for piece in self.road_on_land(ln, side):
                 roads.append((piece, 14 * s))
         # Ringstraße innen an der Mauer
         if self.walled:
@@ -652,7 +728,7 @@ class CityBuilder:
                 side = self.side_of(gate)
                 target = plaza_centers.get(side) or self.sides[side].representative_point().coords[0]
                 ln = bezier(target, gate, self.rng, bend=0.12)
-                for piece in lines(ln.intersection(self.sides[side].buffer(2 * s))):
+                for piece in self.road_on_land(ln, side):
                     roads.append((piece, 16 * s))
         self.out["plazas"] = [p for p in plazas if not p.is_empty]
         return roads
@@ -683,7 +759,7 @@ class CityBuilder:
             if math.dist(start, (end.x, end.y)) < 120 * s:
                 continue
             ln = bezier(start, (end.x, end.y), rng, bend=0.1)
-            for piece in lines(ln.intersection(self.sides[side].buffer(2 * s))):
+            for piece in self.road_on_land(ln, side):
                 roads.append((piece, 11 * s))
         if not self.walled:
             return
