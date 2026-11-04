@@ -195,12 +195,16 @@ def _bilder(stil, W, s, res):
         return lazy[name]
 
     yy, xx = (np.mgrid[0:res, 0:res].astype(np.float32) + 0.5) / res
-    rad = np.hypot(xx - 0.5, yy - 0.5) / 0.707
+    # nur Grundrechenarten und Wurzel: die rundet jeder Prozessor gleich (np.hypot und ** mit Bruchzahl rechnen je
+    # nach Befehlssatz, etwa mit oder ohne AVX-512, in der letzten Stelle anders, und das Bild wäre nicht byte-gleich)
+    abstand = lambda x0, y0: np.sqrt((xx - x0) * (xx - x0) + (yy - y0) * (yy - y0))
+    rad = abstand(0.5, 0.5) / 0.707
     mul = None
     deck = []   # (Farbe, Deckkraft) von unten nach oben
 
     def vignette(col, staerke, start=0.6):
-        deck.append((col, np.clip((rad - start) / (1 - start), 0, 1) ** 1.6 * staerke))
+        v = np.clip((rad - start) / (1 - start), 0, 1)
+        deck.append((col, v * np.sqrt(v) * staerke))   # v ** 1.5
 
     if stil == "tusche":
         mul = 0.93 + 0.07 * n("faser")
@@ -215,7 +219,7 @@ def _bilder(stil, W, s, res):
         mul = (0.85 + 0.15 * n("wolke")) * (0.92 + 0.08 * n("faser"))
         deck.append(("#2a160a", 0.8 * np.clip((rad - 0.8 + (n("rand") - 0.5) * 0.16) / 0.1, 0, 1)))
     elif stil == "abendlicht":
-        deck.append(("#ffcf7a", 0.25 * np.clip(1 - np.hypot(xx - 0.85, yy - 0.1) / 1.2, 0, 1)))
+        deck.append(("#ffcf7a", 0.25 * np.clip(1 - abstand(0.85, 0.1) / 1.2, 0, 1)))
         vignette("#3b1f2a", 0.55)
     elif stil == "farbdruck":
         mul = 0.95 + 0.05 * n("faser")
