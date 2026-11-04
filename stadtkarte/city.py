@@ -151,6 +151,8 @@ def fit_into_map(shape, center, W, s, top=None):
     return shape, (cx, cy)
 
 
+SHORE_MARGIN = 25   # Landstraßen halten diesen Abstand zur Küste (px bei Bildgröße 2000) ...
+SHORE_LOOK = 8      # ... und biegen schon ab, wenn die Küste so viele Schritte (je 20 px) voraus liegt
 BRIDGE_GAP = 90    # kleinster Abstand zweier Brücken am Fluss (px bei Bildgröße 2000)
 BRIDGE_HEAD = 38   # Platz am Brückenkopf: so weit hinter dem Brückenende liegt seine Mitte
 
@@ -206,6 +208,28 @@ def bezier(p0, p1, rng, bend=0.2, n=30):
     ctrl = (p0 + p1) / 2 + np.array([-d[1], d[0]]) * rng.uniform(-bend, bend)
     ts = np.linspace(0, 1, n)
     return LineString([tuple((1 - t) ** 2 * p0 + 2 * (1 - t) * t * ctrl + t * t * p1) for t in ts])
+
+
+def round_kinks(pts, limit=0.5, passes=3):
+    """Rundet scharfe Knicke einer Straße ab: Wo die Richtung an einem Punkt um mehr als limit (rad) wechselt, ersetzen
+    zwei Punkte im Viertel der anliegenden Strecken die Ecke (Eckenschneiden nach Chaikin); mehrmals, bis der Knick eine
+    Kurve ist. Anfang und Ende der Straße bleiben, die übrigen Punkte unverändert."""
+    pts = list(pts)
+    for _ in range(passes):
+        out, changed = [pts[0]], False
+        for k in range(1, len(pts) - 1):
+            (x0, y0), (x1, y1), (x2, y2) = pts[k - 1], pts[k], pts[k + 1]
+            turn = abs(math.atan2(y2 - y1, x2 - x1) - math.atan2(y1 - y0, x1 - x0))
+            if min(turn, 2 * math.pi - turn) > limit:
+                out += [(0.75 * x1 + 0.25 * x0, 0.75 * y1 + 0.25 * y0), (0.75 * x1 + 0.25 * x2, 0.75 * y1 + 0.25 * y2)]
+                changed = True
+            else:
+                out.append(pts[k])
+        out.append(pts[-1])
+        pts = out
+        if not changed:
+            break
+    return pts
 
 
 def _angdist(a, b):
@@ -398,11 +422,29 @@ class CityBuilder:
 
         def free(q):   # Schritt ohne Meer (bzw. Fels, andere Plateaustufe) und nicht zurück an die Stadt
             return not (sea is not None and sea.distance(Point(q)) < 10 * s) and not near_city.contains(Point(q))
+        shore = None   # Küstenstreifen: hier soll die Straße nicht verlaufen, sie biegt schon vorher ab
+        if sea is not None and not sea.is_empty:
+            shore = sea.buffer(SHORE_MARGIN * s)
+            shapely.prepare(shore)
+
+        def clear_run(x, y, h):   # wie viele Schritte (bis SHORE_LOOK) die Richtung h frei vom Küstenstreifen bleibt
+            for k in range(1, SHORE_LOOK + 1):
+                if shore.contains(Point(x + math.cos(h) * 20 * s * k, y + math.sin(h) * 20 * s * k)):
+                    return k - 1
+            return SHORE_LOOK
         for a, p, _ in self.gates:
             noise = Noise1D(self.rng)
             pts = [(p.x, p.y)]
             for i in range(1, 600):
                 ang = a + 0.5 * noise.fbm(i * 0.035)
+                if shore is not None and clear_run(*pts[-1], ang) < SHORE_LOOK:
+                    # Küste voraus: schon jetzt in einer Kurve abbiegen (höchstens 0,2 rad je Schritt) statt erst am
+                    # Ufer im letzten Schritt abzuknicken; gewählt wird die kleinste Drehung mit freiem Weg voraus
+                    for off in (0.2, -0.2, 0.4, -0.4, 0.6, -0.6, 0.8, -0.8, 1.0, -1.0, 1.3, -1.3, 1.6, -1.6):
+                        if clear_run(*pts[-1], ang + off) >= SHORE_LOOK:
+                            a += max(-0.2, min(0.2, off))
+                            ang = a + 0.5 * noise.fbm(i * 0.035)
+                            break
                 q = (pts[-1][0] + math.cos(ang) * 20 * s, pts[-1][1] + math.sin(ang) * 20 * s)
                 if (sea is not None and sea.contains(Point(q))) or self.shape.contains(Point(q)):
                     # keine Straße ins Leere: an Küste, Felswand oder Stadtmauer entlang ausweichen und weiter bis
@@ -419,7 +461,7 @@ class CityBuilder:
                 if not frame.contains(Point(q)):
                     break
             if len(pts) > 2:
-                roads.append((LineString(pts), 15 * s))
+                roads.append((LineString(round_kinks(pts)), 15 * s))
         # Straße kam nicht bis an den Kartenrand (Bucht, Felsnische): an die nächste andere Landstraße anschließen
         inner = box(0, 0, W, W).buffer(-2 * s)
         river = self.t["river"]
