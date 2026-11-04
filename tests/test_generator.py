@@ -21,7 +21,7 @@ from shapely.ops import nearest_points, unary_union
 from stadtkarte import config, fortress, generator, render, umgebung
 from stadtkarte.city import CityBuilder, round_kinks
 from stadtkarte.generator import generate
-from stadtkarte.render import render_svg
+from stadtkarte.render import bold_width, render_svg
 from stadtkarte.surroundings import make_bridges
 from tests.golden import beispiel, klein
 
@@ -283,6 +283,40 @@ class Landstrassen(unittest.TestCase):
         m = generate(config.from_dict(beispiel("hafenstadt", bildgroesse=500)))
         for ln, _ in m["ext_roads"]:
             self.assertLess(ln.intersection(m["sea"]).length, 1.0)
+
+
+class Legende(unittest.TestCase):
+    """Zwischen den Kürzeln und den Namen der Legende bleibt ein Abstand."""
+
+    def test_zeichenbreiten_stimmen_mit_der_schrift_ueberein(self):
+        """Die Tabelle der fetten Zeichenbreiten ist aus der Schriftdatei gemessen; hier wird sie nachgemessen."""
+        from PIL import ImageFont, features
+        schrift = ImageFont.truetype(str(ROOT / "stadtkarte" / "fonts" / "EBGaramond-Variable.ttf"), 1000)
+        try:
+            schrift.set_variation_by_axes([700])
+        except (OSError, AttributeError):
+            self.skipTest("Pillow kann die Schriftstärke nicht einstellen")
+        if not features.check("raqm"):
+            self.skipTest("ohne raqm gibt Pillow gerundete Zeichenbreiten")
+        for text in ("G1–G12", "SM1–SM3", "MW1–MW9", "WM1, WM2", "W1, W2", "L1–L7", "H3", "SCH1–SCH12"):
+            with self.subTest(text):
+                echt = schrift.getlength(text) / 1000 * 18
+                self.assertAlmostEqual(bold_width(text, 18), echt, delta=0.03 * echt)
+
+    def test_kuerzel_und_name_beruehren_sich_nicht(self):
+        roh = klein(orte=[{"name": "Gasthaus", "typ": "gasthaus", "kuerzel": "G", "anzahl": 12},
+                          {"name": "Schmiede", "typ": "schmiede", "kuerzel": "SM", "anzahl": 3},
+                          {"name": "Muehle", "typ": "muehle", "kuerzel": "MW", "anzahl": 9},
+                          {"name": "Hof", "typ": "bauernhof", "kuerzel": "WM", "anzahl": 2}],
+                     ausgabe={"bildgroesse": 600, "legende": True})
+        m = generate(config.from_dict(roh))
+        svg = render_svg(m, nacht=False)
+        zeilen = re.findall(r'<text x="([\d.]+)" y="([\d.]+)" font-family="[^"]*" font-size="([\d.]+)" fill="[^"]*" '
+                            r'font-weight="bold">([^<]*)</text><text x="([\d.]+)"', svg)
+        self.assertGreaterEqual(len(zeilen), 4)
+        for x_kuerzel, _, groesse, kuerzel, x_name in zeilen:
+            luecke = float(x_name) - float(x_kuerzel) - bold_width(kuerzel, float(groesse))
+            self.assertGreaterEqual(luecke, 0.7 * float(groesse), f"{kuerzel}: Abstand zum Namen zu klein ({luecke:.1f} px)")
 
 
 def stadtbruecken(m):
