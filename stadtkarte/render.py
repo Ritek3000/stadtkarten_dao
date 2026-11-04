@@ -300,6 +300,20 @@ def text_width(text, size):
     return len(text) * size * 0.64 + size * 0.2
 
 
+# Breite der Zeichen in der fetten Legendenschrift (EB Garamond, Stärke 700) in em, aus der Schriftdatei gemessen. Die
+# Kürzel der Legende stehen fett; eine Schätzung je Zeichen traf bei breiten Buchstaben (M, W) und Gedankenstrichen nicht.
+_BOLD_EM = {**dict(zip("ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                       (0.72, 0.63, 0.71, 0.77, 0.58, 0.55, 0.72, 0.80, 0.37, 0.37, 0.77, 0.59, 0.92,
+                        0.81, 0.76, 0.61, 0.76, 0.76, 0.50, 0.70, 0.75, 0.71, 1.02, 0.75, 0.66, 0.60))),
+            **dict.fromkeys("0123456789", 0.53), "–": 0.64, "-": 0.32, ",": 0.25, ".": 0.25, " ": 0.24, "&": 0.80, "/": 0.41}
+
+
+def bold_width(text, size):
+    """Breite eines fetten Textes bei der Schriftgröße size; Zeichen, die nicht in der Tabelle stehen (Kleinbuchstaben,
+    Umlaute), zählen großzügig mit 0,8 em, so wird die Spalte eher zu breit als zu schmal."""
+    return sum(_BOLD_EM.get(c, 0.8) for c in text) * size
+
+
 def legend_rows(rows):
     """Fortlaufend nummerierte Orte gleichen Namens stehen in der Legende in einer Zeile: S1–S5 Schenke."""
     groups, out = {}, []
@@ -1865,7 +1879,7 @@ def labels_svg(o, m):
     taken = [(W - 60 * s - text_width(m["name"], title_size), W - 70 * s - title_size, W - 60 * s, W - 50 * s)]
     rows = legend_rows(m["legend"]) if m["cfg"]["ausgabe"].get("legende") else []
     lh = 26 * s
-    kw = max([52 * s] + [len(k) * 10.5 * s + 6 * s for k, _ in rows])   # Spalte der Kürzel
+    kw = max([52 * s] + [bold_width(k, 18 * s) + 18 * s for k, _ in rows])   # Spalte der Kürzel: breitestes Kürzel + Abstand
     bw, bh = 278 * s + kw, (len(rows) + 1) * lh + 20 * s
     x0, y0 = 40 * s, W - 40 * s - bh
     if rows and m.get("zoom", 1) > 1:   # vergrößerter Ausschnitt: die Legende in die Ecke mit der wenigsten Stadt
