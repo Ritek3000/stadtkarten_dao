@@ -19,7 +19,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import nearest_points, unary_union
 
 from stadtkarte import config, fortress, generator, render, umgebung
-from stadtkarte.city import CityBuilder
+from stadtkarte.city import CityBuilder, round_kinks
 from stadtkarte.generator import generate
 from stadtkarte.render import render_svg
 from stadtkarte.surroundings import make_bridges
@@ -244,6 +244,45 @@ class StrassenUndFluss(unittest.TestCase):
         self.assertEqual(make_bridges([(streifen, 10)], fluss, 1.0, mitte), [])
         self.assertEqual(make_bridges([(endet, 10)], fluss, 1.0, mitte), [])
         self.assertEqual(len(make_bridges([(quer, 10)], fluss, 1.0, mitte)), 1)
+
+
+def knickwinkel(ln, s):
+    """Die Richtungswechsel (rad) einer Linie an ihren Punkten; kurze Stücke unter 8 px zählen nicht."""
+    c, winkel = list(ln.coords), []
+    for (x0, y0), (x1, y1), (x2, y2) in zip(c, c[1:], c[2:]):
+        if math.hypot(x1 - x0, y1 - y0) < 8 * s or math.hypot(x2 - x1, y2 - y1) < 8 * s:
+            continue
+        w = abs(math.atan2(y2 - y1, x2 - x1) - math.atan2(y1 - y0, x1 - x0))
+        winkel.append(min(w, 2 * math.pi - w))
+    return winkel
+
+
+class Landstrassen(unittest.TestCase):
+    """Landstraßen biegen vor der Küste in einer Kurve ab, statt am Ufer im letzten Schritt zu knicken."""
+
+    def test_scharfe_ecken_werden_zur_kurve(self):
+        ecke = [(0, 0), (20, 0), (20, 20), (40, 20)]
+        runder = round_kinks(ecke)
+        self.assertEqual((runder[0], runder[-1]), (ecke[0], ecke[-1]))   # Anfang und Ende bleiben
+        self.assertLess(max(knickwinkel(LineString(runder), 0.05)), 0.5)   # auch die kurzen Stücke zählen
+        spitze = round_kinks([(0, 0), (20, 0), (0, 5)])   # fast kehrtwendung
+        self.assertLess(max(knickwinkel(LineString(spitze), 0.05)), 1.5)
+
+    def test_sanfte_kurven_bleiben_unveraendert(self):
+        sanft = [(0, 0), (20, 0), (39, 6), (56, 16), (70, 30)]   # höchstens etwa 0,3 rad je Punkt
+        self.assertEqual(round_kinks(sanft), sanft)
+
+    def test_landstrassen_der_beispiele_knicken_nicht_ab(self):
+        for name in ("hafenstadt", "nordhafen", "hauptstadt"):
+            with self.subTest(name):
+                m = generate(config.from_dict(beispiel(name, bildgroesse=500)))
+                for ln, _ in m["ext_roads"]:
+                    self.assertLessEqual(max(knickwinkel(ln, m["s"]) or [0]), 0.5, f"{name}: Straße knickt ab")
+
+    def test_landstrassen_laufen_nicht_ins_meer(self):
+        m = generate(config.from_dict(beispiel("hafenstadt", bildgroesse=500)))
+        for ln, _ in m["ext_roads"]:
+            self.assertLess(ln.intersection(m["sea"]).length, 1.0)
 
 
 def stadtbruecken(m):

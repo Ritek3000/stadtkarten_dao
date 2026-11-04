@@ -167,7 +167,9 @@ Höchstens 50 je Eintrag. In der Werkstatt steht das Feld „Anzahl“ neben dem
 ## Landstraßen
 
 Von jedem Tor führt eine Landstraße aus der Stadt, und keine endet im Leeren: Läuft sie auf Küste, Felswand,
-Plateaukante oder zurück auf die Stadtmauer zu, weicht sie aus und führt weiter bis zum Kartenrand. Kommt sie nicht
+Plateaukante oder zurück auf die Stadtmauer zu, weicht sie aus und führt weiter bis zum Kartenrand. Sie biegt dabei
+schon etwa 200 px vor der Küste in einer weiten Kurve ab (und hält 25 px Abstand), statt am Ufer abzuknicken; wo es
+nicht anders geht, werden verbleibende scharfe Ecken nachträglich abgerundet. Kommt sie nicht
 weiter (Bucht, Felsnische), mündet sie in die nächste Landstraße, läuft außen an der Mauer entlang zum nächsten Tor,
 endet an der Küste an einer Anlegestelle mit Steg oder, wenn nichts davon geht, an einem kleinen Weiler.
 

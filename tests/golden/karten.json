@@ -10,8 +10,8 @@
   "hafenstadt": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 539,
-    "baeume": 1871,
+    "gebaeude": 540,
+    "baeume": 1865,
     "landstrassen": 5,
     "gassen": 9,
     "bruecken": 2,
@@ -20,30 +20,30 @@
     "tore": 4,
     "tuerme": 13,
     "schiffe": 5,
-    "felder": 163,
+    "felder": 174,
     "stadtflaeche": 39017
    },
-   "modell": "e36f710af1e79e867a49",
+   "modell": "daa98ec4f3f32fff36a1",
    "karten": {
     "tag": {
-     "svg": "f76cf24a36d12f8eef78",
+     "svg": "c1f2d6fe8639760051b3",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "844adf147e0131f64095",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "e26cf877182406b4987f",
+      "aebe905e4354334d7086",
       "e6a92c3b3292e2e67c8c"
      ]
     },
     "nacht": {
-     "svg": "d8be85aada7ff18bbb6d",
+     "svg": "4fe11d2a372f777824ca",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "844adf147e0131f64095",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "e26cf877182406b4987f",
+      "aebe905e4354334d7086",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -52,8 +52,8 @@
   "hafenstadt_standard": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 539,
-    "baeume": 1871,
+    "gebaeude": 540,
+    "baeume": 1865,
     "landstrassen": 5,
     "gassen": 9,
     "bruecken": 2,
@@ -62,18 +62,18 @@
     "tore": 4,
     "tuerme": 13,
     "schiffe": 5,
-    "felder": 163,
+    "felder": 174,
     "stadtflaeche": 39017
    },
-   "modell": "e36f710af1e79e867a49",
+   "modell": "daa98ec4f3f32fff36a1",
    "karten": {
     "tag": {
-     "svg": "c7a1453dd3b8bc2b3951",
+     "svg": "b78e898244648e592e06",
      "bilder": [
       "844adf147e0131f64095",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "e26cf877182406b4987f",
+      "aebe905e4354334d7086",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -84,8 +84,8 @@
     "Hinweis: Kein Brückenkopf innerhalb der Mauer erreichbar - Brücke zum nächsten Ufer."
    ],
    "zahlen": {
-    "gebaeude": 535,
-    "baeume": 284,
+    "gebaeude": 529,
+    "baeume": 293,
     "landstrassen": 5,
     "gassen": 9,
     "bruecken": 2,
@@ -94,19 +94,19 @@
     "tore": 4,
     "tuerme": 13,
     "schiffe": 8,
-    "felder": 60,
+    "felder": 44,
     "stadtflaeche": 126697
    },
-   "modell": "21e0f6154305709463e8",
+   "modell": "5c9cac278ab85b02f57b",
    "karten": {
     "tag": {
-     "svg": "809052da52e178915c4c",
+     "svg": "40d962649844b989985e",
      "bilder": [
       "4c0c574408f7fc762442",
       "ae3f7abbeb7f7c2969fd",
       "64cd5d6e6681c93433af",
       "3b7474655099dd939b47",
-      "c3828ae574fa30c952ca",
+      "7e8698dffa66cff07405",
       "b594a84c7f86819aff51"
      ]
     }
@@ -115,8 +115,8 @@
   "hauptstadt_fuellend": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 5707,
-    "baeume": 1014,
+    "gebaeude": 5787,
+    "baeume": 996,
     "landstrassen": 7,
     "gassen": 14,
     "bruecken": 2,
@@ -125,19 +125,19 @@
     "tore": 11,
     "tuerme": 35,
     "schiffe": 8,
-    "felder": 153,
+    "felder": 173,
     "stadtflaeche": 84187
    },
-   "modell": "d6a19f346af4da98656d",
+   "modell": "cab9aca60107a65db8cb",
    "karten": {
     "tag": {
-     "svg": "b7e972e45469bc346aaa",
+     "svg": "7339d577bb5ced5b7ffd",
      "bilder": [
       "aa9c72c9219036bc0ae0",
-      "8135e5011b66a08c318d",
+      "a669cfa4f59212b158a3",
       "5abccc48280ce0f14b67",
       "1f39df82ae8cc5903d08",
-      "fe2a2b1e49d48b9f360d",
+      "677ec5da2f66b3ca2728",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -146,8 +146,8 @@
   "zwergenstadt": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 422,
-    "baeume": 899,
+    "gebaeude": 426,
+    "baeume": 967,
     "landstrassen": 4,
     "gassen": 9,
     "bruecken": 3,
@@ -156,32 +156,32 @@
     "tore": 3,
     "tuerme": 14,
     "schiffe": 0,
-    "felder": 45,
+    "felder": 44,
     "stadtflaeche": 32514
    },
-   "modell": "739970faf9f2f263cc29",
+   "modell": "1aee5b3ce3f597f65e81",
    "karten": {
     "tag": {
-     "svg": "d0a9d6bcbad83c737e33",
+     "svg": "bc95defe32b176376836",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "2e3d0d6ff4ee8cd6f320",
       "337559d927c365245d46",
       "61ca65c44f339228e9a4",
-      "f24f37c98179694d2406",
+      "a4177781d6a992c7a31f",
       "c2c20562736bb9ccc68c",
       "96ebdfea7d0bfec8e4e2",
       "24ec45b78dbde2b41c5d"
      ]
     },
     "nacht": {
-     "svg": "d2e346d634a6f66daa7a",
+     "svg": "b11079a0bdd1751df2fd",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "2e3d0d6ff4ee8cd6f320",
       "337559d927c365245d46",
       "61ca65c44f339228e9a4",
-      "f24f37c98179694d2406",
+      "a4177781d6a992c7a31f",
       "c2c20562736bb9ccc68c",
       "96ebdfea7d0bfec8e4e2",
       "24ec45b78dbde2b41c5d"
@@ -256,8 +256,8 @@
   "nordhafen": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 296,
-    "baeume": 2619,
+    "gebaeude": 298,
+    "baeume": 2346,
     "landstrassen": 4,
     "gassen": 8,
     "bruecken": 2,
@@ -266,30 +266,30 @@
     "tore": 3,
     "tuerme": 12,
     "schiffe": 4,
-    "felder": 30,
+    "felder": 36,
     "stadtflaeche": 22760
    },
-   "modell": "f7491fe108f8077ec24d",
+   "modell": "9569ec5e34010f76f037",
    "karten": {
     "tag": {
-     "svg": "ad42af08dff7fec5cf81",
+     "svg": "44e355f48dfd5d9fae34",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "4abe65b15a1285475ab7",
       "5abccc48280ce0f14b67",
       "bb42d17ae322341db31a",
-      "797e112b3ec97071772e",
+      "2de833d714044e898e25",
       "acaa64473ddbdc77d898"
      ]
     },
     "nacht": {
-     "svg": "747c3300dfab4d6a8dc2",
+     "svg": "6dc3f418dd222b59213e",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "4abe65b15a1285475ab7",
       "5abccc48280ce0f14b67",
       "bb42d17ae322341db31a",
-      "797e112b3ec97071772e",
+      "2de833d714044e898e25",
       "acaa64473ddbdc77d898"
      ]
     }
@@ -330,8 +330,8 @@
   "kueste_ost": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 550,
-    "baeume": 2329,
+    "gebaeude": 557,
+    "baeume": 2307,
     "landstrassen": 5,
     "gassen": 9,
     "bruecken": 2,
@@ -340,19 +340,19 @@
     "tore": 4,
     "tuerme": 13,
     "schiffe": 11,
-    "felder": 66,
+    "felder": 62,
     "stadtflaeche": 39017
    },
-   "modell": "27ad8d4771ff57a995b1",
+   "modell": "79b49f784e6642bc1d52",
    "karten": {
     "tag": {
-     "svg": "99db5b844f259fccaf00",
+     "svg": "7d8069e243a17a48f0aa",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "2ba853c59f1e321dc1ad",
       "5abccc48280ce0f14b67",
       "9397afc3eafe6897b256",
-      "a62e4ba8de79b146aaf9",
+      "18823dbd6414ea5565eb",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -361,8 +361,8 @@
   "bruecken_hafen": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 497,
-    "baeume": 1939,
+    "gebaeude": 498,
+    "baeume": 1945,
     "landstrassen": 5,
     "gassen": 21,
     "bruecken": 6,
@@ -371,30 +371,30 @@
     "tore": 4,
     "tuerme": 13,
     "schiffe": 3,
-    "felder": 161,
+    "felder": 203,
     "stadtflaeche": 39017
    },
-   "modell": "da7ee8f1416d587fbb67",
+   "modell": "34ce4d42181b315ffd56",
    "karten": {
     "tag": {
-     "svg": "52c2e72be1a68b5bf6bc",
+     "svg": "9c2acfdc6f6723a7037b",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "d1a207bc84ce322c0eed",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "95e0d5af79d3de05d83e",
+      "853bc5c0843ea665125d",
       "e6a92c3b3292e2e67c8c"
      ]
     },
     "nacht": {
-     "svg": "aef932decede8a562bab",
+     "svg": "ec9131b1b89538a9c502",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "d1a207bc84ce322c0eed",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "95e0d5af79d3de05d83e",
+      "853bc5c0843ea665125d",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -531,8 +531,8 @@
   "ohne_details": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 112,
-    "baeume": 880,
+    "gebaeude": 105,
+    "baeume": 870,
     "landstrassen": 4,
     "gassen": 9,
     "bruecken": 3,
@@ -541,19 +541,19 @@
     "tore": 4,
     "tuerme": 12,
     "schiffe": 1,
-    "felder": 112,
+    "felder": 127,
     "stadtflaeche": 9754
    },
-   "modell": "3e1600c98bf8def99467",
+   "modell": "eda661d798e07555009e",
    "karten": {
     "tag": {
-     "svg": "237c1f01a631cd3b9357",
+     "svg": "cd2160238acc46244d18",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "e225c9af7c9cacf1dac4",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "faa9079634833c5aa377",
+      "47085e3b439c935eaffb",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -562,8 +562,8 @@
   "staub_weitlaeufig": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 119,
-    "baeume": 1028,
+    "gebaeude": 122,
+    "baeume": 1006,
     "landstrassen": 4,
     "gassen": 9,
     "bruecken": 1,
@@ -572,19 +572,19 @@
     "tore": 4,
     "tuerme": 16,
     "schiffe": 3,
-    "felder": 110,
+    "felder": 156,
     "stadtflaeche": 18533
    },
-   "modell": "764c6353dae240ab42d1",
+   "modell": "07266b99c00bfe0f6ff9",
    "karten": {
     "tag": {
-     "svg": "cd148f838574902df513",
+     "svg": "250c9ca0e22e141c9ba1",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "fda18f71ec3d046e9417",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "5ae9f86377c2d1fc6f37",
+      "a799a5c976ddb4e7b337",
       "e6a92c3b3292e2e67c8c",
       "be944dd5ed745fbfc5e6"
      ]
@@ -594,8 +594,8 @@
   "form_oval": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 80,
-    "baeume": 1162,
+    "gebaeude": 81,
+    "baeume": 1179,
     "landstrassen": 4,
     "gassen": 9,
     "bruecken": 6,
@@ -604,19 +604,19 @@
     "tore": 4,
     "tuerme": 9,
     "schiffe": 1,
-    "felder": 78,
+    "felder": 69,
     "stadtflaeche": 9754
    },
-   "modell": "5ce91a46a516dc5d7d1b",
+   "modell": "871cbd02658d8e4a5341",
    "karten": {
     "tag": {
-     "svg": "caf87837f55ade87458f",
+     "svg": "351dd7e5fe9410f0a237",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "46f4e4ec1e0c1044d9f4",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "15acf557046000e8b85f",
+      "207c234f1d856ec1e5dd",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -625,8 +625,8 @@
   "form_vieleck": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 97,
-    "baeume": 772,
+    "gebaeude": 95,
+    "baeume": 823,
     "landstrassen": 4,
     "gassen": 9,
     "bruecken": 1,
@@ -635,19 +635,19 @@
     "tore": 4,
     "tuerme": 8,
     "schiffe": 0,
-    "felder": 104,
+    "felder": 89,
     "stadtflaeche": 9754
    },
-   "modell": "f7e2a01a89d5f88cb301",
+   "modell": "d8c58171925125fdf044",
    "karten": {
     "tag": {
-     "svg": "4e66074e678ae73be83c",
+     "svg": "b26012d538f76b33e364",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "29446c47938af623d6ac",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "2d7384653e4e54e38f17",
+      "fd198373083d317de764",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -656,29 +656,29 @@
   "form_gewachsen": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 116,
-    "baeume": 1017,
+    "gebaeude": 111,
+    "baeume": 988,
     "landstrassen": 4,
     "gassen": 9,
-    "bruecken": 2,
+    "bruecken": 1,
     "viertel": 3,
     "beschriftungen": 7,
     "tore": 4,
     "tuerme": 14,
     "schiffe": 0,
-    "felder": 67,
+    "felder": 119,
     "stadtflaeche": 9754
    },
-   "modell": "70c22da0d517a342c4ac",
+   "modell": "99e9e8b68bc4581003c8",
    "karten": {
     "tag": {
-     "svg": "a7fe20b0f70edc4b4f13",
+     "svg": "2b5dcdd858b986d72478",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "60d809695a3ce3090ca2",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "6645f21258d09a4f7079",
+      "b9c7d1777ebd45d47e05",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -687,29 +687,29 @@
   "form_unregelmaessig": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 101,
-    "baeume": 998,
+    "gebaeude": 103,
+    "baeume": 993,
     "landstrassen": 4,
     "gassen": 9,
-    "bruecken": 6,
+    "bruecken": 1,
     "viertel": 3,
     "beschriftungen": 7,
     "tore": 4,
     "tuerme": 18,
     "schiffe": 1,
-    "felder": 98,
+    "felder": 124,
     "stadtflaeche": 9754
    },
-   "modell": "c0e79093a4a609950d13",
+   "modell": "31378c0368dc9fee23a9",
    "karten": {
     "tag": {
-     "svg": "60f09de4c6621b346181",
+     "svg": "04283d0667462ca4f090",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "1c714d7b4feb54c8b4dd",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",
-      "fcfb718b2a588b3cd375",
+      "b0c7a02c34b26e2af7cb",
       "e6a92c3b3292e2e67c8c"
      ]
     }
@@ -718,8 +718,8 @@
   "abstuerz_wueste_west": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 470,
-    "baeume": 156,
+    "gebaeude": 469,
+    "baeume": 150,
     "landstrassen": 5,
     "gassen": 10,
     "bruecken": 1,
@@ -728,18 +728,19 @@
     "tore": 5,
     "tuerme": 18,
     "schiffe": 0,
-    "felder": 0,
+    "felder": 3,
     "stadtflaeche": 182264
    },
-   "modell": "47ee4eb5ef2ab05c1e05",
+   "modell": "141c243c070642ff372c",
    "karten": {
     "tag": {
-     "svg": "09ab323ab7fc75d5529a",
+     "svg": "88870e05857a828dd866",
      "bilder": [
       "96317e32f3998954246b",
       "450cdcbc8b4d02ec340e",
       "ab4d67caa31b9a2bd18e",
-      "1416421480354f7b5231",
+      "4a827d452e7a11d4ed72",
+      "f6085a77e87bcf87dc8d",
       "7011f1e85d2c2396f492"
      ]
     }
@@ -748,8 +749,8 @@
   "abstuerz_gemaessigt_vieleck": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 342,
-    "baeume": 148,
+    "gebaeude": 354,
+    "baeume": 112,
     "landstrassen": 7,
     "gassen": 8,
     "bruecken": 0,
@@ -757,20 +758,20 @@
     "beschriftungen": 4,
     "tore": 7,
     "tuerme": 6,
-    "schiffe": 2,
-    "felder": 21,
+    "schiffe": 3,
+    "felder": 10,
     "stadtflaeche": 81159
    },
-   "modell": "3b0350d0453984669363",
+   "modell": "9a4953452f9e2569b926",
    "karten": {
     "tag": {
-     "svg": "951df585e3f0551d9df7",
+     "svg": "c15fc9fd7485f08ba28a",
      "bilder": [
       "e709cf5f96f691a913d8",
       "eb039e4d5612a38590f9",
       "921bfbd69098360fb2f8",
       "fcc4bf4be50c852dd43f",
-      "0a4e58aa36940868e069",
+      "012d2cc40c53256f489e",
       "08277fb2dda97f2efa02"
      ]
     }
