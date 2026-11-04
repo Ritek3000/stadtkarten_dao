@@ -110,7 +110,7 @@ def _mal(a, b, result):
 
 def _abdunkeln(src, staerke, result):
     """src * (1 - staerke * kante)."""
-    return (f'<feComponentTransfer in="kante" result="nk">'
+    return ('<feComponentTransfer in="kante" result="nk">'
             + "".join(f'<feFunc{c} type="linear" slope="{_f(-staerke)}" intercept="1"/>' for c in "RGB")
             + "</feComponentTransfer>" + _mal(src, "nk", result))
 
