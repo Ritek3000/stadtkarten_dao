@@ -19,16 +19,21 @@ def _river_side(river_line, x, y):
 
 
 def make_bridges(roads, river, s, river_line=None):
-    """Brücken, wo Straßen den Fluss überqueren. Ein Straßenstück im Wasser wird nur dann zur Brücke, wenn es an
-    beiden Enden auf verschiedenen Seiten des Flusses liegt: Gassen, die am Ufer entlang die Flussfläche nur
-    streifen, bekamen sonst eine Brücke längs des Ufers, von der nur die Laternen zu sehen waren."""
+    """Brücken, wo Straßen den Fluss überqueren. Ein Straßenstück im Wasser wird zur Brücke, wenn es an beiden Enden
+    auf verschiedenen Seiten des Flusses liegt. Gassen, die am Ufer entlang die Flussfläche nur streifen, bekommen keine
+    (sonst läge eine Brücke längs des Ufers, von der nur die Laternen zu sehen wären). Auch ein Stück, das auf dieselbe
+    Seite zurückführt, aber tief ins Wasser reicht, ist eine Querung: eine Straße, die eine Flussschleife anschneidet,
+    läge sonst ohne Brücke mitten im Fluss."""
     out = []
     if river is None:
         return out
+    bank = river.boundary
     for ln, w in roads:
         for seg in lines(ln.intersection(river)):
-            if river_line is not None and _river_side(river_line, *seg.coords[0]) == _river_side(river_line, *seg.coords[-1]):
-                continue
+            if river_line is not None and _river_side(river_line, *seg.coords[0]) == _river_side(river_line, *seg.coords[-1]) \
+                    and not (seg.interpolate(0.5, normalized=True).distance(bank) >= 4 * s
+                             and seg.distance(Point(ln.coords[0])) > 0.5 * s and seg.distance(Point(ln.coords[-1])) > 0.5 * s):
+                continue   # streift das Ufer oder endet im Wasser: keine Querung
             (x0, y0), (x1, y1) = seg.coords[0], seg.coords[-1]
             ux, uy = unit((x1 - x0, y1 - y0))
             e = 10 * s

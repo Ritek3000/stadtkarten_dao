@@ -2,6 +2,7 @@
 mit STADTKARTE_SCHNELL=1 überspringen."""
 import contextlib
 import io
+import math
 import os
 import pathlib
 import subprocess
@@ -14,12 +15,14 @@ from unittest import mock
 
 import shapely
 import yaml
-from shapely.geometry import Point, Polygon, box
-from shapely.ops import unary_union
+from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import nearest_points, unary_union
 
 from stadtkarte import config, fortress, generator, render, umgebung
+from stadtkarte.city import CityBuilder
 from stadtkarte.generator import generate
 from stadtkarte.render import render_svg
+from stadtkarte.surroundings import make_bridges
 from tests.golden import beispiel, klein
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -141,6 +144,106 @@ class Bruecken(unittest.TestCase):
             ueber_wasser = ln.intersection(m["water"])
             self.assertFalse(ueber_wasser.is_empty)
             self.assertTrue(flaeche.contains(ueber_wasser), "die Maske muss das Wasser unter jeder Brücke decken")
+
+
+def stadt_am_fluss():
+    """Stadt ohne Mauer (9000 Einwohner) am Fluss, deren Torstraßen früher an einer Flussbiegung abgeschnitten wurden und als
+    Stummel am Ufer endeten."""
+    return {"name": "T70", "seed": 737201, "einwohner": 9000, "stadtform": "vieleck",
+            "gelaende": {"biotop": "gemaessigt", "kueste": "sued", "fluss": True, "flussbreite": 40, "inseln": 2,
+                         "wald": ["west"], "felder": ["ost"]},
+            "mauer": {"vorhanden": False, "tore": 3}, "viertel": [{"name": "Markt", "typ": "markt"}], "orte": [],
+            "ausgabe": {"bildgroesse": 700}}
+
+
+def flussschleife():
+    """Wüste mit einem windungsreichen Fluss: eine Landstraße kreuzt ihn dreimal, einmal an einer Schleife."""
+    return {"name": "T98", "seed": 871535, "einwohner": 600, "stadtform": "oval",
+            "gelaende": {"biotop": "wueste", "kueste": "keine", "fluss": True, "flussbreite": 100, "inseln": 0,
+                         "wald": ["west"], "felder": ["ost"]},
+            "mauer": {"vorhanden": False, "tore": 4}, "viertel": [{"name": "Markt", "typ": "markt"}], "orte": [],
+            "ausgabe": {"bildgroesse": 700}}
+
+
+def endet_frontal_am_fluss(m, ln):
+    """Läuft die Linie ln an einem Ende frontal auf den Fluss zu und hört dort auf (Abstand unter 4 px, Richtung zum
+    nächsten Uferpunkt)?"""
+    s, river = m["s"], m["river"]
+    for ende in (0, 1):
+        c = ln.coords[0] if ende == 0 else ln.coords[-1]
+        if Point(c).distance(river) >= 4 * s:
+            continue
+        q = ln.interpolate(10 * s) if ende == 0 else ln.interpolate(ln.length - 10 * s)
+        n = nearest_points(river, Point(c))[0]
+        tx, ty, vx, vy = c[0] - q.x, c[1] - q.y, n.x - c[0], n.y - c[1]
+        if math.hypot(vx, vy) < 1e-6:
+            vx, vy = tx, ty
+        if (tx * vx + ty * vy) / ((math.hypot(tx, ty) or 1) * (math.hypot(vx, vy) or 1)) > 0.6:
+            return True
+    return False
+
+
+class StrassenUndFluss(unittest.TestCase):
+    """Keine Straße führt ins Wasser und endet dort: Torstraßen laufen an Land um eine Flussbiegung herum, und wo eine
+    Straße eine Flussschleife kreuzt, liegt eine Brücke."""
+
+    @staticmethod
+    def land_mit_bucht():
+        """Eine Uferseite, in die der Fluss von oben eine Bucht schneidet (200 mal 200 mit Einschnitt 40 breit, 140 tief)."""
+        stadt = object.__new__(CityBuilder)
+        stadt.s = 1.0
+        stadt.sides = [box(0, 0, 200, 200).difference(box(80, 60, 120, 200))]
+        return stadt
+
+    def test_strasse_ueber_land_bleibt_unveraendert(self):
+        stadt = self.land_mit_bucht()
+        ln = LineString([(20, 20), (100, 30), (180, 20)])
+        self.assertEqual([p.wkt for p in stadt.road_on_land(ln, 0)], [ln.wkt])
+
+    def test_strasse_durch_die_bucht_fuehrt_um_sie_herum(self):
+        stadt = self.land_mit_bucht()
+        ln = LineString([(40, 190), (100, 192), (160, 190)])   # geradewegs über das Wasser
+        stuecke = stadt.road_on_land(ln, 0)
+        self.assertEqual(len(stuecke), 1)   # kein Stummel, kein abgetrenntes Reststück
+        weg = stuecke[0]
+        self.assertTrue(weg.within(stadt.sides[0].buffer(2)))
+        self.assertLess(Point(weg.coords[0]).distance(Point(40, 190)), 1)
+        self.assertLess(Point(weg.coords[-1]).distance(Point(160, 190)), 1)
+        self.assertGreater(weg.length, 2 * 130)   # am Grund der Bucht (unter y = 60) entlang
+
+    def test_ohne_weg_bleibt_der_zuschnitt(self):
+        stadt = object.__new__(CityBuilder)
+        stadt.s = 1.0
+        stadt.sides = [box(0, 0, 60, 60)]
+        ln = LineString([(10, 30), (200, 30)])   # das Ziel liegt weit außerhalb
+        self.assertEqual([round(p.length) for p in stadt.road_on_land(ln, 0)], [52])   # nur der Teil bis zum Rand (plus 2)
+
+    def test_torstrassen_enden_nicht_am_fluss(self):
+        m = generate(config.from_dict(stadt_am_fluss()))
+        s = m["s"]
+        torstrassen = [ln for ln, w in m["internal_roads"] if abs(w - 14 * s) < 1e-6]
+        self.assertGreaterEqual(len(torstrassen), len(m["gates"]))   # jedes Tor hat eine Straße
+        self.assertEqual([ln.wkt for ln in torstrassen if endet_frontal_am_fluss(m, ln)], [])
+
+    def test_flussschleife_hat_eine_bruecke(self):
+        m = generate(config.from_dict(flussschleife()))
+        s = m["s"]
+        bruecken = unary_union([ln.buffer(w / 2 + 2 * s) for ln, w in m["bridges"]])
+        for ln, _ in m["ext_roads"]:
+            im_wasser = ln.intersection(m["river"]).difference(bruecken)
+            self.assertLess(im_wasser.length, 6 * s, "Straße liegt ohne Brücke im Fluss")
+
+    def test_brueckenregel_schleife_ja_streifen_nein(self):
+        fluss = LineString([(-200, 0), (200, 0)]).buffer(30)   # waagerechtes Band, Ufer bei y = +-30
+        mitte = LineString([(-200, 0), (200, 0)])
+        schleife = LineString([(-100, 60), (-50, 35), (0, 10), (50, 35), (100, 60)])   # taucht tief ein, kommt am selben Ufer heraus
+        streifen = LineString([(-100, 31), (0, 28.5), (100, 31)])                      # berührt das Wasser kaum
+        endet = LineString([(-100, 60), (-50, 35), (0, 10)])                           # endet im Wasser
+        quer = LineString([(0, 60), (0, -60)])
+        self.assertEqual(len(make_bridges([(schleife, 10)], fluss, 1.0, mitte)), 1)
+        self.assertEqual(make_bridges([(streifen, 10)], fluss, 1.0, mitte), [])
+        self.assertEqual(make_bridges([(endet, 10)], fluss, 1.0, mitte), [])
+        self.assertEqual(len(make_bridges([(quer, 10)], fluss, 1.0, mitte)), 1)
 
 
 def stadtbruecken(m):

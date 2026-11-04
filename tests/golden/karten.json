@@ -146,42 +146,42 @@
   "zwergenstadt": {
    "hinweise": [],
    "zahlen": {
-    "gebaeude": 441,
-    "baeume": 857,
+    "gebaeude": 422,
+    "baeume": 899,
     "landstrassen": 4,
-    "gassen": 10,
-    "bruecken": 2,
+    "gassen": 9,
+    "bruecken": 3,
     "viertel": 4,
     "beschriftungen": 11,
     "tore": 3,
     "tuerme": 14,
     "schiffe": 0,
-    "felder": 52,
+    "felder": 45,
     "stadtflaeche": 32514
    },
-   "modell": "72ffe587133cca2295eb",
+   "modell": "739970faf9f2f263cc29",
    "karten": {
     "tag": {
-     "svg": "5321c282f1a2e605679e",
+     "svg": "d0a9d6bcbad83c737e33",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "2e3d0d6ff4ee8cd6f320",
       "337559d927c365245d46",
       "61ca65c44f339228e9a4",
-      "b7ed340063377aea4354",
+      "f24f37c98179694d2406",
       "c2c20562736bb9ccc68c",
       "96ebdfea7d0bfec8e4e2",
       "24ec45b78dbde2b41c5d"
      ]
     },
     "nacht": {
-     "svg": "ab0da2783936ad026b4d",
+     "svg": "d2e346d634a6f66daa7a",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "2e3d0d6ff4ee8cd6f320",
       "337559d927c365245d46",
       "61ca65c44f339228e9a4",
-      "b7ed340063377aea4354",
+      "f24f37c98179694d2406",
       "c2c20562736bb9ccc68c",
       "96ebdfea7d0bfec8e4e2",
       "24ec45b78dbde2b41c5d"
@@ -535,7 +535,7 @@
     "baeume": 880,
     "landstrassen": 4,
     "gassen": 9,
-    "bruecken": 2,
+    "bruecken": 3,
     "viertel": 3,
     "beschriftungen": 7,
     "tore": 4,
@@ -544,10 +544,10 @@
     "felder": 112,
     "stadtflaeche": 9754
    },
-   "modell": "7a5cad4739360654399c",
+   "modell": "3e1600c98bf8def99467",
    "karten": {
     "tag": {
-     "svg": "0c42dc8a99316ed41ef6",
+     "svg": "237c1f01a631cd3b9357",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "e225c9af7c9cacf1dac4",
@@ -598,7 +598,7 @@
     "baeume": 1162,
     "landstrassen": 4,
     "gassen": 9,
-    "bruecken": 5,
+    "bruecken": 6,
     "viertel": 3,
     "beschriftungen": 7,
     "tore": 4,
@@ -607,10 +607,10 @@
     "felder": 78,
     "stadtflaeche": 9754
    },
-   "modell": "add343005670f8d60269",
+   "modell": "5ce91a46a516dc5d7d1b",
    "karten": {
     "tag": {
-     "svg": "883ff3443be515c31311",
+     "svg": "caf87837f55ade87458f",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "46f4e4ec1e0c1044d9f4",
@@ -660,7 +660,7 @@
     "baeume": 1017,
     "landstrassen": 4,
     "gassen": 9,
-    "bruecken": 1,
+    "bruecken": 2,
     "viertel": 3,
     "beschriftungen": 7,
     "tore": 4,
@@ -669,10 +669,10 @@
     "felder": 67,
     "stadtflaeche": 9754
    },
-   "modell": "bc691a08d65243a89127",
+   "modell": "70c22da0d517a342c4ac",
    "karten": {
     "tag": {
-     "svg": "afa5ed934e1676eaf8f8",
+     "svg": "a7fe20b0f70edc4b4f13",
      "bilder": [
       "aa9c72c9219036bc0ae0",
       "60d809695a3ce3090ca2",

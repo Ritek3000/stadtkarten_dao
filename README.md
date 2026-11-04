@@ -342,6 +342,7 @@ Im Nachtmodus leuchten Fenster einzelner Häuser der Häuserzeilen.
 - Stege und Schiffe nur am gepflasterten Hafenkai und im Fluss, nicht an der offenen Küste; endet eine Landstraße an der Küste, bekommt sie eine Anlegestelle mit Steg
 - Wasser mit Tiefe: helles Flachwasser an der Küste, nach außen dunkler, mit Sandbänken und Rinnen; feine Wellenkräusel auf tiefem Wasser, Brandung am Ufer, gestrichelte Küstenlinien; Flüsse mit hellen Ufern, an der Mündung weich ins Meer übergehend (Farben aus dem Biotop: sea_deep, sea, shallow, river)
 - Plätze gehen weich in die einmündenden Gassen über; Brücken enden mit Brüstung an der Uferkante und blenden an Land in Platz, Gasse oder Landstraße aus
+- keine Straße läuft ins Wasser und endet dort: Eine Straße vom Tor zum Platz, in deren Weg eine Flussbiegung (oder eine Einbuchtung der Mauer) liegt, führt an Land um die Biegung herum, statt am Ufer abgeschnitten zu werden und ins Leere zu zeigen. Eine Landstraße, die eine Flussschleife anschneidet und auf derselben Seite wieder herauskommt, bekommt dort eine Brücke; Gassen, die das Ufer nur streifen, bekommen keine
 
 ## Beschriftung verschieben
 
