@@ -53,6 +53,7 @@ from shapely.geometry.base import BaseGeometry  # noqa: E402
 from stadtkarte import config  # noqa: E402
 from stadtkarte.generator import building_count, generate, hint_lines  # noqa: E402
 from stadtkarte.render import render_svg  # noqa: E402
+from stadtkarte.styles import STILE  # noqa: E402
 
 DATEI = ROOT / "tests" / "golden" / "karten.json"
 GROESSE = 500                    # klein genug für schnelle Läufe, groß genug für alle Zeichenwege
@@ -133,6 +134,9 @@ def faelle():
     }
     for form in ("oval", "vieleck", "gewachsen", "unregelmaessig"):
         f[f"form_{form}"] = (klein(seed=9, stadtform=form), ("tag",))
+    for stil in STILE:   # die Zeichenstile über Standard und Pergament hinaus (Tusche mit Schrift in Tinte auch nachts)
+        if stil not in ("standard", "pergament"):
+            f[f"stil_{stil}"] = (klein(ausgabe={"stil": stil}), ("tag", "nacht") if stil == "tusche" else ("tag",))
     for name, raw in _abstuerze().items():
         f[f"abstuerz_{name}"] = (copy.deepcopy(raw), ("tag",))
     return f

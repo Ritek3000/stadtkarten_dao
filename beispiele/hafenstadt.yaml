@@ -96,7 +96,8 @@ orte:
 ausgabe:
   bildgroesse: 2000   # Kantenlänge in Pixeln
   ausschnitt: weit    # weit | normal | nah | fuellend - wie viel der Karte die Stadt einnimmt
-  stil: pergament     # pergament (altes Papier) | standard (ohne Papier)
+  stil: pergament     # pergament (altes Papier) | standard (ohne Papier) | tusche | aquarell | sepia | schatzkarte
+                      # | abendlicht (Goldene Stunde) | farbdruck | pastell | bleistift | stich (Kolorierter Stich)
   formate: [svg, png, pdf]   # dazu html: interaktive Karte zum Zoomen, Beschriftung ein-/ausblendbar;
                              # web: Web-Paket für die eigene Webseite (Ordner <kennung>_web)
   raster: 0           # >0 zeichnet ein Quadratraster (Pixel pro Feld), z.B. für Foundry/Roll20

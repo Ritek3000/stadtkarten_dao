@@ -660,9 +660,13 @@ function formPages(side) {
   const pageAusgabe = () => [
     field("Bildgröße", select([[1500, "1500 px (schnell)"], [2000, "2000 px"], [3000, "3000 px"], [4000, "4000 px (Druck, langsam)"]],
       cfg.ausgabe.bildgroesse, v => cfg.ausgabe.bildgroesse = Number(v))),
-    field("Stil", select([["pergament", "Pergament (altes Papier)"], ["standard", "Standard (ohne Papier)"]],
-      cfg.ausgabe.stil ?? optional("ausgabe.stil"), v => { if (v === optional("ausgabe.stil")) delete cfg.ausgabe.stil; else cfg.ausgabe.stil = v; }),
-      "Pergament: Papierstruktur, warmer Ton, gebräunter Rand, Küste wie mit der Feder gezeichnet."),
+    (() => {   // Stilauswahl mit Beschreibung des gewählten Stils darunter
+      const stil = () => cfg.ausgabe.stil ?? optional("ausgabe.stil");
+      const text = () => (OPT.styles.find(([k]) => k === stil()) ?? ["", "", ""])[2];
+      return field("Stil", select(OPT.styles.map(([k, name]) => [k, name]), stil(),
+        v => { if (v === optional("ausgabe.stil")) delete cfg.ausgabe.stil; else cfg.ausgabe.stil = v; renderForm(); }),
+        text());
+    })(),
     field("Ausschnitt", select([["weit", "Weit (viel Umland)"], ["normal", "Normal"], ["nah", "Nah"],
                                 ["fuellend", "Füllend (Stadt, Hafen, Festung passen gerade)"]],
       cfg.ausgabe.ausschnitt ?? optional("ausgabe.ausschnitt"),
@@ -980,7 +984,7 @@ function randomCfg() {
     gelaende: g,
     mauer: {vorhanden: chance(0.85), tore: 2 + rnd(5)},
     viertel: [], orte: [],
-    ausgabe: {stil: chance(0.7) ? "pergament" : "standard",
+    ausgabe: {stil: chance(0.5) ? "pergament" : chance(0.3) ? "standard" : pick(OPT.styles.map(([k]) => k).filter(k => k !== "pergament" && k !== "standard")),
               ausschnitt: wpick(wasser ? [["weit", 70], ["fuellend", 30]] : [["weit", 50], ["normal", 25], ["nah", 15], ["fuellend", 10]])},
   };
   if (!chance(0.8)) c.mauer.vorstaedte = false;

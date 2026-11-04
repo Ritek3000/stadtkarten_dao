@@ -163,3 +163,25 @@ BIOME_ALIASES = {"gemaessigtes": "gemaessigt", "wald": "gemaessigt", "moor": "su
                  "oase": "wueste", "sand": "wueste", "savanne": "steppe", "grasland": "steppe",
                  "plateau": "hochplateau", "hochebene": "hochplateau", "tafelberg": "hochplateau",
                  "tafelland": "hochplateau", "berg": "gebirge", "berge": "gebirge", "zwerge": "gebirge", "gebirgsstadt": "gebirge"}
+
+# Zeichenstile der fertigen Karte (ausgabe.stil); umgesetzt in render.py, papier.py und stile.py.
+# Schlüssel -> (Name in der Oberfläche, kurze Beschreibung). Die Reihenfolge ist die der Auswahl.
+STILE = {
+    "pergament": ("Pergament (altes Papier)", "Papierstruktur, warmer Ton, gebräunter Rand, Küste wie mit der Feder"),
+    "standard": ("Standard (ohne Papier)", "klare Farben, dunkle Vignette am Rand"),
+    "tusche": ("Tusche", "Feder und Tinte auf Elfenbeinpapier, fast ohne Farbe"),
+    "aquarell": ("Aquarell", "weiche, leicht verlaufene Farben, Papierkörnung, ausbleichender Rand"),
+    "sepia": ("Sepia-Stich", "einfarbig braun wie ein alter Druck"),
+    "schatzkarte": ("Schatzkarte", "gealtertes, fleckiges Pergament mit angebrannten Ecken"),
+    "abendlicht": ("Goldene Stunde", "die Karte in warmem Abendlicht"),
+    "farbdruck": ("Farbdruck", "wenige Farbflächen und Rasterpunkte wie eine alte Lithografie"),
+    "pastell": ("Pastell", "helle, sanfte Farben mit klaren Umrissen"),
+    "bleistift": ("Bleistift", "Graustufen mit Schraffur wie eine Skizze"),
+    "stich": ("Kolorierter Stich", "Tintenlinien mit blasser Handkolorierung"),
+}
+# andere Schreibweisen
+STIL_ALIASE = {"normal": "standard", "modern": "standard", "papier": "pergament", "alt": "pergament",
+               "historisch": "pergament", "feder": "tusche", "tinte": "tusche", "wasserfarbe": "aquarell",
+               "sepiastich": "sepia", "schatz": "schatzkarte", "goldenestunde": "abendlicht", "abend": "abendlicht",
+               "lithografie": "farbdruck", "druck": "farbdruck", "pastel": "pastell", "skizze": "bleistift",
+               "kupferstich": "stich", "koloriert": "stich", "kolorierterstich": "stich"}

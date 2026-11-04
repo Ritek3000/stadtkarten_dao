@@ -715,6 +715,302 @@
     }
    }
   },
+  "stil_tusche": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "4de1a36d88fdb5823104",
+     "bilder": [
+      "c517261f8487f70d7cfa",
+      "d9918ccede27c0aa0015",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    },
+    "nacht": {
+     "svg": "cd06bc4f4867950252cd",
+     "bilder": [
+      "c517261f8487f70d7cfa",
+      "d9918ccede27c0aa0015",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_aquarell": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "467b984358190ce89150",
+     "bilder": [
+      "5900b84104584d9ff617",
+      "3dcce2b64b480bf0fd48",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_sepia": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "06b8ad9fb9758e872ef3",
+     "bilder": [
+      "d4d59b51985ab8cd1aee",
+      "72dddc482bc7146a1cef",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_schatzkarte": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "2899da55d164b0a19b91",
+     "bilder": [
+      "87afaaadda1d5b165da7",
+      "34364fad830ac79479f7",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_abendlicht": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "a4c74feb971b1ec58ce4",
+     "bilder": [
+      "c284dbd39a75e54e4578",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_farbdruck": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "fe26f3a59dbcdee702fa",
+     "bilder": [
+      "e1a19ccbb622449a2113",
+      "3889e1efa75b3491b8fb",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_pastell": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "7c2d20ecbd5331e15772",
+     "bilder": [
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_bleistift": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "579662354ba0a2250fdd",
+     "bilder": [
+      "3e30560f48cbbf8bce51",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_stich": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "eda661d798e07555009e",
+   "karten": {
+    "tag": {
+     "svg": "7b3093f492f6dac7f4b7",
+     "bilder": [
+      "7b5269d1b8b6c4cf9195",
+      "f841cb75a89275fd5e71",
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "47085e3b439c935eaffb",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
   "abstuerz_wueste_west": {
    "hinweise": [],
    "zahlen": {
