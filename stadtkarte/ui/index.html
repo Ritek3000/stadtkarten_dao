@@ -478,9 +478,10 @@ const INTRO = [
 let step = 0, wizError = "";
 
 // Größe: Regler logarithmisch von 300 Einwohnern (erlaubt sind ab 100) bis zum Höchstwert des Servers; ab der Großstadt-Grenze
-// wird die Stadt in Häuserblöcken gezeichnet. POP_MAX und GROSS kommen aus OPT.limits (beim Start gesetzt).
+// wird die Stadt in Häuserblöcken gezeichnet. POP_MAX, GROSS und BRIDGES_MAX (Brücken über den Fluss) kommen aus
+// OPT.limits (beim Start gesetzt).
 const POP_MIN = 300;
-let POP_MAX, GROSS;
+let POP_MAX, GROSS, BRIDGES_MAX;
 const popLabel = n => `${n.toLocaleString("de-DE")} Einwohner` + (n < 2500 ? " (Dorf)" : n >= GROSS ? " (Großstadt: Häuserblöcke, Altstadt, Vorstädte)" : "");
 const toPop = v => { const n = POP_MIN * (POP_MAX / POP_MIN) ** (v / 1000);
   const rund = n < 2000 ? 50 : n < GROSS ? 100 : 1000; return Math.min(POP_MAX, Math.round(n / rund) * rund); };
@@ -557,6 +558,7 @@ function formPages(side) {
     const sides = Object.entries(COAST).filter(([k]) => k !== "keine").map(([k, v]) => [k, "im " + v]);
     const riverW = el("input", {type: "range", min: 20, max: 110, step: 2, value: g.flussbreite, disabled: !g.fluss,
       on: {input: e => g.flussbreite = Number(e.target.value)}});
+    const bridgeN = num(g, "bruecken", {min: 1, max: BRIDGES_MAX, disabled: !g.fluss});
     const dg = dustGrid(g), dirs = Object.keys(g.staub ?? {}).filter(k => DIR_NAMES[k] && k !== "mitte");
     return [
       field("Biotop", select(OPT.biomes.map(b => [b, BIOME[b] ?? b]), g.biotop, v => {
@@ -572,7 +574,8 @@ function formPages(side) {
                                        g.kante ?? optional("gelaende.kante"), v => { g.kante = v; }),
                    "Direkt an der Kante schützt die Felswand die Stadt auf dieser Seite.") : null,
       !mtn && !plat && g.kueste !== "keine" ? field("Inseln", num(g, "inseln", {min: 0, max: 8})) : null,
-      field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => riverW.disabled = !g.fluss), riverW)),
+      field(mtn ? "Klamm" : "Fluss", el("div", {class: "row"}, chk(g, "fluss", () => { riverW.disabled = bridgeN.disabled = !g.fluss; }), riverW)),
+      field("Brücken", bridgeN, `Über ${mtn ? "die Klamm" : "den Fluss"} in der Stadt, höchstens ${BRIDGES_MAX}. Wo der Platz nicht reicht, entstehen weniger.`),
       el("div", {class: "row", style: "align-items:flex-start; gap:2rem"},
         el("div", {}, el("div", {class: "lbl"}, "Wald"), compass(g.wald)),
         el("div", {}, el("div", {class: "lbl"}, "Felder"), compass(g.felder))),
@@ -950,7 +953,8 @@ function randomCfg() {
   const kueste = mtn || plat ? pick(sides) : wpick([...sides.map(s => [s, 2]), ["keine", 2]]);
   const fluss = chance(0.6);
   const wasser = (kueste !== "keine" && !mtn && !plat) || fluss;
-  const g = {biotop, kueste, fluss, flussbreite: 30 + 2 * rnd(31), inseln: kueste !== "keine" && !mtn && !plat ? rnd(4) : 0};
+  const g = {biotop, kueste, fluss, flussbreite: 30 + 2 * rnd(31), inseln: kueste !== "keine" && !mtn && !plat ? rnd(4) : 0,
+    bruecken: fluss ? wpick([[1, 5], [2, 3], [3, 2], [4, 1]]) : 1};
   if (plat) { g.plateau = pick(["oben", "unten"]); g.kante = pick(["direkt", "abstand"]); }
   g.wald = biotop === "wueste" ? [] : sample(WIND, rnd(4));
   g.felder = biotop === "wueste" || biotop === "nordland" ? sample(WIND, rnd(2)) : sample(WIND, rnd(4));
@@ -1394,7 +1398,10 @@ $("#chExample").onclick = () => {
 $("#btnHome").onclick = () => showView("home");
 
 (async () => {
-  try { OPT = await api("/api/options"); POP_MAX = OPT.limits.einwohner_max; GROSS = OPT.limits.grossstadt; }
+  try {
+    OPT = await api("/api/options");
+    POP_MAX = OPT.limits.einwohner_max; GROSS = OPT.limits.grossstadt; BRIDGES_MAX = OPT.limits.bruecken_max;
+  }
   catch (e) { homeStatus("Die Werkstatt konnte nicht gestartet werden: " + e.message, true); return; }
   $("#btnSaveOut").title = "SVG, PNG, PDF und interaktive Karte der gerade angezeigten Karte (Tag oder Nacht) speichern nach " + OPT.output_dir;
   if (OPT.version) $("#ver").textContent = "v" + OPT.version;

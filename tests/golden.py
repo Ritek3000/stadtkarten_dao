@@ -96,6 +96,10 @@ def faelle():
               [32, 70, "turm"]]
     im_osten = beispiel("hafenstadt")
     im_osten["gelaende"] = {**im_osten["gelaende"], "kueste": "ost"}
+    fuenf = beispiel("hafenstadt")
+    fuenf["gelaende"] = {**fuenf["gelaende"], "bruecken": 5}
+    fuenf_plateau = beispiel("plateaustadt", ausschnitt="nah")
+    fuenf_plateau["gelaende"] = {**fuenf_plateau["gelaende"], "bruecken": 5}
     f = {
         "hafenstadt": (beispiel("hafenstadt"), ("tag", "nacht")),            # Küste, Fluss, Hafen, Festung, Werft, Schiffe
         "hafenstadt_standard": (beispiel("hafenstadt", stil="standard"), ("tag",)),   # Zeichenstil ohne Pergament
@@ -107,6 +111,8 @@ def faelle():
         "nordhafen": (beispiel("nordhafen"), ("tag", "nacht")),              # Nordland, Eisschollen
         "sumpfdorf": (beispiel("sumpfdorf"), ("tag",)),                      # Sumpf, Pfahlbauten
         "kueste_ost": (im_osten, ("tag",)),                                  # Drehung der Karte um 90 Grad
+        "bruecken_hafen": (fuenf, ("tag", "nacht")),                         # fünf Brücken, nur flussaufwärts vom Hafen
+        "bruecken_plateau": (fuenf_plateau, ("tag",)),                       # fünf Brücken auf beiden Seiten der Mitte
         "binnenland": (klein(seed=21, einwohner=2500, stadtform="gewachsen",
                              gelaende={"biotop": "steppe", "kueste": "keine", "inseln": 0},
                              viertel=[{"name": "Markt", "typ": "markt"},

@@ -26,6 +26,7 @@ PLACE_ALIASES = {"windmuehle": "muehle", "wasserrad": "wassermuehle", "halle": "
 PLACE_TYPES = frozenset({"gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "kontor", "werft", "adelshaus",
                          "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof"}) | FORT_TYPES
 FORT_PLACES = ("insel", "landzunge", "land")   # mögliche Lagen einer Festung
+MAX_BRIDGES = 5   # so viele Brücken über den Fluss in der Stadt sind höchstens möglich (gelaende.bruecken)
 OUTPUT_FORMATS = ("svg", "png", "pdf", "html", "web")
 
 # in XML 1.0 (SVG) verbotene Zeichen: Steuerzeichen außer Tab, Zeilenumbruch und Wagenrücklauf
@@ -37,8 +38,8 @@ DEFAULTS = {
     "einwohner": 5000,
     "stadtform": "zufall",   # zufall (je Seed) | rund | oval | unregelmaessig | vieleck | gewachsen
     "gelaende": {
-        "biotop": "gemaessigt", "kueste": "nord", "fluss": True, "flussbreite": 60, "inseln": 2,
-        "wald": ["west"], "felder": ["ost", "sued"],
+        "biotop": "gemaessigt", "kueste": "nord", "fluss": True, "flussbreite": 60, "bruecken": 1,
+        "inseln": 2, "wald": ["west"], "felder": ["ost", "sued"],
     },
     "mauer": {"vorhanden": True, "tore": 4},
     "viertel": [],
@@ -209,7 +210,7 @@ def _plateau_settings(g):
 
 
 def _numbers(cfg):
-    """Zahlenfelder prüfen und umwandeln: Einwohner, Seed, Tore, Flussbreite, Inseln, Bildgröße, Raster."""
+    """Zahlenfelder prüfen und umwandeln: Einwohner, Seed, Tore, Flussbreite, Brücken, Inseln, Bildgröße, Raster."""
     g = cfg["gelaende"]
     number(cfg, "einwohner", "einwohner", int, MIN_EINWOHNER, MAX_EINWOHNER)
     if cfg.get("seed") is None or (isinstance(cfg["seed"], str) and not cfg["seed"].strip()):
@@ -217,6 +218,7 @@ def _numbers(cfg):
     number(cfg, "seed", "seed", int, -2 ** 63, 2 ** 63 - 1)
     number(cfg["mauer"], "tore", "mauer.tore", int, 1, 12, DEFAULTS["mauer"]["tore"])
     number(g, "flussbreite", "gelaende.flussbreite", float, 5, 400, DEFAULTS["gelaende"]["flussbreite"])
+    number(g, "bruecken", "gelaende.bruecken", int, 1, MAX_BRIDGES, DEFAULTS["gelaende"]["bruecken"])
     number(g, "inseln", "gelaende.inseln", int, 0, 20, DEFAULTS["gelaende"]["inseln"])
     aus_ = cfg["ausgabe"]
     number(aus_, "bildgroesse", "ausgabe.bildgroesse", int, 300, 8000, DEFAULTS["ausgabe"]["bildgroesse"])

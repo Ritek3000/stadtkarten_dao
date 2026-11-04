@@ -12,6 +12,7 @@ gelaende:
   kueste: nord        # nord | ost | sued | west | keine
   fluss: true
   flussbreite: 60
+  bruecken: 1         # Brücken über den Fluss in der Stadt: 1 bis 5 (bei einem Hafen flussaufwärts davon)
   inseln: 3
   wald: [west, suedwest]
   felder: [ost, suedost, sued]

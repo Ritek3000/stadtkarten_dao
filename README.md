@@ -171,6 +171,30 @@ Plateaukante oder zurück auf die Stadtmauer zu, weicht sie aus und führt weite
 weiter (Bucht, Felsnische), mündet sie in die nächste Landstraße, läuft außen an der Mauer entlang zum nächsten Tor,
 endet an der Küste an einer Anlegestelle mit Steg oder, wenn nichts davon geht, an einem kleinen Weiler.
 
+## Brücken
+
+Ein Fluss, der die Stadt teilt, bekommt eine Brücke in der Stadtmitte. Mit `gelaende: bruecken:` (Werkstatt: „Brücken“ unter
+Gelände, neben dem Fluss) sind es mehr, **höchstens 5** (Standard: 1; mehr als 5 meldet die Prüfung als Fehler):
+
+```yaml
+gelaende:
+  fluss: true
+  bruecken: 3
+```
+
+- Die erste Brücke liegt wie bisher in der Stadtmitte, die übrigen verteilen sich gleichmäßig am Fluss entlang durch die
+  Stadt, mindestens 90 px (bei Bildgröße 2000) voneinander entfernt. Sie sind etwas schmaler als die Hauptbrücke.
+- Jede endet an beiden Ufern in einem kleinen Platz, der mit einer Gasse ans Straßennetz anschließt; Häuser, Schiffe, Stege
+  und Wasserräder weichen ihr.
+- Hat die Stadt ein Hafenviertel am Meer, liegen die weiteren Brücken nur flussaufwärts vom Hafen: Der Hafen bleibt
+  flussabwärts der Brücken, damit die Schiffe zu den Kais kommen.
+- Wo am Fluss kein Platz ist (kleine Stadt, kurzes Flussstück in der Stadt), entstehen weniger Brücken; die Ausgabe nennt das
+  mit einer „Hinweis“-Zeile. Teilt der Fluss die Stadt gar nicht, gibt es keine Brücke (auch dazu ein Hinweis, wenn mehr als
+  eine gewünscht war). Ohne Fluss (`fluss: false`) hat die Angabe keine Wirkung.
+- Die Brücke zu einer Festung auf einer Insel gehört nicht dazu, sie zählt nicht mit. In der Klamm (Gebirge) sind es
+  Steinbrücken über die Schlucht.
+- Der Blender-Export (`Bridges`) enthält alle Brücken.
+
 ## Staub
 
 Staub ist in der Welt allgegenwärtig, an manchen Stellen dichter; in hoher Konzentration wird er zur Finsternis.
@@ -476,8 +500,8 @@ beide beim Start vom Server (`/api/options`) und wiederholt sie nicht. Fehlen in
 deshalb in der Oberfläche wie in der Kommandozeile Wald im Westen und Felder im Osten und Süden; ein ausdrücklich leeres
 `wald:` bedeutet weiterhin „kein Wald“.
 
-**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 21 feste Karten (die
-Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster u.a.) und vergleicht sie mit den
+**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 23 feste Karten (die
+Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster, fünf Brücken u.a.) und vergleicht sie mit den
 Fingerabdrücken in `tests/golden/karten.json`: Hinweise des Generators, Zahlen (Häuser, Bäume, Straßen …), das Kartenmodell
 nach dem Generator, das gezeichnete SVG ohne Bilder und die Bilder einzeln. Eine Abweichung nennt die Stufe: Ändert sich schon
 das Modell, liegt es am Generator; bleibt es gleich und nur das SVG ändert sich, am Zeichnen. Bibliotheken und Betriebssystem

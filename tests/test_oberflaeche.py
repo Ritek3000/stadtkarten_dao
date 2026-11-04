@@ -38,7 +38,8 @@ class Optionen(unittest.TestCase):
         opt = options()
         self.assertEqual(opt["defaults"], config.ui_defaults())
         self.assertEqual(opt["optional"], config.OPTIONAL)
-        self.assertEqual(opt["limits"], {"einwohner_max": config.MAX_EINWOHNER, "grossstadt": GROSS})
+        self.assertEqual(opt["limits"], {"einwohner_max": config.MAX_EINWOHNER, "grossstadt": GROSS,
+                                         "bruecken_max": config.MAX_BRIDGES})
         json.dumps(opt)   # muss als JSON auslieferbar sein
 
     def test_die_oberflaeche_traegt_keine_kommandozeilenangaben_ein(self):

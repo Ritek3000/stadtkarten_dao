@@ -89,6 +89,34 @@ class Zahlen(unittest.TestCase):
                 cfg_of(f"einwohner: {wert}\n")
 
 
+class Bruecken(unittest.TestCase):
+    """gelaende.bruecken: ganze Zahl von 1 bis 5 (Standard 1)."""
+
+    def test_standard_ist_eine_bruecke(self):
+        self.assertEqual(cfg_of("name: A\n")["gelaende"]["bruecken"], 1)
+        self.assertEqual(config.DEFAULTS["gelaende"]["bruecken"], 1)
+
+    def test_eins_bis_fuenf_sind_erlaubt(self):
+        self.assertEqual(config.MAX_BRIDGES, 5)
+        for n in range(1, 6):
+            self.assertEqual(cfg_of(f"gelaende: {{bruecken: {n}}}\n")["gelaende"]["bruecken"], n)
+        self.assertEqual(cfg_of("gelaende: {bruecken: '3'}\n")["gelaende"]["bruecken"], 3)   # Text aus der Oberfläche
+
+    def test_mehr_als_fuenf_oder_weniger_als_eine_ist_ein_fehler(self):
+        for wert in (0, -1, 6, 20):
+            with self.subTest(wert), self.assertRaisesRegex(ValueError, r"gelaende\.bruecken.*1 bis 5"):
+                cfg_of(f"gelaende: {{bruecken: {wert}}}\n")
+
+    def test_keine_ganze_zahl(self):
+        for wert in ("2.5", "viele", "true", ".inf"):
+            with self.subTest(wert), self.assertRaisesRegex(ValueError, "gelaende.bruecken"):
+                cfg_of(f"gelaende: {{bruecken: {wert}}}\n")
+
+    def test_leeres_feld_heisst_standardwert(self):
+        for wert in ("", "null", "'  '"):
+            self.assertEqual(cfg_of(f"gelaende: {{bruecken: {wert}}}\n")["gelaende"]["bruecken"], 1)
+
+
 class Namen(unittest.TestCase):
     def test_name_wird_ein_text(self):
         self.assertEqual(cfg_of("name: 1848\n")["name"], "1848")

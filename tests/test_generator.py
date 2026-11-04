@@ -20,7 +20,7 @@ from shapely.ops import unary_union
 from stadtkarte import config, fortress, generator, render, umgebung
 from stadtkarte.generator import generate
 from stadtkarte.render import render_svg
-from tests.golden import klein
+from tests.golden import beispiel, klein
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -141,6 +141,112 @@ class Bruecken(unittest.TestCase):
             ueber_wasser = ln.intersection(m["water"])
             self.assertFalse(ueber_wasser.is_empty)
             self.assertTrue(flaeche.contains(ueber_wasser), "die Maske muss das Wasser unter jeder Brücke decken")
+
+
+def stadtbruecken(m):
+    """Die Brücken über den Fluss in der Stadt als (Linie, Breite), von Norden nach Süden (die Brücke einer Festungsinsel
+    liegt außerhalb)."""
+    return sorted((b for b in m["bridges"] if b[0].intersects(m["river"]) and m["shape"].contains(b[0].centroid)),
+                  key=lambda b: b[0].centroid.y)
+
+
+class MehrereBruecken(unittest.TestCase):
+    """gelaende.bruecken: bis zu fünf Brücken über den Fluss in der Stadt (die erste liegt in der Stadtmitte)."""
+
+    @classmethod
+    def karte(cls, name, n, **gelaende):
+        roh = beispiel(name, bildgroesse=500)
+        roh["gelaende"] = {**roh["gelaende"], "bruecken": n, **gelaende}
+        return generate(config.from_dict(roh))
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hafen = {n: cls.karte("hafenstadt", n) for n in (1, 3, 5)}
+
+    def test_die_gewuenschte_anzahl_entsteht(self):
+        for n, m in self.hafen.items():
+            with self.subTest(n):
+                self.assertEqual(len(stadtbruecken(m)), n)
+                self.assertEqual(len(m["bridges"]), n + 1)   # dazu die Brücke zur Festungsinsel
+                self.assertEqual([h for h in m["hints"] if "Brücken" in h], [])
+
+    def test_die_erste_bruecke_bleibt_wo_sie_war(self):
+        (eine, _), = stadtbruecken(self.hafen[1])
+        for n in (3, 5):
+            with self.subTest(n):
+                self.assertTrue(any(ln.equals_exact(eine, 1e-6) for ln, _ in stadtbruecken(self.hafen[n])))
+
+    def test_mindestabstand_und_breite(self):
+        for n in (3, 5):
+            bruecken = stadtbruecken(self.hafen[n])
+            s = self.hafen[n]["s"]
+            with self.subTest(n):
+                for (a, _), (b, _) in zip(bruecken, bruecken[1:]):
+                    self.assertGreaterEqual(a.centroid.distance(b.centroid), 80 * s)
+                haupt = stadtbruecken(self.hafen[1])[0][1]
+                self.assertEqual(max(w for _, w in bruecken), haupt)   # die Hauptbrücke ist die breiteste
+                self.assertEqual(sum(w == haupt for _, w in bruecken), 1)
+
+    def test_mit_hafen_nur_flussaufwaerts(self):
+        """Der Hafen liegt flussabwärts der Brücken: Küste im Norden, also liegen die weiteren Brücken südlich der ersten."""
+        haupt = stadtbruecken(self.hafen[1])[0][0]
+        for ln, _ in stadtbruecken(self.hafen[5]):
+            self.assertGreaterEqual(ln.centroid.y, haupt.centroid.y - 1e-6)
+
+    def test_ohne_hafen_auch_flussabwaerts(self):
+        m = self.karte("plateaustadt", 5)
+        haupt = stadtbruecken(self.karte("plateaustadt", 1))[0][0]
+        ys = [ln.centroid.y for ln, _ in stadtbruecken(m)]
+        self.assertEqual(len(ys), 5)
+        self.assertTrue(min(ys) < haupt.centroid.y - 1 < haupt.centroid.y + 1 < max(ys))
+
+    def test_ein_hafenviertel_im_gebirge_und_auf_dem_plateau_zaehlt_nicht(self):
+        """Dort wird der Hafen zum Markt, die Brücken liegen auf beiden Seiten der Mitte."""
+        roh = beispiel("plateaustadt", bildgroesse=500)
+        roh["gelaende"] = {**roh["gelaende"], "bruecken": 5}
+        roh["viertel"] = list(roh.get("viertel") or []) + [{"name": "Hafen", "typ": "hafen"}]
+        m = generate(config.from_dict(roh))
+        ys = [ln.centroid.y for ln, _ in stadtbruecken(m)]
+        haupt = stadtbruecken(self.karte("plateaustadt", 1))[0][0].centroid.y
+        self.assertEqual(len(ys), 5)
+        self.assertTrue(min(ys) < haupt < max(ys))
+
+    def test_nichts_liegt_auf_einer_bruecke(self):
+        m = self.hafen[5]
+        deck = unary_union([ln.buffer(w / 2) for ln, w in m["bridges"]])
+        self.assertFalse(any(b["poly"].intersects(deck) for b in m["buildings"]))
+        self.assertFalse(any(p.intersects(deck) for p in m["piers"]))
+        self.assertFalse(any(h["poly"].intersects(deck) for h in m["suburbs"]))
+
+    def test_jede_bruecke_verbindet_beide_ufer(self):
+        """Über dem Wasser ein Stück von Ufer zu Ufer, an beiden Enden Land."""
+        m = self.hafen[5]
+        for ln, _ in stadtbruecken(m):
+            nass = ln.intersection(m["water"])
+            trocken = ln.difference(m["water"])
+            self.assertEqual(nass.geom_type, "LineString")
+            self.assertEqual(trocken.geom_type, "MultiLineString")
+            self.assertEqual(len(trocken.geoms), 2)
+
+    def test_zu_wenig_platz_ergibt_weniger_bruecken_und_einen_hinweis(self):
+        m = self.karte("sumpfdorf", 5)
+        anzahl = len(stadtbruecken(m))
+        self.assertTrue(1 < anzahl < 5)
+        self.assertIn(f"Nur {anzahl} von 5 gewünschten Brücken passen über den Fluss in die Stadt.", m["hints"])
+
+    def test_ohne_fluss_keine_wirkung_und_kein_hinweis(self):
+        m = generate(config.from_dict(klein(gelaende={"fluss": False, "bruecken": 5})))
+        self.assertEqual(m["bridges"], [])
+        self.assertEqual([h for h in m["hints"] if "Brücken" in h], [])
+
+    def test_gleiche_angaben_gleiche_karte(self):
+        a, b = self.karte("hafenstadt", 4), self.karte("hafenstadt", 4)
+        self.assertEqual([ln.wkt for ln, _ in a["bridges"]], [ln.wkt for ln, _ in b["bridges"]])
+
+    def test_alle_bruecken_werden_gezeichnet(self):
+        m = self.hafen[5]
+        svg = render_svg(m, nacht=False)
+        self.assertEqual(svg.count('<g clip-path="url(#bridgeWet)">'), len(m["bridges"]))
 
 
 class Nachtkarte(unittest.TestCase):
