@@ -26,7 +26,7 @@ from ..generator import building_count, generate
 from ..interaktiv import interactive_html
 from ..parallel import mode as render_mode, png_async, shutdown as shutdown_renderers
 from ..render import font_face_css, move_labels, prewarm, render_svg, split_labels, to_pdf
-from ..styles import BIOMES, DISTRICT_TYPES
+from ..styles import BIOMES, DISTRICT_TYPES, STILE
 
 def documents_dir():
     """Dokumente-Ordner des Benutzers; unter Linux über die XDG-Einstellung (z.B. ~/Dokumente)."""
@@ -72,6 +72,7 @@ def options():
         "district_types": list(DISTRICT_TYPES),
         "place_types": PLACE_TYPES,
         "biomes": list(BIOMES),
+        "styles": [[k, name, text] for k, (name, text) in STILE.items()],   # Zeichenstile: Schlüssel, Name, Beschreibung
         "examples": sorted(p.stem for p in EXAMPLES.glob("*.yaml")),
         "output_dir": str(OUTPUT),
         "version": __version__,

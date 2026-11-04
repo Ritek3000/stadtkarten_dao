@@ -5,7 +5,7 @@ import re
 
 import yaml
 
-from .styles import BIOME_ALIASES, BIOMES, DISTRICT_TYPES, FORT_TYPES
+from .styles import BIOME_ALIASES, BIOMES, DISTRICT_TYPES, FORT_TYPES, STIL_ALIASE, STILE
 
 # Himmelsrichtungen als Bildschirm-Vektoren (y zeigt nach unten)
 _D = math.sqrt(0.5)
@@ -279,10 +279,9 @@ def _density(cfg):
 def _output_options(cfg):
     """Ausgabe: Zeichenstil, Ausschnitt (Standardwerte werden weggelassen) und Dateiformate."""
     stil = norm(cfg["ausgabe"].get("stil") or OPTIONAL["ausgabe.stil"])   # Zeichenstil der fertigen Karte
-    stil = {"normal": "standard", "modern": "standard", "papier": "pergament", "alt": "pergament",
-            "historisch": "pergament"}.get(stil, stil)
-    if stil not in ("standard", "pergament"):
-        raise ValueError(f"Unbekannter Stil: {cfg['ausgabe'].get('stil')} (möglich: standard, pergament)")
+    stil = STIL_ALIASE.get(stil, stil)
+    if stil not in STILE:
+        raise ValueError(f"Unbekannter Stil: {cfg['ausgabe'].get('stil')} (möglich: {', '.join(STILE)})")
     cfg["ausgabe"]["stil"] = stil
     aus = norm(cfg["ausgabe"].get("ausschnitt") or OPTIONAL["ausgabe.ausschnitt"])   # wie viel der Karte die Stadt einnimmt
     aus = {"fuellen": "fuellend", "voll": "fuellend", "ganz": "fuellend", "auto": "fuellend", "mittel": "normal",

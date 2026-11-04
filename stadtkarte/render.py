@@ -18,7 +18,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, rings, ship_footprint, unit, vlen
-from . import gebirge, noise, papier, parallel, schlucht, staub, umgebung, wasser
+from . import gebirge, noise, papier, parallel, schlucht, staub, stile, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .config import OPTIONAL, ROTATION
 from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
@@ -1845,6 +1845,15 @@ def paper_svg(o, m):
         o.append(f'<image href="{papier.image(W, m["s"])}" x="0" y="0" width="{W}" height="{W}" '
                  f'preserveAspectRatio="none" style="mix-blend-mode:multiply"/>'
                  f'<rect width="{W}" height="{W}" fill="#c9a86a" style="mix-blend-mode:color" opacity="0.18"/>')
+    elif m["cfg"]["ausgabe"].get("stil") in stile.EIGENE:
+        stil = m["cfg"]["ausgabe"]["stil"]
+        mul, deck = stile.bilder(stil, W, m["s"])
+        o.append(stile.muster(stil, m["s"], W))
+        if mul:
+            o.append(f'<image href="{mul}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none" '
+                     f'style="mix-blend-mode:multiply"/>')
+        if deck:
+            o.append(f'<image href="{deck}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none"/>')
     else:
         o.append(f'<rect width="{W}" height="{W}" fill="url(#vignette)"/>')
 
@@ -1884,6 +1893,7 @@ def labels_svg(o, m):
             key += f"#{used[key]}"
         m["label_keys"].append((key, lb))
         groups[kind].append(movable(key, offsets, W, text_el(x, y, text, size, s, halo=halo)))
+    start = len(o)
     o.append(LABELS_START)
     for kind in ("viertel", "orte"):
         o.append(f'<g id="b-{kind}">{"".join(groups[kind])}</g>')
@@ -1902,6 +1912,13 @@ def labels_svg(o, m):
                           f'fill="{C["text"]}">{escape(name)}</text>')
         o.append(movable("legende", offsets, W, "".join(legend)))
     o.append("</g>" + LABELS_END)
+    farben = stile.schrift(m["cfg"]["ausgabe"].get("stil"))
+    if farben:   # helle Karte: Schrift in dunkler Tinte mit hellem Rand, Legende auf hellem Grund
+        ink, halo = farben
+        o[start:] = ["".join(o[start:]).replace(f'fill="{C["text"]}"', f'fill="{ink}"')
+                     .replace(f'stroke="{C["text_halo"]}"', f'stroke="{halo}"')
+                     .replace('fill="#1d2118" fill-opacity="0.72" stroke="#c9b98f"',
+                              f'fill="{halo}" fill-opacity="0.85" stroke="{ink}"')]
 
 
 def grid_svg(o, m):
@@ -1944,6 +1961,10 @@ def render_svg(m, nacht=None):
     if font_face_css():
         o.append(f"<style>{font_face_css()}</style>")
     rot = f'rotate({m["rot"]} {f(W / 2)} {f(W / 2)})'
+    stil = m["cfg"]["ausgabe"].get("stil")
+    filt = stile.filter_svg(stil, s, W)   # Zeichenstil: Filter über der Karte, ohne Nachtlichter und Beschriftung
+    if filt:
+        o.append(f'<defs>{filt}</defs><g filter="url(#stil)">')
     o.append(f'<g transform="{rot}">')
     water_svg(o, m, rng)
     land_svg(o, m)
@@ -1974,6 +1995,8 @@ def render_svg(m, nacht=None):
     walls_svg(o, m, lamps)
     trees_svg(o, m, rng)
     ship_bows_svg(o, m)
+    if filt:   # Ende des Stilfilters; Nacht, Leuchtfeuer und Staub liegen darüber
+        o.append(f'</g></g><g transform="{rot}">')
     if nacht:
         night_svg(o, m, lamps, forge_glow)
     if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
