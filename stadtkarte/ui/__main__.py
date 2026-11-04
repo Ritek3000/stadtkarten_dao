@@ -78,7 +78,7 @@ def options():
         # Standardwerte und Grenzen kommen aus config.py bzw. city.py; die Seite wiederholt sie nicht
         "defaults": config.ui_defaults(),          # was eine neue oder geladene Beschreibung enthält, wenn es fehlt
         "optional": config.OPTIONAL,               # Angaben, die fehlen dürfen, und ihr Wert, wenn sie fehlen
-        "limits": {"einwohner_max": config.MAX_EINWOHNER, "grossstadt": GROSS},
+        "limits": {"einwohner_max": config.MAX_EINWOHNER, "grossstadt": GROSS, "bruecken_max": config.MAX_BRIDGES},
     }
 
 

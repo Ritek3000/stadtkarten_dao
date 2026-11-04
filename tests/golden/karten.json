@@ -358,6 +358,82 @@
     }
    }
   },
+  "bruecken_hafen": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 497,
+    "baeume": 1939,
+    "landstrassen": 5,
+    "gassen": 21,
+    "bruecken": 6,
+    "viertel": 5,
+    "beschriftungen": 18,
+    "tore": 4,
+    "tuerme": 13,
+    "schiffe": 3,
+    "felder": 161,
+    "stadtflaeche": 39017
+   },
+   "modell": "da7ee8f1416d587fbb67",
+   "karten": {
+    "tag": {
+     "svg": "52c2e72be1a68b5bf6bc",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "d1a207bc84ce322c0eed",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "95e0d5af79d3de05d83e",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    },
+    "nacht": {
+     "svg": "aef932decede8a562bab",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "d1a207bc84ce322c0eed",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "95e0d5af79d3de05d83e",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "bruecken_plateau": {
+   "hinweise": [
+    "Hinweis: Außerhalb des Ausschnitts: Wachturm am Abgrund (Ausschnitt 'fuellend' zeigt mehr)."
+   ],
+   "zahlen": {
+    "gebaeude": 641,
+    "baeume": 219,
+    "landstrassen": 4,
+    "gassen": 20,
+    "bruecken": 5,
+    "viertel": 5,
+    "beschriftungen": 9,
+    "tore": 3,
+    "tuerme": 23,
+    "schiffe": 0,
+    "felder": 72,
+    "stadtflaeche": 125587
+   },
+   "modell": "e75ccbde37edfaf0c949",
+   "karten": {
+    "tag": {
+     "svg": "6deb801b96e16ea2821a",
+     "bilder": [
+      "11a5fbf0cdb879aa997f",
+      "93e8a653ac4f7d8c78b2",
+      "1c99e84d9c9f3942abe8",
+      "5eb5382b0cdfb203a5a4",
+      "2ca3c9828993fc1b5b19",
+      "a2d8c4f665658bc1ee28",
+      "db8760e3103146bbc25e"
+     ]
+    }
+   }
+  },
   "binnenland": {
    "hinweise": [
     "Hinweis: Kein passender Block für 'Dom' gefunden."

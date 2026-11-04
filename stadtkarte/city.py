@@ -150,6 +150,9 @@ def fit_into_map(shape, center, W, s, top=None):
     return shape, (cx, cy)
 
 
+BRIDGE_GAP = 90    # kleinster Abstand zweier Brücken am Fluss (px bei Bildgröße 2000)
+BRIDGE_HEAD = 38   # Platz am Brückenkopf: so weit hinter dem Brückenende liegt seine Mitte
+
 SETTLE_SHARE = 2 / 3   # so viel vom Umriss soll nach einer Verschiebung auf Land liegen
 
 
@@ -492,27 +495,114 @@ class CityBuilder:
                     best = tail
         return LineString(list(ln.coords) + list(best.coords)[1:]) if best is not None else None
 
+    def _river_crossing(self, m, d):
+        """Querung des Flusses senkrecht zur Flussmittellinie am Punkt m (Bogenlänge d): das Stück der Querlinie im
+        Wasser, das dem Punkt am nächsten liegt, und seine beiden Enden, je 10 px hinter dem Ufer, samt der Richtung
+        vom Fluss weg. Liefert (Wasserstück, [(Ende, Richtung), (Ende, Richtung)]) oder None, wenn die Linie den Fluss
+        nicht trifft."""
+        s, rl = self.s, self.t["river_line"]
+        a, b = rl.interpolate(max(0, d - 8)), rl.interpolate(d + 8)
+        tx, ty = unit((b.x - a.x, b.y - a.y))
+        nx, ny = -ty, tx
+        far = self.W * 0.3
+        long = LineString([(m.x - nx * far, m.y - ny * far), (m.x + nx * far, m.y + ny * far)])
+        segs = lines(long.intersection(self.t["river"]))
+        if not segs:
+            return None
+        seg = min(segs, key=lambda ln: ln.distance(m))
+        ends = []
+        for x, y in (seg.coords[0], seg.coords[-1]):
+            o = unit((x - m.x, y - m.y))
+            ends.append(((x + o[0] * 10 * s, y + o[1] * 10 * s), o))
+        return seg, ends
+
+    def extra_bridges(self, roads, plazas, wanted, d0, main_seg):
+        """Weitere Brücken über den Fluss (gelaende.bruecken), außer der in der Stadtmitte (Bogenlänge d0, Wasserstück
+        main_seg). Sie verteilen sich gleichmäßig am Fluss entlang durch die Stadt, mindestens BRIDGE_GAP voneinander
+        entfernt; jede ist etwas schmaler als die Hauptbrücke und endet an jedem Ufer in einem kleinen Platz, der ans
+        Straßennetz anschließt. Gibt es ein Hafenviertel, liegen sie nur flussaufwärts (der Hafen liegt flussabwärts
+        der Brücken). Passen nicht alle, steht ein Hinweis in der Karte."""
+        s, t, rng = self.s, self.t, self.rng
+        rl, gap = t["river_line"], BRIDGE_GAP * s
+        # ein Hafen (am Meer oder am Fluss) entsteht nicht im Gebirge und auf dem Plateau: dort wird er zum Markt
+        harbor = not (t.get("mountain") or t.get("plateau")) and any(v.get("typ") == "hafen" for v in self.cfg["viertel"])
+        inside = self.shape.buffer(-45 * s)
+        cands = {}   # Bogenlänge -> (Wasserstück, Enden): Stellen, an denen eine Brücke in die Stadt passt
+        for d in np.arange(0, rl.length, 8 * s):
+            if abs(d - d0) < gap or (harbor and d > d0):
+                continue
+            m = rl.interpolate(d)
+            crossing = self._river_crossing(m, d) if inside.contains(m) else None
+            if crossing is None or crossing[0].length > 1.5 * main_seg.length + 10 * s:
+                continue
+            ends = crossing[1]
+            if self.side_of(ends[0][0]) == self.side_of(ends[1][0]):
+                continue   # beide Enden am selben Ufer
+            if all(self.city_land.buffer(-12 * s).contains(Point(e[0] + o[0] * BRIDGE_HEAD * s, e[1] + o[1] * BRIDGE_HEAD * s))
+                   for e, o in ends):   # an beiden Ufern Platz für den Platz am Brückenkopf
+                cands[float(d)] = crossing
+        picks = []
+        if cands:
+            lo, hi = min(min(cands), d0), max(max(cands), d0)
+            k_up, k_down = self._bridge_split(d0 - lo, hi - d0, wanted - 1, gap)
+            for sign, length, k in ((-1, d0 - lo, k_up), (1, hi - d0, k_down)):
+                spacing = self._bridge_spacing(length, k, gap) if k else 0
+                for i in range(1, k + 1):
+                    pos = min(cands, key=lambda c: abs(c - (d0 + sign * i * spacing)))
+                    if all(abs(pos - o) >= gap for o in picks + [d0]):
+                        picks.append(pos)
+        if 1 + len(picks) < wanted:
+            self.hint(f"Nur {1 + len(picks)} von {wanted} gewünschten Brücken passen über den Fluss in die Stadt.")
+        base = [ln for ln, _ in roads if not ln.intersects(t["water"])]   # Straßen, an die die Brücken anschließen
+        for d in sorted(picks):
+            ends = cands[d][1]
+            for e, o in ends:
+                side = self.side_of(e)
+                pc = (e[0] + o[0] * BRIDGE_HEAD * s, e[1] + o[1] * BRIDGE_HEAD * s)
+                plazas.append(blob(rng, pc[0], pc[1], 24 * s, rough=0.18).intersection(self.city_land))
+                roads.append((LineString([e, pc]), 12 * s))
+                mine = [ln for ln in base if ln.intersects(self.sides[side])]
+                if not mine:
+                    continue
+                target = nearest_points(unary_union(mine), Point(pc))[0]
+                if 30 * s < target.distance(Point(pc)) < 170 * s:   # sonst berührt der Platz die Straße schon
+                    link = bezier(pc, (target.x, target.y), rng, bend=0.1, n=16)
+                    roads += [(piece, 11 * s) for piece in lines(link.intersection(self.sides[side].buffer(2 * s)))]
+            roads.append((LineString([ends[0][0], ends[1][0]]), 12 * s))
+
+    @staticmethod
+    def _bridge_spacing(length, k, gap):
+        """Abstand zwischen k Brücken auf einem Flussstück der Länge length (die erste im Abstand vom Rand wie die
+        übrigen; reicht der Platz dafür nicht, rückt die letzte an den äußersten Rand)."""
+        return length / (k + 1) if length / (k + 1) >= gap else length / k
+
+    def _bridge_split(self, up, down, extra, gap):
+        """Verteilung der weiteren Brücken auf das Flussstück oberhalb (Länge up) und unterhalb (Länge down) der
+        Hauptbrücke: so, dass der größte Abstand am kleinsten wird. Liefert (Anzahl oben, Anzahl unten), zusammen
+        höchstens extra und höchstens so viele, wie mit dem Mindestabstand gap hineinpassen."""
+        cap_up, cap_down = int(up // gap), int(down // gap)
+        total = min(extra, cap_up + cap_down)
+
+        def widest(k_up, k_down):   # größter Abstand; ohne Brücke auf einer Seite zählt deren ganze Länge
+            return max(self._bridge_spacing(up, k_up, gap) if k_up else up,
+                       self._bridge_spacing(down, k_down, gap) if k_down else down)
+        options = [(k, total - k) for k in range(total + 1) if k <= cap_up and total - k <= cap_down]
+        return min(options, key=lambda o: (widest(*o), o))
+
     def internal_roads(self):
         s, t = self.s, self.t
         roads, plazas = [], []
         plaza_centers = {}
+        main_bridge = None   # (Bogenlänge am Fluss, Wasserstück) der Brücke in der Stadtmitte
         if t["river"] is not None and len(self.sides) > 1:
             rl = t["river_line"]
             c = Point(self.center)
             m = rl.interpolate(rl.project(c))
             d0 = rl.project(m)
-            a, b = rl.interpolate(max(0, d0 - 8)), rl.interpolate(d0 + 8)
-            tx, ty = unit((b.x - a.x, b.y - a.y))
-            nx, ny = -ty, tx
-            far = self.W * 0.3
-            long = LineString([(m.x - nx * far, m.y - ny * far), (m.x + nx * far, m.y + ny * far)])
-            segs = lines(long.intersection(t["river"]))
-            if segs:
-                seg = min(segs, key=lambda ln: ln.distance(m))
-                ends = []
-                for x, y in (seg.coords[0], seg.coords[-1]):
-                    o = unit((x - m.x, y - m.y))
-                    ends.append(((x + o[0] * 10 * s, y + o[1] * 10 * s), o))
+            crossing = self._river_crossing(m, d0)
+            if crossing:
+                seg, ends = crossing
+                main_bridge = (d0, seg)
                 main_side = 0
                 for (e, o) in ends:
                     side = self.side_of(e)
@@ -547,6 +637,12 @@ class CityBuilder:
                 for ring in lines(side.buffer(-32 * s).boundary):
                     if ring.length > 60 * s:
                         roads.append((ring, 9 * s))
+        wanted = self.cfg["gelaende"].get("bruecken", 1)
+        if wanted > 1 and t["river"] is not None:   # vor den Großstadtachsen: die Altstadt kennt die Brückenstraßen dann
+            if main_bridge is not None:
+                self.extra_bridges(roads, plazas, wanted, *main_bridge)
+            else:
+                self.hint(f"Der Fluss teilt die Stadt nicht - es gibt keine Brücken (gewünscht: {wanted}).")
         if self.grand:
             self._grand_roads(roads, plazas)
         # Gebirge: Hauptstraße vom Marktplatz hinauf zum großen Tor in der Felswand
