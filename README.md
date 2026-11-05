@@ -37,6 +37,25 @@ Debian/Ubuntu zusätzlich das Paket `python3-venv`). Beim ersten Start wird die 
 die Werkstatt im Browser. Die Karten nutzen die mitgelieferte freie Schrift EB Garamond (`stadtkarte/fonts`, SIL Open Font
 License) und sehen daher unter Windows und Linux gleich aus.
 
+## Browserversion (Prototyp)
+
+Die Werkstatt läuft auch ganz im Browser, ohne Installation und ohne Server: Der Python-Kern rechnet dort mit
+[Pyodide](https://pyodide.org) (Python als WebAssembly) in einem Web Worker, die Bilder zeichnet resvg-wasm (derselbe
+Renderer wie am Rechner). Die Oberfläche ist dieselbe `stadtkarte/ui/index.html`; die Desktopversion bleibt unverändert.
+
+- **Bauen:** `python packaging/web.py` legt den Ordner `build/web` an (rein statische Dateien, rund 2 MB). Er lässt sich auf
+  jeden Webspace hochladen, auch in einen Unterordner. Nötig sind HTTPS und der Dateityp `application/wasm` (bei den
+  meisten Hostern voreingestellt). Am Rechner ausprobieren: `python -m http.server -d build/web 8000`
+- **GitHub Pages:** `.github/workflows/web.yml` baut und veröffentlicht den Ordner (einmalig unter Settings -> Pages ->
+  Source „GitHub Actions“ wählen). Der Ordner liegt außerdem beim Lauf unter „Artifacts“
+- Pyodide, numpy, Shapely, Pillow, PyYAML und resvg-wasm lädt der Browser beim ersten Besuch vom CDN jsDelivr (rund
+  30 MB, danach aus dem Zwischenspeicher)
+- Unterschiede zur Desktopversion: nur ein Prozessorkern, daher entstehen volle Ansicht, Nachtkarte und PNG nacheinander
+  und erst, wenn sie gebraucht werden. „Alle Formate speichern“ lädt ein ZIP herunter. Pyodide bringt etwas ältere
+  Bibliotheken mit (z.B. Shapely 2.1 statt 2.2), die Karten zeigen dieselbe Stadt, sind aber nicht byte-gleich mit
+  denen am Rechner
+- Messwerte: Die Browser-Konsole zeigt die Ladezeit und die Dauer jeder Anfrage, `window.stadtkarteZeiten` sammelt sie
+
 ## Einrichtung
 
 Die Startskripte richten die Python-Umgebung (`.venv`) beim ersten Start selbst ein und halten sie aktuell: Ändert sich
@@ -540,14 +559,23 @@ Web-Paket enthalten jeweils die Version, die gerade angezeigt wird (das Web-Pake
 | biotop | Wirkung |
 |---|---|
 | `gemaessigt` (Standard) | grünes Land, Laub- und Nadelbäume, Steinmauer, gepflasterte Plätze |
-| `sumpf` (auch `moor`) | Tümpel und Wasserläufe mit Schilf und Seerosen, Pfahlhäuser über Wasser, Bohlenstege und Knüppeldämme, Holzpalisade, Reetdächer, Weiden und Totholz |
+| `sumpf` | Tümpel und Wasserläufe mit Schilf und Seerosen, Pfahlhäuser über Wasser, Bohlenstege und Knüppeldämme, Holzpalisade, Reetdächer, Weiden und Totholz |
 | `nordland` (auch `winter`, `schnee`) | verschneites Land, verschneite Tannen, zugefrorene Seen mit Rissen, Eisschollen vor der Küste, Schneedächer, Palisade, Findlinge |
 | `steppe` | trockenes Grasland, lichte Baumgruppen und Büsche, Felsbrocken, Palisade |
+| `heide` | violettes Heidekraut, lichte Birken, Wacholder und Kiefern, Findlinge, Sandwege, Schafweiden statt Äcker, Reetdächer |
+| `herbst` (auch `herbstwald`) | gemäßigt im Herbst: rote, goldene und braune Laubwälder (Nadelbäume bleiben grün), Laub am Boden, Stoppelfelder |
+| `auwald` (auch `aue`, `flussaue`) | Flussaue: dichter Waldstreifen aus Weiden und Erlen beiderseits des Flusses, Altarme (abgeschnittene Flussschleifen) mit Schilf und Seerosen, feuchte, satte Auwiesen, viele Wiesen statt Äcker. Altarme und Auwald gibt es nur mit `fluss: true` |
+| `mittelmeer` (auch `mediterran`) | trockener, heller Boden, tiefblaues Meer, Zypressen, Olivenbäume und Pinien, Olivenhaine und Weinberge statt der meisten Äcker, Terrakottadächer, helle Gassen, Karstfelsen |
+| `dschungel` (auch `regenwald`, `urwald`) | sehr dichter, großer Regenwald aus Urwaldriesen, Baumfarnen und Palmen, Tümpel mit Pfahlhäusern, rote Erdwege, Palisade, Palmblattdächer |
+| `hochmoor` (auch `moor`, `torf`) | dunkle, rund-ufrige Moorseen mit weißem Wollgras und Binsen, Torfmoos am Boden, Torfstiche statt der meisten Äcker, Knüppeldämme, Birken und Totholz, Palisade. Anders als `sumpf` ohne Pfahlhäuser |
 | `wueste` (auch `oase`) | Sand mit Dünen, Oasen mit Palmenring, grüne Ufer an Fluss und Küste, Lehmhäuser mit Flachdach, Lehmmauer, Palmenhaine |
 | `gebirge` (auch `berg`, `zwerge`) | Zwergenstadt am Fels: Felsmassiv mit Höhenrelief auf der `kueste`-Seite (lange Rücken und Täler, Schummerung mit Licht aus Nordwesten, Verschattung der Täler, Höhenfärbung, Schnee auf den Gipfeln, schwache Höhenlinien) und Steilkante, Stadt auf Terrassenstufen (bei hohen Städten eine Stufe mehr): Stützmauern mit Mauerfläche, hellem Rand und Schattenwurf auf die tiefere Stufe, die Stufen nach Höhe getönt (oben heller, unten dunkler) und Treppen an den Hauptstraßen, großes Tor in der Felswand, Klamm als Schlucht statt Fluss (steile Felswände mit Licht aus Nordwesten, Wandbreite und Wandart wechseln: Absätze, glatte Wand, Geröllhang; hier und da etwas breiter mit Schotterbänken im Grund, nie zu breit; schmaler dunkler Wildbach mit Gischt und Felsbrocken). Wo die Felsflanken ins Tal auslaufen, läuft die Klamm aus: die Wände werden niedriger, der Grund geht ins Blau des Wassers über und die Klamm wird schmaler, bis sie als kleiner Bach durchs Tal fließt. Mineneingänge mit Abraumhalden, glühende Essen, Schieferdächer, Festung auf einem Felssporn. Hafen/Fischer werden zu Markt/Handwerk |
 | `hochplateau` (auch `plateau`, `hochebene`) | zwei Geländestufen, getrennt von einer gut sichtbaren Felskante (Felswand mit Böschungsschraffur, heller Oberkante und Schatten am Fuß) auf der `kueste`-Seite; die Stadt liegt `plateau: oben` (auf dem Plateau, darunter das Tiefland im Dunst) oder `plateau: unten` (am Fuß, darüber das sonnige Plateau), und zwar `kante: direkt` (an der Kante, die Felswand ersetzt dort die Mauer) oder `kante: abstand` (Mauer ringsum). Ein Fluss stürzt als Wasserfall über die Kante; auf der anderen Stufe liegen Felder, ein Wäldchen und einzelne Bäume, eine Festung steht dort auf einem Felssporn; wo ihr Weg die Felswand kreuzt, bringt ein Aufzug (Holzschacht mit Fahrkorb, oben das Windenhaus, unten eine Plattform) die Leute hinauf und hinunter; der Aufzug hängt immer am Straßennetz (in der Stadt an der nächsten Gasse, sonst an der nächsten Landstraße bzw. außen an der Mauer entlang zum nächsten Tor). Hafen/Fischer werden zu Markt/Handwerk, eine Werft liegt am Fluss |
 
-Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [nordhafen.yaml](beispiele/nordhafen.yaml), [oasenstadt.yaml](beispiele/oasenstadt.yaml), [zwergenstadt.yaml](beispiele/zwergenstadt.yaml), [plateaustadt.yaml](beispiele/plateaustadt.yaml). Die Stadtgröße richtet sich nach `einwohner`, kleine Werte ergeben Dörfer.
+Beispiele: [sumpfdorf.yaml](beispiele/sumpfdorf.yaml), [heidedorf.yaml](beispiele/heidedorf.yaml),
+[herbststadt.yaml](beispiele/herbststadt.yaml), [auenstadt.yaml](beispiele/auenstadt.yaml),
+[mittelmeerhafen.yaml](beispiele/mittelmeerhafen.yaml), [dschungelstadt.yaml](beispiele/dschungelstadt.yaml),
+[moordorf.yaml](beispiele/moordorf.yaml), [nordhafen.yaml](beispiele/nordhafen.yaml), [oasenstadt.yaml](beispiele/oasenstadt.yaml), [zwergenstadt.yaml](beispiele/zwergenstadt.yaml), [plateaustadt.yaml](beispiele/plateaustadt.yaml). Die Stadtgröße richtet sich nach `einwohner`, kleine Werte ergeben Dörfer.
 
 ## Tests
 
@@ -568,7 +596,7 @@ beide beim Start vom Server (`/api/options`) und wiederholt sie nicht. Fehlen in
 deshalb in der Oberfläche wie in der Kommandozeile Wald im Westen und Felder im Osten und Süden; ein ausdrücklich leeres
 `wald:` bedeutet weiterhin „kein Wald“.
 
-**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 33 feste Karten (die
+**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 39 feste Karten (die
 Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster, fünf Brücken u.a.) und vergleicht sie mit den
 Fingerabdrücken in `tests/golden/karten.json`: Hinweise des Generators, Zahlen (Häuser, Bäume, Straßen …), das Kartenmodell
 nach dem Generator, das gezeichnete SVG ohne Bilder und die Bilder einzeln. Eine Abweichung nennt die Stufe: Ändert sich schon

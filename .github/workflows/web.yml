@@ -1,0 +1,64 @@
+# Baut die Browserversion (packaging/web.py) und veröffentlicht sie auf GitHub Pages.
+#  - einmalig: Settings -> Pages -> Source "GitHub Actions"
+#  - bei Änderungen auf main automatisch, sonst von Hand: Actions -> "Browserversion" -> "Run workflow"
+#    (ein anderer Branch als main braucht unter Settings -> Environments -> github-pages die Freigabe für diesen Branch)
+#  - der fertige Ordner liegt außerdem unter Actions -> Lauf -> "Artifacts" (Stadtkarten-Werkstatt-web) zum Hochladen
+#    auf einen eigenen Webspace
+name: Browserversion
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "stadtkarte/**"
+      - "beispiele/**"
+      - "web/**"
+      - "packaging/web.py"
+      - ".github/workflows/web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  bauen:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten
+        run: python -m pip install -r requirements-lock.txt
+
+      - name: Browserversion bauen
+        run: python packaging/web.py
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Stadtkarten-Werkstatt-web
+          path: build/web
+          include-hidden-files: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  veroeffentlichen:
+    needs: bauen
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - id: pages
+        uses: actions/deploy-pages@v4

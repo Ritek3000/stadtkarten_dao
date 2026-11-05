@@ -1,0 +1,44 @@
+# Dorf in der Heide: Heidekraut, Birken und Wacholder, Findlinge, Sandwege
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\heidedorf.yaml
+
+name: Wacholdergrund
+seed: 77
+einwohner: 1600
+
+gelaende:
+  biotop: heide       # Heidekraut, Birken, Wacholder, Findlinge, Schafweiden, Reetdächer
+  kueste: keine
+  fluss: true
+  flussbreite: 30
+  wald: [nord, nordwest]
+  felder: [ost, sued, suedwest]
+
+mauer:
+  vorhanden: true
+  tore: 3
+
+viertel:
+  - name: Schäferhöfe
+    typ: bauern
+    lage: sued
+  - name: Am Anger
+    typ: markt
+    lage: mitte
+  - name: Imkergasse
+    typ: handwerk
+    lage: nord
+
+orte:
+  - name: Zum Heidekrug
+    kuerzel: G1
+    typ: gasthaus
+  - name: Feldsteinkirche
+    kuerzel: T1
+    typ: tempel
+  - name: Windmühle
+    typ: muehle
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  legende: true

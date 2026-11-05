@@ -121,14 +121,15 @@ def make_river(rng, W, s, center, r, coast_y, width, estuary=True, end_y=None, g
     return river.intersection(box(-50, -50, W + 50, W + 50)), LineString(line)
 
 
-def make_pools(rng, W, s, density, water):
-    """Sumpf: verstreute Tümpel und gewundene Wasserläufe (getrennt von Meer und Fluss)."""
+def make_pools(rng, W, s, density, water, rough=0.45):
+    """Sumpf: verstreute Tümpel und gewundene Wasserläufe (getrennt von Meer und Fluss). rough: wie zackig die Ufer
+    der Tümpel sind (Moorseen haben runde, weiche Ufer)."""
     if density <= 0:
         return Polygon()
     parts = []
     for _ in range(int(55 * density)):
         x, y = rng.uniform(0, W), rng.uniform(0, W)
-        parts.append(blob(rng, x, y, rng.uniform(16, 75) * s, rough=0.45,
+        parts.append(blob(rng, x, y, rng.uniform(16, 75) * s, rough=rough,
                           stretch=(rng.uniform(0.7, 1.5), rng.uniform(0.7, 1.5))))
     for _ in range(int(14 * density)):
         noise = Noise1D(rng)
@@ -144,3 +145,40 @@ def make_pools(rng, W, s, density, water):
     if water is not None and not water.is_empty:
         pools = pools.difference(water.buffer(6 * s))
     return pools.buffer(2 * s).buffer(-2 * s)
+
+
+def make_oxbows(rng, W, s, count, river, river_line, center, r):
+    """Auwald: Altarme neben dem Fluss, also abgeschnittene alte Flussschleifen. Jeder ist ein sichelförmiger,
+    unregelmäßig breiter Wasserlauf, dessen offene Seite zum Fluss zeigt. Nicht in der Stadt und nicht am Kartenrand."""
+    if count <= 0 or river is None or river_line is None or river_line.length < 200 * s:
+        return Polygon()
+    frame = box(30 * s, 30 * s, W - 30 * s, W - 30 * s)
+    town = Point(center).buffer(r * 1.25 + 60 * s)
+    out = []
+    for _ in range(int(count) * 12):
+        if len(out) >= count:
+            break
+        d = rng.uniform(0.08, 0.92) * river_line.length
+        p, q = river_line.interpolate(d), river_line.interpolate(min(river_line.length, d + 3))
+        dx, dy = q.x - p.x, q.y - p.y
+        n = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / n, dx / n                       # quer zum Fluss
+        side = rng.choice((-1, 1))
+        rad = rng.uniform(38, 80) * s
+        off = rad + rng.uniform(40, 110) * s
+        cx, cy = p.x + nx * off * side, p.y + ny * off * side
+        toward = math.atan2(-ny * side, -nx * side)    # Richtung von der Mitte des Bogens zum Fluss
+        span = rng.uniform(math.radians(200), math.radians(270))
+        noise = Noise1D(rng)
+        pts = []
+        steps = 24
+        for i in range(steps + 1):
+            a = toward + math.pi - span / 2 + span * i / steps   # Bogen auf der dem Fluss abgewandten Seite
+            rr = rad * (1 + 0.18 * noise.fbm(i * 0.25))
+            pts.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr * rng.uniform(0.97, 1.03)))
+        arm = LineString(pts).buffer(rng.uniform(6, 11) * s, cap_style="round")
+        if not frame.contains(arm) or arm.intersects(town) or arm.buffer(12 * s).intersects(river) \
+                or any(arm.buffer(40 * s).intersects(o) for o in out):
+            continue
+        out.append(arm)
+    return unary_union(out) if out else Polygon()

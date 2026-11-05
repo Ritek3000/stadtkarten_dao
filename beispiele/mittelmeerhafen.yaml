@@ -1,0 +1,53 @@
+# Hafenstadt am Mittelmeer: Terrakottadächer, Zypressen, Olivenhaine und Weinberge
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\mittelmeerhafen.yaml
+
+name: Portacielo
+seed: 2024
+einwohner: 7000
+
+gelaende:
+  biotop: mittelmeer
+  kueste: sued
+  fluss: true
+  flussbreite: 35
+  inseln: 2
+  wald: [nordwest]
+  felder: [ost, nord, nordost, west]   # Olivenhaine, Weinberge und etwas Weizen
+
+mauer:
+  vorhanden: true
+  tore: 4
+
+viertel:
+  - name: Porto
+    typ: hafen
+    groesse: mittel
+  - name: Piazza
+    typ: markt
+    lage: mitte
+  - name: Fischerviertel
+    typ: fischer
+    lage: ost
+  - name: Palazzi
+    typ: adel
+    lage: nord
+  - name: Töpferviertel
+    typ: handwerk
+    lage: west
+
+orte:
+  - name: Taverne zur Muschel
+    kuerzel: G1
+    typ: gasthaus
+  - name: Basilika
+    kuerzel: K
+    typ: kathedrale
+  - name: Kastell
+    kuerzel: F
+    typ: festung
+    lage: landzunge
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  legende: true

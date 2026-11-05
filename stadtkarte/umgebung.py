@@ -54,7 +54,7 @@ def image(W, s, data, res=None):
     dry = 1 - np.clip(_blur(water_img, 260 * s * k) * 3.5, 0, 1)
     put(data["dry"], dry * 0.22 * vary(81))
     near = np.clip(_blur(water_img, 55 * s * k) * 2.4, 0, 1) * (1 - water)
-    put(data["moist"], near * 0.42 * vary(82, 0.55))
+    put(data["moist"], near * data.get("moist_strength", 0.42) * vary(82, 0.55))
     if data["forest"]:
         f_img = _mask(res, k, data["forest"])
         fb = _blur(f_img, 16 * s * k)

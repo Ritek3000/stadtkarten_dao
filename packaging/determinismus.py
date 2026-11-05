@@ -32,11 +32,12 @@ from shapely.geometry.base import BaseGeometry  # noqa: E402
 from stadtkarte import city, config, generator  # noqa: E402
 from stadtkarte.render import render_svg  # noqa: E402
 
-FAELLE = [("hafenstadt", 1), ("hafenstadt", 7), ("zwergenstadt", 1), ("sumpfdorf", 1)]
+FAELLE = [("hafenstadt", 1), ("hafenstadt", 7), ("zwergenstadt", 1), ("sumpfdorf", 1), ("auenstadt", 1),
+          ("mittelmeerhafen", 1), ("moordorf", 1)]
 GROESSE = 1000
-GENERATOR_SCHRITTE = ["make_coast", "make_islands", "make_river", "make_pools", "make_oases", "build_fortress",
+GENERATOR_SCHRITTE = ["make_coast", "make_islands", "make_river", "make_pools", "make_oxbows", "make_oases", "build_fortress",
                       "outside_cemetery", "outside_windmill", "outside_farm", "make_mines", "make_fields",
-                      "make_forest", "scatter_trees", "suburb_houses", "make_bridges"]
+                      "make_forest", "fill_forest", "scatter_trees", "suburb_houses", "make_bridges"]
 STADT_SCHRITTE = ["outline", "walls_and_gates", "external_roads", "internal_roads", "districts", "buildings",
                   "landmarks", "connect_to_streets", "squares_and_wells", "district_labels", "harbor",
                   "fill_empty_with_trees"]

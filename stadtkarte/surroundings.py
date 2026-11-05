@@ -41,11 +41,14 @@ def make_bridges(roads, river, s, river_line=None):
     return out
 
 
-def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), prob=0.72):
+def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), prob=0.72,
+                names=("wheat", "plowed", "meadow")):
     """Flur vor der Stadt wie in einer gewachsenen Feldmark: eine unregelmäßige Fläche je Richtung, in Gewanne
     (Feldblöcke) mit eigener Ausrichtung geteilt, jedes Gewann in lange, schmale Ackerstreifen verschiedener
     Breite. Streifen liegen dicht an dicht (nur ein schmaler Rain dazwischen), Gewanne trennen Feldwege und
-    Hecken. Felder gibt es nur, wo Platz ist; prob steuert, wie viele Streifen bestellt sind."""
+    Hecken. Felder gibt es nur, wo Platz ist; prob steuert, wie viele Streifen bestellt sind. names: die Feldarten zu
+    kinds (Biotope wie Mittelmeer und Hochmoor haben Olivenhaine, Weinberge und Torfstiche statt Weizen)."""
+    names = list(names)
     fields = []
     frame = box(0, 0, W, W).buffer(-4 * s)
     furlong_id = 0
@@ -84,7 +87,7 @@ def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), pr
             block = cell.intersection(flur).buffer(-3.5 * s, join_style="mitre")
             for gew in clean(block, 1500 * s * s):
                 furlong_id += 1
-                main = rng.choices(["wheat", "plowed", "meadow"], kinds)[0]   # im Gewann meist dieselbe Frucht
+                main = rng.choices(names, kinds)[0]   # im Gewann meist dieselbe Frucht
                 # Ausrichtung des Gewanns: meist quer oder längs zur Flur, mit etwas Abweichung
                 ang = theta + rng.choice([0.0, math.pi / 2]) + rng.uniform(-0.35, 0.35)
                 a = np.array([math.cos(ang), math.sin(ang)])     # Streifenrichtung (Pflugrichtung)
@@ -106,7 +109,7 @@ def make_fields(rng, W, s, center, r, dirs, blocked, kinds=(0.45, 0.35, 0.2), pr
                     for piece in clean(strip, 250 * s * s):
                         if rng.random() > prob + 0.2:            # mal ein Stück Brache (bleibt Wiese)
                             continue
-                        kind = main if rng.random() < 0.7 else rng.choices(["wheat", "plowed", "meadow"], kinds)[0]
+                        kind = main if rng.random() < 0.7 else rng.choices(names, kinds)[0]
                         fields.append({"poly": piece, "kind": kind, "angle": math.degrees(ang),
                                        "furlong": furlong_id, "tone": rng.uniform(0.92, 1.06)})
                     k = k2
@@ -128,9 +131,14 @@ def make_forest(rng, W, s, center, r, dirs, blocked, land, spacing=1.0, scale=1.
         return Polygon(), []
     forest = unary_union(parts).intersection(land).difference(blocked)
     forest = unary_union(clean(forest, 4000 * s * s))
+    return forest, fill_forest(rng, s, forest, spacing)
+
+
+def fill_forest(rng, s, forest, spacing=1.0):
+    """Bäume dicht an dicht im versetzten Raster, mit etwas Zufall in der Lage; nicht am äußersten Rand."""
     trees = []
     if forest.is_empty:
-        return forest, trees
+        return trees
     sp = 23 * s * spacing
     minx, miny, maxx, maxy = forest.bounds
     xs, ys = np.meshgrid(np.arange(minx, maxx, sp), np.arange(miny, maxy, sp * 0.87))
@@ -141,7 +149,7 @@ def make_forest(rng, W, s, center, r, dirs, blocked, land, spacing=1.0, scale=1.
     mask = shapely.contains_xy(inner, xs, ys)
     for x, y in zip(xs[mask], ys[mask]):
         trees.append((float(x), float(y), rng.uniform(12, 17) * s, tree_color(rng)))
-    return forest, trees
+    return trees
 
 
 def scatter_trees(rng, s, allowed, shape, count=70):

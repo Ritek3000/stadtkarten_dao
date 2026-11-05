@@ -111,6 +111,12 @@ def faelle():
         "plateaustadt_nah": (beispiel("plateaustadt", ausschnitt="nah"), ("tag",)),     # Hochplateau, Wasserfall, Aufzug
         "nordhafen": (beispiel("nordhafen"), ("tag", "nacht")),              # Nordland, Eisschollen
         "sumpfdorf": (beispiel("sumpfdorf"), ("tag",)),                      # Sumpf, Pfahlbauten
+        "heidedorf": (beispiel("heidedorf"), ("tag",)),                      # Heide: Birken, Wacholder, Findlinge
+        "herbststadt": (beispiel("herbststadt"), ("tag",)),                  # Herbstwald, Stoppelfelder
+        "auenstadt": (beispiel("auenstadt"), ("tag", "nacht")),              # Auwald: Altarme, Waldstreifen am Fluss
+        "mittelmeerhafen": (beispiel("mittelmeerhafen"), ("tag", "nacht")),  # Zypressen, Olivenhaine, Weinberge
+        "dschungelstadt": (beispiel("dschungelstadt"), ("tag",)),            # Regenwald, Baumfarne, Pfahlhäuser
+        "moordorf": (beispiel("moordorf"), ("tag", "nacht")),                # Hochmoor: Moorseen, Wollgras, Torfstiche
         "kueste_ost": (im_osten, ("tag",)),                                  # Drehung der Karte um 90 Grad
         "bruecken_hafen": (fuenf, ("tag", "nacht")),                         # fünf Brücken, nur flussaufwärts vom Hafen
         "bruecken_plateau": (fuenf_plateau, ("tag",)),                       # fünf Brücken auf beiden Seiten der Mitte

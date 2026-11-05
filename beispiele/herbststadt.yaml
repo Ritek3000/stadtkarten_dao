@@ -1,0 +1,48 @@
+# Kleinstadt im Herbst: rot-goldene Wälder, Laub am Boden, Stoppelfelder
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\herbststadt.yaml
+
+name: Ahornfeld
+seed: 314
+einwohner: 4000
+
+gelaende:
+  biotop: herbst      # wie gemaessigt, aber in Herbstfarben
+  kueste: sued
+  fluss: true
+  flussbreite: 45
+  inseln: 1
+  wald: [west, nord, nordost]
+  felder: [ost, nordwest]
+
+mauer:
+  vorhanden: true
+  tore: 4
+
+viertel:
+  - name: Hafen
+    typ: hafen
+    groesse: klein
+  - name: Marktviertel
+    typ: markt
+  - name: Kelterviertel
+    typ: handwerk
+    lage: west
+  - name: Ackerbürger
+    typ: bauern
+    lage: nord
+
+orte:
+  - name: Zum Goldenen Blatt
+    kuerzel: G1
+    typ: gasthaus
+  - name: Erntedom
+    kuerzel: T1
+    typ: tempel
+  - name: Rathaus
+    kuerzel: R
+    typ: rathaus
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  legende: true

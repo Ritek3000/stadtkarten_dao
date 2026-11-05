@@ -1,0 +1,38 @@
+# Dorf am Hochmoor: dunkle Moorseen mit Wollgras, Torfstiche, Birken und Totholz
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\moordorf.yaml
+
+name: Torfhausen
+seed: 99
+einwohner: 1200
+
+gelaende:
+  biotop: hochmoor    # auch "moor"; ohne Pfahlhäuser (dafür: biotop: sumpf)
+  kueste: keine
+  fluss: false
+  wald: [nordost]
+  felder: [west, sued, suedost]   # meist Torfstiche
+
+mauer:
+  vorhanden: true     # Holzpalisade
+  tore: 2
+
+viertel:
+  - name: Torfstecher
+    typ: arbeiter
+    lage: west
+  - name: Moorhöfe
+    typ: bauern
+    lage: ost
+
+orte:
+  - name: Zum Irrlicht
+    kuerzel: G1
+    typ: gasthaus
+  - name: Moorkapelle
+    kuerzel: T1
+    typ: tempel
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  legende: true

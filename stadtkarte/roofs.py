@@ -43,13 +43,16 @@ def shade(hex_color, k):
     return "#{:02x}{:02x}{:02x}".format(*(max(0, min(255, int(v * k))) for v in (r, g, b)))
 
 
+REED_ROOFS = ("sumpf", "steppe", "heide", "auwald", "hochmoor", "dschungel")   # Strohfarben sind dort Reet bzw. Palmblatt
+
+
 def material_for(color, biome, thatch):
     """Dachmaterial aus Biotop und Dachfarbe."""
     if biome == "gebirge":
         return "schiefer"
     if biome == "nordland":
         return "schnee" if color in (thatch or []) else "schindel"
-    if biome in ("sumpf", "steppe") and color in (thatch or []):
+    if biome in REED_ROOFS and color in (thatch or []):
         return "reet"
     r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
     h, sat, _ = colorsys.rgb_to_hsv(r, g, b)
