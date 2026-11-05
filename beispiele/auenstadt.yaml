@@ -1,0 +1,48 @@
+# Stadt in der Flussaue: breiter Fluss, Altarme, Weiden und Erlen am Ufer, feuchte Auwiesen
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\auenstadt.yaml
+
+name: Erlenau
+seed: 808
+einwohner: 3500
+
+gelaende:
+  biotop: auwald      # Altarme und Auwald entstehen nur mit Fluss
+  kueste: keine
+  fluss: true
+  flussbreite: 80
+  bruecken: 2
+  wald: [west]
+  felder: [ost, suedost]
+
+mauer:
+  vorhanden: true
+  tore: 4
+
+viertel:
+  - name: Fischerviertel
+    typ: fischer
+    lage: nord
+  - name: Flößerviertel
+    typ: handwerk
+    lage: west
+  - name: Marktviertel
+    typ: markt
+    lage: mitte
+  - name: Wiesenhöfe
+    typ: bauern
+    lage: sued
+
+orte:
+  - name: Zum Eisvogel
+    kuerzel: G1
+    typ: gasthaus
+  - name: Auenmühle
+    typ: wassermuehle
+  - name: Weidenkapelle
+    kuerzel: T1
+    typ: tempel
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  legende: true
