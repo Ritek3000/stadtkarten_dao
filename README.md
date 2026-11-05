@@ -50,6 +50,10 @@ Renderer wie am Rechner). Die Oberfläche ist dieselbe `stadtkarte/ui/index.html
   Source „GitHub Actions“ wählen). Der Ordner liegt außerdem beim Lauf unter „Artifacts“
 - Pyodide, numpy, Shapely, Pillow, PyYAML und resvg-wasm lädt der Browser beim ersten Besuch vom CDN jsDelivr (rund
   30 MB, danach aus dem Zwischenspeicher)
+- Die Browserversion trägt die Kopfzeile von dao-rpg.de (Sor-Symbol, Hauptnavigation, Hell/Dunkel, Bürger-Menü wie bei
+  Heldenmaschine und Daten-Editor). `packaging/web.py` setzt sie beim Bauen aus `web/kopfzeile.css`, `.html` und `.js`
+  ein; die lokale Oberfläche behält ihre schlichte Kopfzeile. Wer die Werkstatt unter einer anderen Adresse anbietet,
+  ändert die Links in `web/kopfzeile.html`
 - Unterschiede zur Desktopversion: nur ein Prozessorkern, daher entstehen volle Ansicht, Nachtkarte und PNG nacheinander
   und erst, wenn sie gebraucht werden. „Alle Formate speichern“ lädt ein ZIP herunter. Pyodide bringt etwas ältere
   Bibliotheken mit (z.B. Shapely 2.1 statt 2.2), die Karten zeigen dieselbe Stadt, sind aber nicht byte-gleich mit
