@@ -12,6 +12,7 @@ G2 = (3.0 - SQRT3) / 6.0          # und zurück
 # 12 Gradienten (Kanten eines Würfels, auf die Ebene projiziert): gleichmäßig verteilte Richtungen
 GRAD = np.array([(1, 1), (-1, 1), (1, -1), (-1, -1), (1, 0), (-1, 0), (1, 0), (-1, 0),
                  (0, 1), (0, -1), (0, 1), (0, -1)], np.float64)
+GX, GY = np.ascontiguousarray(GRAD[:, 0]), np.ascontiguousarray(GRAD[:, 1])   # je Achse: schnelleres Nachschlagen
 
 
 class Simplex2:
@@ -23,6 +24,8 @@ class Simplex2:
         self.gi = self.perm % 12
 
     def noise(self, x, y):
+        """Die Rechnung je Ecke läuft auf Ort und Stelle (out=, *=) statt mit Zwischen-Arrays: dieselben Rechenschritte
+        in derselben Reihenfolge, also bitgleich, aber gut doppelt so schnell (große Felder, wenig Speicherverkehr)."""
         x, y = np.asarray(x, np.float64), np.asarray(y, np.float64)
         s = (x + y) * F2
         i, j = np.floor(x + s), np.floor(y + s)
@@ -38,11 +41,17 @@ class Simplex2:
         for gidx, dx, dy in ((gi[ii + perm[jj]], x0, y0),
                              (gi[ii + i1 + perm[jj + j1]], x1, y1),
                              (gi[ii + 1 + perm[jj + 1]], x2, y2)):
-            tt = 0.5 - dx * dx - dy * dy
-            tt = np.where(tt > 0, tt, 0.0)
-            tt = tt * tt
-            out += tt * tt * (GRAD[gidx, 0] * dx + GRAD[gidx, 1] * dy)
-        return 70.0 * out
+            tt = 0.5 - dx * dx
+            tt -= dy * dy
+            np.maximum(tt, 0.0, out=tt)             # Beitrag nur innerhalb des Radius
+            tt *= tt
+            tt *= tt
+            g = GX[gidx] * dx                       # Gradienten sind -1, 0 oder 1: die Produkte sind exakt
+            g += GY[gidx] * dy
+            tt *= g
+            out += tt
+        out *= 70.0
+        return out
 
 
 def grid(size, period, seed, warp=0.0, stretch=1.0, rows=256):
@@ -63,7 +72,7 @@ def grid(size, period, seed, warp=0.0, stretch=1.0, rows=256):
         if warp:   # Koordinaten mit einem gröberen Feld verschieben
             u, v = xx * 0.5, yy * 0.5
             xx, yy = xx + warp * wx.noise(u, v), yy + warp * wy.noise(u, v)
-        out[r0:r0 + rows] = sp.noise(xx / stretch, yy)
+        out[r0:r0 + rows] = sp.noise(xx / stretch if stretch != 1.0 else xx, yy)
     if step == 1.0:
         return out[:size, :size]
     big = int(round(m * step))

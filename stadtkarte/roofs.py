@@ -1,10 +1,11 @@
 """Detaillierte Dächer: Dachflächen mit Licht, Materialtextur (Ziegel, Schiefer, Schindel, Reet, Schnee),
 Schornsteine und Glanz auf First und Graten."""
 import colorsys
+import math
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import Polygon
 
 from .geo import axes, hip_planes, is_rect, lines, polys, vdot, vlen
 
@@ -110,19 +111,17 @@ def _texture(geom, n, rd, eave, depth, s, rng, material):
     m = MATERIALS[material]
     spacing = m["row"] * s
     reach = depth + 40 * s
-    rows, joints = [], []
-    inside = geom.buffer(0.3 * s)      # einmal je Dachfläche, vorbereitet für schnelle Punkttests
-    shapely.prepare(inside)
+    rows, cand = [], []
+    edges = _edges(geom)
     for i in range(1, int(depth / spacing) + 1):
         p0 = eave - n * (i * spacing)
-        row = LineString([p0 - rd * reach, p0 + rd * reach]).intersection(geom)
-        rows.append(_ld(row))
+        segs = _clip_line(edges, p0 - rd * reach, p0 + rd * reach)
+        rows.append("".join(f"M{x0:.1f},{y0:.1f}L{x1:.1f},{y1:.1f}" for x0, y0, x1, y1 in segs))
         if not m["joint"]:
             continue
         step = m["joint"] * s
-        for ln in lines(row):
-            (x0, y0), (x1, y1) = ln.coords[0], ln.coords[-1]
-            length = ln.length
+        for x0, y0, x1, y1 in segs:
+            length = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0))
             if length < 1e-6:
                 continue
             ts, t = [], (step / 2 if i % 2 else 0) + rng.uniform(0, 0.5) * s
@@ -133,10 +132,51 @@ def _texture(geom, n, rd, eave, depth, s, rng, material):
                 continue
             ts = np.array(ts) / length
             px, py = x0 + (x1 - x0) * ts, y0 + (y1 - y0) * ts
-            ex, ey = px + n[0] * spacing, py + n[1] * spacing
-            ok = shapely.contains_xy(inside, ex, ey)
-            joints += [f"M{_f(a)},{_f(b)}L{_f(c)},{_f(d)}" for a, b, c, d in zip(px[ok], py[ok], ex[ok], ey[ok])]
-    return "".join(rows) + "".join(joints), ""
+            cand.append((px, py, px + n[0] * spacing, py + n[1] * spacing))
+    joints = ""
+    if cand:   # eine Fuge nur, wo ihr Ende noch auf dem Dach liegt: alle Fugen der Fläche in einem Punkttest
+        px, py, ex, ey = (np.concatenate(c) for c in zip(*cand))
+        ok = shapely.contains_xy(geom.buffer(0.3 * s), ex, ey)
+        joints = "".join(f"M{_f(a)},{_f(b)}L{_f(c)},{_f(d)}" for a, b, c, d in zip(px[ok], py[ok], ex[ok], ey[ok]))
+    return "".join(rows) + joints, ""
+
+
+def _edges(geom):
+    """Kanten aller Ringe einer Fläche als (ax, ay, bx, by)."""
+    out = []
+    for p in polys(geom):
+        for ring in (p.exterior, *p.interiors):
+            cs = list(ring.coords)
+            out += [(*cs[k], *cs[k + 1]) for k in range(len(cs) - 1)]
+    return out
+
+
+def _clip_line(edges, a, b):
+    """Teile der Strecke a-b, die in der Fläche (Kanten aus _edges) liegen, als (x0, y0, x1, y1) in Richtung a -> b.
+    Ersetzt LineString(a, b).intersection(Fläche) für die Ziegelreihen (je Dachfläche bis zu zwanzig): die Schnittpunkte
+    mit den Kanten, nach der Lage auf der Strecke sortiert, paarweise innen (gerade-ungerade-Regel). Eine Ecke auf der
+    Strecke zählt nur für die Kante, deren anderes Ende auf der positiven Seite liegt: so wird nichts doppelt gezählt."""
+    ax, ay, bx, by = float(a[0]), float(a[1]), float(b[0]), float(b[1])
+    dx, dy = bx - ax, by - ay
+    hits = []
+    for px, py, qx, qy in edges:
+        dp = (px - ax) * dy - (py - ay) * dx      # Seite der Kantenenden bezüglich der Geraden
+        dq = (qx - ax) * dy - (qy - ay) * dx
+        if (dp > 0) != (dq > 0):
+            t = dp / (dp - dq)
+            x, y = px + t * (qx - px), py + t * (qy - py)
+            hits.append(((x - ax) * dx + (y - ay) * dy, x, y))
+    hits.sort()
+    L2 = dx * dx + dy * dy
+    out = []
+    for (t0, x0, y0), (t1, x1, y1) in zip(hits[::2], hits[1::2]):
+        if t0 < 0:                                 # Anfang bzw. Ende der Strecke liegt in der Fläche
+            t0, x0, y0 = 0.0, ax, ay
+        if t1 > L2:
+            t1, x1, y1 = L2, bx, by
+        if t1 > t0:
+            out.append((x0, y0, x1, y1))
+    return out
 
 
 # Wie stark Dächer vermoosen bzw. verwittern (Wahrscheinlichkeit je Dach)
