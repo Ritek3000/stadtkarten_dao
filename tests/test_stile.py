@@ -141,6 +141,31 @@ class Konturen(unittest.TestCase):
         self.assertIn('id="tex_gebirge"', svg)
         self.assertNotIn("tex_gebirge_linien", svg)
 
+    def test_hoehenlinien_auf_jedem_prozessor_gleich(self):
+        """Die Linien werden hart geschwellt: schon ein Bit Unterschied im Höhenfeld (np.power rechnet mit AVX-512 im
+        letzten Bit anders) ändert Pixel. Ein Lauf, der andere Prozessoren nachahmt, muss dasselbe Bild liefern."""
+        import subprocess
+        import sys
+        code = ("import hashlib\n"
+                "from stadtkarte import config, gebirge\n"
+                "from stadtkarte.generator import generate\n"
+                "from stadtkarte.render import berg_daten\n"
+                "from tests.golden import klein\n"
+                "m = generate(config.from_dict(klein(ausgabe={'bildgroesse': 500}, gelaende={'biotop': 'gebirge', "
+                "'kueste': 'nord', 'inseln': 0})))\n"
+                "print(hashlib.md5(gebirge.hoehenlinien(m['W'], m['s'], berg_daten(m)).encode()).hexdigest())\n")
+        wurzel = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        def lauf(**env):
+            r = subprocess.run([sys.executable, "-c", code], cwd=wurzel, capture_output=True, text=True,
+                               env={**os.environ, **env}, timeout=300)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return r.stdout.strip()
+
+        normal = lauf()
+        self.assertEqual(normal, lauf(NPY_DISABLE_CPU_FEATURES="X86_V4 AVX512_ICL AVX512_SPR"))
+        self.assertEqual(normal, lauf(NPY_DISABLE_CPU_FEATURES="X86_V4 X86_V3 AVX512_ICL AVX512_SPR AVX2 FMA3"))
+
 
 if __name__ == "__main__":
     unittest.main()
