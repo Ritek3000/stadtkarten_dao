@@ -171,6 +171,7 @@ Browser für vier Beispiele 27 statt 35 s; unter Pyodide für fünf Beispiele 61
 | `blender/stadtkarte_blender.py` | Blender-Skript: 2D-Kurven oder extrudierte 3D-Stadt aus dieser JSON-Datei |
 | `stadtkarte/shapes.py` | Hausgrundrisse: Quadrat, Rechteck, Raute, Fünfeck, Sechseck, L-Form, Achteck; Kreuz nur für Gotteshäuser; Mindestbreite 8 px |
 | `stadtkarte/roofs.py` | detaillierte Dächer: Dachflächen mit Licht, Material je Biotop, Schornsteine, Gauben, Moos |
+| `stadtkarte/ruinen.py` | Ruinenviertel: welche Häuser verfallen, was von ihnen steht (Mauerreste, Dachreste) und wie Ruinen gezeichnet werden |
 | `stadtkarte/noise.py` | vorberechnete Bodentexturen und Details (Körnung, Gras, Sandrippel, Schneeverwehungen, Felsrisse) |
 | `stadtkarte/fonts/` | Schrift EB Garamond mit Lizenz (OFL) – in PNG/PDF verwendet und in SVG eingebettet |
 | `stadtkarte/ui/` | Oberfläche: lokaler Webserver (`__main__.py`) und Seite (`index.html`) |
@@ -316,6 +317,41 @@ viertel:
     typ: armen
     ausserhalb: true    # optional: vor der Stadtmauer, rund um die Stadt
 ```
+
+## Ruinenviertel
+
+Viertel mit `typ: ruinen` (Oberfläche: „Ruinenviertel“) sind teilweise verfallen: Ein Teil der Häuser ist Ruine, der Rest
+bewohnt. Das Viertel wird zuerst wie ein Wohnviertel bebaut (gleiche Straßen, Häuser und Farben), danach verfallen so
+viele Häuser, wie `ruinenanteil` angibt.
+
+```yaml
+viertel:
+  - name: Brandgasse
+    typ: ruinen
+    ruinenanteil: 70    # optional: Prozent der Häuser, die Ruinen sind (0 bis 100, Standard 60)
+    lage: west          # optional wie bei jedem Viertel; auch im Stadtkern möglich
+```
+
+- **Anteil:** `ruinenanteil` (Werkstatt: Regler „Ruinenanteil“ beim Ruinenviertel) gilt nur für dieses Viertel; in der
+  Stadt mit mehreren Ruinenvierteln hat jedes seinen eigenen Anteil. Der Anteil zählt Häuser, in Großstädten jedes Haus
+  einer Häuserzeile einzeln. Mit 0 % gleicht das Viertel einem Wohnviertel, mit 100 % sind alle Häuser Ruinen. Auch
+  `ruinenanteil: 70 %` ist erlaubt. Besondere Orte (Gasthaus, Tempel, Schmiede ...) in diesem Viertel bleiben unversehrt
+  und zählen nicht mit.
+- **Aussehen:** Zwei Arten von Ruinen. *Mauerreste*: Von den Außenmauern stehen nur Stücke, dazwischen Lücken, über denen
+  die gestrichelte Linie der Grundmauern bleibt; innen Schutt, Balken und Gras. *Eingestürztes Dach*: Ein Stück des Daches
+  hält noch (mit Moos), seine Bruchkante ist ausgefranst und zeigt Sparren, davor liegen Dachscherben, der Rest des Hauses
+  liegt offen. Die Ruinen häufen sich zu Nachbarschaften, statt gleichmäßig verteilt zu sein; bewohnte Häuser bleiben
+  dazwischen. In jedem Zeichenstil, auch bei Schnee, Reet und Flachdächern.
+- **Nacht:** In Ruinen brennt kein Licht, nur die bewohnten Häuser haben erleuchtete Fenster. Ruinen werfen kaum Schatten
+  (Mauerreste gar keinen, Dachreste nur ihren Teil).
+- **Lage:** frei wählbar wie bei anderen Vierteln (auch im Kern); das Viertel liegt immer innerhalb der Mauer. `ausserhalb`
+  gibt es nur beim Armenviertel.
+- **Stadtbild bleibt gleich:** Ein anderer Anteil ändert nur, welche Häuser Ruinen sind; Straßen, Häuser und Farben bleiben.
+  Gleicher Seed, gleiche Karte gilt wie sonst, und Städte ohne Ruinenviertel sehen aus wie vorher.
+- **Blender:** Ruinen tragen in der JSON-Datei `ruin: true` und werden als niedrige Mauerstümpfe extrudiert
+  (`RUIN_FACTOR`), nie als Hochhaus.
+
+Ein Beispiel liegt in `beispiele/ruinenstadt.yaml`.
 
 ## Bebauung
 
@@ -593,7 +629,7 @@ beide beim Start vom Server (`/api/options`) und wiederholt sie nicht. Fehlen in
 deshalb in der Oberfläche wie in der Kommandozeile Wald im Westen und Felder im Osten und Süden; ein ausdrücklich leeres
 `wald:` bedeutet weiterhin „kein Wald“.
 
-**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 39 feste Karten (die
+**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 37 feste Karten (die
 Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster, fünf Brücken u.a.) und vergleicht sie mit den
 Fingerabdrücken in `tests/golden/karten.json`: Hinweise des Generators, Zahlen (Häuser, Bäume, Straßen …), das Kartenmodell
 nach dem Generator, das gezeichnete SVG ohne Bilder und die Bilder einzeln. Eine Abweichung nennt die Stufe: Ändert sich schon

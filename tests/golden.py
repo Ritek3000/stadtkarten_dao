@@ -136,6 +136,12 @@ def faelle():
             {"name": "Färberei", "typ": "faerberei", "kuerzel": "F"}, {"name": "Hafenkran", "typ": "hafenkran", "kuerzel": "K"},
             {"name": "Kloster", "typ": "kloster", "kuerzel": "KL"}, {"name": "Galgenhügel", "typ": "richtstaette", "kuerzel": "G"}]),
             ("tag", "nacht")),
+        # Ruinenviertel (neu in 1.41): Mauerreste und eingestürzte Dächer, nachts ohne Licht in den Ruinen
+        "ruinenstadt": (beispiel("ruinenstadt"), ("tag", "nacht")),
+        "ruinen_grossstadt": (klein(seed=12, einwohner=30000, orte=[],     # Häuserzeilen mit einzelnen Ruinen
+                                    viertel=[{"name": "Altstadt", "typ": "wohn", "lage": "mitte"},
+                                             {"name": "Ruinenring", "typ": "ruinen", "ruinenanteil": 50, "lage": "west"},
+                                             {"name": "Handwerk", "typ": "handwerk", "lage": "ost"}]), ("tag",)),
         "eigene_mauer": (klein(stadtform="eigene", mauer={"punkte": eigene}), ("tag",)),   # selbst gezeichnete Mauer
         "eigene_gelaende": (klein(stadtform="eigene"), ("tag",)),            # nur Gelände, die Mauer fehlt noch
         # Raster, keine Legende, flache Dächer ohne Details, von Hand verschobene Beschriftung

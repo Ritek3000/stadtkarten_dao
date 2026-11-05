@@ -24,6 +24,10 @@ DISTRICT_TYPES = {
     # geflickte Bretterdächer in trüben Farben
     "armen": dict(block=4500, lot=380, alley=3.5, density=1.0, inner=0.95, perimeter=True, poor=True,
                   palette=["#7a6a55", "#6b5e4c", "#857660", "#5f574a", "#8a7a62", "#6f6553", "#77705f"]),
+    # Ruinenviertel: bebaut wie ein Wohnviertel (die bewohnten Häuser sehen genauso aus); danach verfällt der Anteil
+    # ruinenanteil der Häuser (ruinen.py): Mauerreste und teils eingestürzte Dächer
+    "ruinen": dict(block=9500, lot=600, alley=6, density=0.97, inner=0.3, perimeter=True, ruins=True,
+                   palette=["#c47264", "#b4775a", "#a89c5e", "#8b6b5a", "#9fae6c"]),
 }
 
 # Besondere Gebäude

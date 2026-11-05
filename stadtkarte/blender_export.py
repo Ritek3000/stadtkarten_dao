@@ -72,11 +72,14 @@ def _buildings(m, fr):
     def add(poly_list, kind, b):
         d = b.get("district", -1)
         dist = districts[d] if 0 <= d < len(districts) else None
-        for p in poly_list:
+        ruins = b.get("ruins") or {}   # Ruinenviertel: verfallene Häuser (bei Häuserzeilen die Nr. des Hauses)
+        for j, p in enumerate(poly_list):
+            extra = {"ruin": True} if b.get("ruin") or j in ruins else {}   # nur Ruinen tragen die Angabe
             for part in polys(p):
                 if part.area >= MIN_AREA:
                     out.append(fr.polygon(part, kind=kind, form=b.get("form") or "", poor=bool(b.get("poor")),
-                                          district=dist["name"] if dist else "", district_type=dist["typ"] if dist else ""))
+                                          district=dist["name"] if dist else "", district_type=dist["typ"] if dist else "",
+                                          **extra))
 
     for b in m["buildings"]:
         add(_building_polys(b), "landmark" if b.get("landmark") else "house", b)

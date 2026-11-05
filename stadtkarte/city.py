@@ -10,6 +10,7 @@ from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polylabel, substring, unary_union
 
+from . import ruinen
 from .config import MAX_EINWOHNER, OPTIONAL, place_info, to_canonical
 from .shapes import cross_in_rect, house_shape
 from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, merge_polys, min_width, points, polys, roof,
@@ -1010,6 +1011,9 @@ class CityBuilder:
         self.seeds = seeds
         self.district_list = [{"name": sp.get("name", ""), "typ": sp["typ"], "poly": Polygon(),
                                "outside": bool(sp.get("ausserhalb")), "groesse": sp.get("groesse")} for sp in specs]
+        for d, sp in zip(self.district_list, specs):
+            if sp["typ"] == "ruinen":   # nur das Ruinenviertel kennt den Anteil (andere Viertel bleiben unverändert)
+                d["ruinenanteil"] = sp.get("ruinenanteil", OPTIONAL["viertel.ruinenanteil"])
         idx = [i for i, sp in enumerate(specs) if not sp.get("ausserhalb")]
         area = self.city_land
         harbor = self.carve_harbor()
@@ -2536,6 +2540,7 @@ class CityBuilder:
         if self.cfg["mauer"].get("vorstaedte", True):   # abschaltbar: keine Vorstädte vor den Toren
             self.faubourgs(ext)
         self.fill_empty_with_trees()
+        ruinen.plan(self.out["buildings"], self.district_list, self.cfg["seed"], self.s)   # nur im Ruinenviertel
         for b in self.out["buildings"]:
             if not b.get("removed") and "ridges" not in b:
                 b["ridges"], b["shade"] = roof(b["poly"])

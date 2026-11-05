@@ -53,9 +53,11 @@ class Optionen(unittest.TestCase):
         """Jeder Eintrag in OPTIONAL stimmt mit dem überein, was geschieht, wenn die Angabe fehlt."""
         plateau = {"gelaende": {"biotop": "hochplateau"}}
         hafen = {"viertel": [{"name": "Hafen", "typ": "hafen"}]}
+        ruinen = {"viertel": [{"name": "Ruinen", "typ": "ruinen"}]}
         faelle = {"bebauung": ({}, lambda c: c), "ausgabe.stil": ({}, lambda c: c["ausgabe"]),
                   "ausgabe.ausschnitt": ({}, lambda c: c["ausgabe"]), "gelaende.plateau": (plateau, lambda c: c["gelaende"]),
-                  "gelaende.kante": (plateau, lambda c: c["gelaende"]), "viertel.groesse": (hafen, lambda c: c["viertel"][0])}
+                  "gelaende.kante": (plateau, lambda c: c["gelaende"]), "viertel.groesse": (hafen, lambda c: c["viertel"][0]),
+                  "viertel.ruinenanteil": (ruinen, lambda c: c["viertel"][0])}
         self.assertEqual(set(faelle), set(config.OPTIONAL), "OPTIONAL und dieser Test passen nicht zusammen")
         for schluessel, wert in config.OPTIONAL.items():
             basis, abschnitt = faelle[schluessel]
