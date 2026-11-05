@@ -18,7 +18,7 @@ from .roofs import shade as shade_hex
 from .styles import BIG_LANDMARKS, BIOMES, DISTRICT_TYPES, FORT_TYPES, LANDMARK_COLORS
 
 COMPACT = {"friedhof", "kaserne", "tempel", "palast", "kathedrale", "marktplatz", "badehaus", "arena"}
-# neuere Orte (seit 1.38): eigener Bau auf einem ganzen Block, notfalls auf dem nächsten passenden
+# neuere Orte (seit 1.39): eigener Bau auf einem ganzen Block, notfalls auf dem nächsten passenden
 NEWER = {"marktplatz", "badehaus", "magierturm", "arena", "faerberei"}
 # dürfen wie COMPACT auch große Blöcke ganz belegen, brauchen aber keinen rechteckigen
 ROOMY = {"magierturm", "faerberei"}

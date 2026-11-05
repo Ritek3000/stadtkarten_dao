@@ -123,7 +123,7 @@ def faelle():
                                    {"name": "Windmühle", "typ": "muehle"}, {"name": "Hof", "typ": "bauernhof"},
                                    {"name": "Wassermühle", "typ": "wassermuehle"}, {"name": "Dom", "typ": "kathedrale"},
                                    {"name": "Schenke", "typ": "gasthaus", "anzahl": 3}]), ("tag",)),
-        # Marktplatz, Badehaus, Magierturm, Arena, Färberei, Hafenkran, Kloster, Richtstätte (neu in 1.38)
+        # Marktplatz, Badehaus, Magierturm, Arena, Färberei, Hafenkran, Kloster, Richtstätte (neu in 1.39)
         "neue_orte": (klein(seed=5, einwohner=9000, orte=[
             {"name": "Marktplatz", "typ": "marktplatz", "kuerzel": "M"}, {"name": "Badehaus", "typ": "badehaus", "kuerzel": "B"},
             {"name": "Turm des Magiers", "typ": "magierturm", "kuerzel": "T"}, {"name": "Arena", "typ": "arena", "kuerzel": "A"},

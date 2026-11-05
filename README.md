@@ -184,7 +184,7 @@ Browser für vier Beispiele 27 statt 35 s; unter Pyodide für fünf Beispiele 61
 | `kloster` (auch `abtei`) | vor der Stadt an einer Landstraße: Klosterkirche mit Kreuzgrundriss, Kreuzgang um einen Innenhof mit Brunnen, Kräutergarten in Beeten, Obstbäume, alles hinter einer Mauer |
 | `richtstaette` (auch `galgen`, `richtplatz`) | vor der Stadt an einer Landstraße: kahler Hügel mit Galgen und Rad auf dem Pfahl |
 
-Die neuen Orte stehen wie alle anderen mit Kürzel in der Legende. Wer sie nicht in `orte` aufführt, bekommt dieselben Karten wie vor Version 1.38.
+Die neuen Orte stehen wie alle anderen mit Kürzel in der Legende. Wer sie nicht in `orte` aufführt, bekommt dieselben Karten wie vor Version 1.39.
 
 ### Mehrere gleiche Orte
 
