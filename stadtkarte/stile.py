@@ -1,12 +1,12 @@
-"""Zeichenstile über "standard" und "pergament" hinaus (Tusche, Aquarell, Sepia-Stich ...).
+"""Zeichenstile über "standard" und "pergament" hinaus (Aquarell, Sepia-Stich, Bleistift ...).
 
 Jeder Stil besteht aus drei Teilen:
 - einem SVG-Filter über der gezeichneten Karte (ohne Beschriftung und ohne Nachtlichter): Farben umrechnen,
-  Kanten herausziehen (Tuschelinien), weichzeichnen. So bleibt die SVG-Datei eine Vektorkarte, und PNG, PDF,
+  Kanten herausziehen, weichzeichnen. So bleibt die SVG-Datei eine Vektorkarte, und PNG, PDF,
   Nachtkarte und interaktive Karte zeigen denselben Stil;
 - einer vorberechneten Textur über der Karte (wie beim Pergament): ein Bild, das im Modus "multiply" Papierfasern
   und Wolken einbringt, und ein zweites, das Rand, Lichtschein oder Brandspuren darüberlegt;
-- auf Wunsch anderen Schriftfarben (dunkle Tinte statt heller Schrift).
+- auf Wunsch anderen Schriftfarben (dunkle Tinte statt heller Schrift; beim Bleistift Graphit).
 
 Die Kanten entstehen aus der Helligkeit: leicht weichgezeichnet, waagerechte und senkrechte Differenz
 (feConvolveMatrix mit Versatz 0.5, damit negative Werte nicht abgeschnitten werden), davon der Betrag über eine
@@ -24,7 +24,7 @@ _CACHE = {}
 EIGENE = [k for k in STILE if k not in ("standard", "pergament")]   # Stile aus diesem Modul
 
 # Schriftfarben (Schrift, Schriftrand) für Stile mit heller Karte: dunkle Tinte statt heller Schrift
-_SCHRIFT = {"tusche": ("#2a1d12", "#f1e7d0"), "pastell": ("#5b5068", "#fbf8f2"), "bleistift": ("#2d2d30", "#f4f2ee")}
+_SCHRIFT = {"bleistift": ("#2d2d30", "#f4f2ee")}
 
 
 def schrift(stil):
@@ -73,18 +73,6 @@ def _ramp(cols):
     return fn
 
 
-def _treppe(n, weich=0.45):
-    """Weiche Treppe mit n Stufen: Farbflächen wie im Druck, aber mit weichen Übergängen (harte Stufen je Kanal
-    ergäben grelle Farbbänder)."""
-    def fn(t):
-        x = t * n - 0.5
-        i = np.floor(x)
-        r = np.clip((x - i - 0.5) / weich + 0.5, 0, 1)
-        r = r * r * (3 - 2 * r)
-        return float(np.clip((i + r + 0.5) / n, 0, 1))
-    return fn
-
-
 KANTE = 5.5   # Verstärkung der Kanten
 _LUM = _matrix(np.tile([0.299, 0.587, 0.114], (3, 1)), result="lum")
 
@@ -115,21 +103,10 @@ def _abdunkeln(src, staerke, result):
             + "</feComponentTransfer>" + _mal(src, "nk", result))
 
 
-def _tinte(a, b, ramp):
-    """Tinte aus Kanten und Dunkelheit: t = 1 - min(1, a*kante + b*(1-lum)), dann Farbverlauf."""
-    inv = ('<feComponentTransfer in="lum" result="iv">'
-           + "".join(f'<feFunc{c} type="linear" slope="-1" intercept="1"/>' for c in "RGB") + "</feComponentTransfer>")
-    tot = a + b   # gewichtetes Mittel (k2 + k3 = 1 hält Alpha bei 1), die Tabelle streckt wieder
-    return (inv + f'<feComposite in="kante" in2="iv" operator="arithmetic" k2="{_f(a / tot)}" k3="{_f(b / tot)}" '
-            f'result="w"/>' + _table(lambda w: ramp(1 - min(1.0, w * tot)), 41, "w", "out"))
-
-
 def filter_svg(stil, s, W):
     """<filter id="stil"> für die Karte (Größe W in Nutzerkoordinaten) oder "" für Stile ohne Filter."""
     p = []
-    if stil == "tusche":
-        p += [_LUM, _kanten(s), _tinte(1.5, 0.12, _ramp(["#2a1d12", "#7a6450", "#f1e7d0"]))]
-    elif stil == "aquarell":
+    if stil == "aquarell":
         p += [_LUM, _kanten(s), f'<feGaussianBlur in="SourceGraphic" stdDeviation="{_f(3.75 * s)}" result="weich"/>',
               _matrix(0.75 * _sat_matrix(1.25), (0.32, 0.32, 0.32), "weich"), _abdunkeln("farbe", 0.33, "out")]
     elif stil == "sepia":
@@ -142,21 +119,9 @@ def filter_svg(stil, s, W):
               '<feComponentTransfer in="farbe" result="out">'
               + "".join(f'<feFunc{c} type="gamma" amplitude="1" exponent="0.95" offset="0"/>' for c in "RGB")
               + "</feComponentTransfer>"]
-    elif stil == "farbdruck":
-        p += [_LUM, _kanten(s), f'<feGaussianBlur in="SourceGraphic" stdDeviation="{_f(1.5 * s)}" result="weich"/>',
-              _matrix(_sat_matrix(1.05), src="weich", result="satt"),
-              _table(_treppe(6), 97, "satt", "flach"),
-              _matrix(0.86 * np.diag([1.0, 0.97, 0.9]), (0.12, 0.116, 0.108), "flach"), _abdunkeln("farbe", 0.45, "out")]
-    elif stil == "pastell":
-        p += [_LUM, _kanten(s), _matrix(0.68 * _sat_matrix(1.05), (0.32, 0.32, 0.32)), _abdunkeln("farbe", 0.5, "out")]
     elif stil == "bleistift":
-        p += [_LUM, _kanten(s), _tinte(1.2, 0.42, _ramp(["#2d2d30", "#8a8a8c", "#f4f2ee"]))]
-    elif stil == "stich":
-        p += [_LUM, _kanten(s), _matrix(0.5 * _sat_matrix(0.65), (0.47, 0.44, 0.37)),
-              '<feColorMatrix in="kante" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.5 0 0 0 0" result="tinte"/>',
-              '<feFlood flood-color="#2b2015" result="tf"/>',
-              '<feComposite in="tf" in2="tinte" operator="in" result="linien"/>',
-              '<feComposite in="linien" in2="farbe" operator="over" result="out"/>']
+        from . import bleistift   # eigenes Modul: zittrige Doppelstriche und Schraffur nach Helligkeit
+        p += bleistift.filter_teile(s)
     if not p:
         return ""
     return (f'<filter id="stil" filterUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{W}" '
@@ -206,10 +171,7 @@ def _bilder(stil, W, s, res):
         v = np.clip((rad - start) / (1 - start), 0, 1)
         deck.append((col, v * np.sqrt(v) * staerke))   # v ** 1.5
 
-    if stil == "tusche":
-        mul = 0.93 + 0.07 * n("faser")
-        vignette("#c9b28a", 0.4)
-    elif stil == "aquarell":
+    if stil == "aquarell":
         mul = (0.94 + 0.06 * n("korn")) * (1 - 0.0625 * n("wolke") - 0.02 * n("korn"))
         deck.append(("#f7f1e3", np.clip((rad - 0.72 + (n("wolke") - 0.5) * 0.2) / 0.2, 0, 1)))
     elif stil == "sepia":
@@ -221,14 +183,8 @@ def _bilder(stil, W, s, res):
     elif stil == "abendlicht":
         deck.append(("#ffcf7a", 0.25 * np.clip(1 - abstand(0.85, 0.1) / 1.2, 0, 1)))
         vignette("#3b1f2a", 0.55)
-    elif stil == "farbdruck":
-        mul = 0.95 + 0.05 * n("faser")
-        vignette("#d8c8a0", 0.5)
     elif stil == "bleistift":
         mul = 0.94 + 0.06 * n("korn") * (0.5 + n("faser"))
-    elif stil == "stich":
-        mul = (0.92 + 0.08 * n("faser")) * (0.95 + 0.05 * n("wolke"))
-        vignette("#a8885a", 0.45)
 
     mul_uri = None
     if mul is not None:
@@ -247,20 +203,3 @@ def _bilder(stil, W, s, res):
         img = np.dstack([np.clip(rgb, 0, 1) * 255, a * 255]).astype(np.uint8)
         deck_uri = webp_uri(Image.fromarray(img, "RGBA"), quality=84, method=0)
     return mul_uri, deck_uri
-
-
-def muster(stil, s, W):
-    """Regelmäßiges Muster über der Karte (Rasterpunkte, Schraffur) als SVG oder ""."""
-    if stil == "farbdruck":   # Rasterpunkte wie im Druck
-        d = 3.75 * s
-        return (f'<pattern id="stilmuster" patternUnits="userSpaceOnUse" width="{_f(d)}" height="{_f(d)}" '
-                f'patternTransform="rotate(15)"><circle cx="{_f(d / 2)}" cy="{_f(d / 2)}" r="{_f(d * 0.28)}" '
-                f'fill="#3a2e22" fill-opacity="0.22"/></pattern>'
-                f'<rect width="{W}" height="{W}" fill="url(#stilmuster)" style="mix-blend-mode:multiply"/>')
-    if stil == "bleistift":   # feine schräge Schraffur
-        d = 3.4 * s
-        return (f'<pattern id="stilmuster" patternUnits="userSpaceOnUse" width="{_f(d)}" height="{_f(d)}" '
-                f'patternTransform="rotate(-40)"><rect width="{_f(d)}" height="{_f(d * 0.35)}" fill="#55555a" '
-                f'fill-opacity="0.13"/></pattern>'
-                f'<rect width="{W}" height="{W}" fill="url(#stilmuster)" style="mix-blend-mode:multiply"/>')
-    return ""
