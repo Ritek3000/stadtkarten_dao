@@ -496,6 +496,8 @@ def _tex_pool():
     mehrere Texturen entstehen so auf mehreren Kernen gleichzeitig."""
     global _TEX_POOL
     with _TEX_LOCK:   # bei gleichzeitigem Rendern nur ein Pool
+        if _TEX_POOL is None and parallel.BROWSER:   # keine Threads im Browser: Texturen nacheinander
+            _TEX_POOL = parallel.Sofort()
         if _TEX_POOL is None:
             _TEX_POOL = ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 1)), thread_name_prefix="textur")
     return _TEX_POOL

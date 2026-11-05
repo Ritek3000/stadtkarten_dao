@@ -37,6 +37,25 @@ Debian/Ubuntu zusätzlich das Paket `python3-venv`). Beim ersten Start wird die 
 die Werkstatt im Browser. Die Karten nutzen die mitgelieferte freie Schrift EB Garamond (`stadtkarte/fonts`, SIL Open Font
 License) und sehen daher unter Windows und Linux gleich aus.
 
+## Browserversion (Prototyp)
+
+Die Werkstatt läuft auch ganz im Browser, ohne Installation und ohne Server: Der Python-Kern rechnet dort mit
+[Pyodide](https://pyodide.org) (Python als WebAssembly) in einem Web Worker, die Bilder zeichnet resvg-wasm (derselbe
+Renderer wie am Rechner). Die Oberfläche ist dieselbe `stadtkarte/ui/index.html`; die Desktopversion bleibt unverändert.
+
+- **Bauen:** `python packaging/web.py` legt den Ordner `build/web` an (rein statische Dateien, rund 2 MB). Er lässt sich auf
+  jeden Webspace hochladen, auch in einen Unterordner. Nötig sind HTTPS und der Dateityp `application/wasm` (bei den
+  meisten Hostern voreingestellt). Am Rechner ausprobieren: `python -m http.server -d build/web 8000`
+- **GitHub Pages:** `.github/workflows/web.yml` baut und veröffentlicht den Ordner (einmalig unter Settings -> Pages ->
+  Source „GitHub Actions“ wählen). Der Ordner liegt außerdem beim Lauf unter „Artifacts“
+- Pyodide, numpy, Shapely, Pillow, PyYAML und resvg-wasm lädt der Browser beim ersten Besuch vom CDN jsDelivr (rund
+  30 MB, danach aus dem Zwischenspeicher)
+- Unterschiede zur Desktopversion: nur ein Prozessorkern, daher entstehen volle Ansicht, Nachtkarte und PNG nacheinander
+  und erst, wenn sie gebraucht werden. „Alle Formate speichern“ lädt ein ZIP herunter. Pyodide bringt etwas ältere
+  Bibliotheken mit (z.B. Shapely 2.1 statt 2.2), die Karten zeigen dieselbe Stadt, sind aber nicht byte-gleich mit
+  denen am Rechner
+- Messwerte: Die Browser-Konsole zeigt die Ladezeit und die Dauer jeder Anfrage, `window.stadtkarteZeiten` sammelt sie
+
 ## Einrichtung
 
 Die Startskripte richten die Python-Umgebung (`.venv`) beim ersten Start selbst ein und halten sie aktuell: Ändert sich
