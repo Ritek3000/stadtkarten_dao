@@ -221,7 +221,7 @@ BIOMES = {
     "dschungel": dict(_BIOME_BASE,
         ground_detail=[("grain", "#101c0c", 0.4, 41), ("grain", "#7fae5a", 0.2, 42),
                        ("stipple", "#13240f", 0.6, 43, 1.4), ("strokes", "#5f9a3e", 0.4, 44, 0.9)],
-        land="#3a5a2c", mottle_dark="0.06 0.14 0.05", mottle_light="0.30 0.50 0.22", scribble="0.06 0.11 0.05",
+        land="#3a5a2c", mottle_dark="0.07 0.15 0.06", mottle_light="0.30 0.50 0.22", scribble="0.06 0.11 0.05",
         sea_deep="#2b6f7a", sea="#4d9a9c", shallow="#9fd0b8", river="#4f8a7a",
         trees=["#2f6a2a", "#3c7a30", "#2a5a26", "#4a8a36", "#1f4f22", "#56923a"],
         tree_kinds={"tropisch": 0.5, "palme": 0.18, "farn": 0.17, "lappen": 0.15},
