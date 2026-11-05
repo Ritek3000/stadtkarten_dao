@@ -9,9 +9,9 @@ from unittest import mock
 from PIL import Image
 import shapely.affinity
 import shapely.geometry.base
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Polygon, box
 
-from stadtkarte import bilder, geo, shapes, terrain
+from stadtkarte import bilder, geo, roofs, shapes, terrain
 
 
 class Geometrie(unittest.TestCase):
@@ -157,6 +157,34 @@ class Hausformen(unittest.TestCase):
             scaled = lambda f: Polygon([(c[0] + (x - c[0]) * f, c[1] + (y - c[1]) * f) for x, y in pts])
             self.assertTrue(lot.buffer(1e-6).contains(scaled(k)))
             self.assertFalse(lot.contains(scaled(k * 1.001)))
+
+
+class Ziegelreihen(unittest.TestCase):
+    """roofs._clip_line ersetzt LineString(a, b).intersection(Dachfläche) für die Ziegelreihen; dieselben Stücke in
+    derselben Richtung, auch bei einspringenden Ecken, Löchern, Strecken mit Ende in der Fläche und durch Ecken."""
+
+    def stuecke_wie_shapely(self, flaeche, a, b):
+        ist = roofs._clip_line(roofs._edges(flaeche), a, b)
+        soll = [ln for ln in geo.lines(LineString([a, b]).intersection(flaeche)) if ln.length > 1e-9]
+        self.assertEqual(len(ist), len(soll))
+        for (x0, y0, x1, y1), ln in zip(sorted(ist), sorted(soll, key=lambda ln: ln.coords[0])):
+            (sx0, sy0), (sx1, sy1) = ln.coords[0], ln.coords[-1]
+            for v, sv in ((x0, sx0), (y0, sy0), (x1, sx1), (y1, sy1)):
+                self.assertAlmostEqual(v, sv, places=9)
+
+    def test_zufaellige_strecken(self):
+        rng = random.Random(9)
+        winkel = Polygon([(0, 0), (30, 0), (30, 10), (12, 10), (12, 22), (0, 22)], [[(3, 3), (8, 3), (8, 6), (3, 6)]])
+        for _ in range(300):
+            a = (rng.uniform(-10, 40), rng.uniform(-10, 30))
+            b = (rng.uniform(-10, 40), rng.uniform(-10, 30))
+            self.stuecke_wie_shapely(winkel, a, b)
+
+    def test_durch_eine_ecke_und_mit_ende_innen(self):
+        raute = Polygon([(15, 0), (30, 10), (15, 20), (0, 10)])
+        self.stuecke_wie_shapely(raute, (-5, 10), (35, 10))      # durch zwei Ecken
+        self.stuecke_wie_shapely(raute, (10, 10), (40, 10))      # beginnt in der Fläche
+        self.assertEqual(roofs._clip_line(roofs._edges(raute), (-5, 30), (35, 30)), [])   # daneben
 
 
 class Inseln(unittest.TestCase):

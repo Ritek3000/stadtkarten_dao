@@ -105,8 +105,12 @@ def _fbm(size, period, octaves, seed, turbulence, warp=0.0, stretch=1.0):
         if period < 1.5:
             break
     mean, std = STATS["turbulence" if turbulence else "fractalNoise"]
-    total = (total - total.mean()) / (total.std() + 1e-6)
-    return total * std + mean
+    m, sd = total.mean(), total.std()
+    total -= m                                  # normieren auf Ort und Stelle (dieselben Schritte, ohne Kopien)
+    total /= sd + 1e-6
+    total *= std
+    total += mean
+    return total
 
 
 def _lin_to_srgb(c):
@@ -118,8 +122,10 @@ def _layer(W, s, res, spec):
     base_freq, octaves, seed, rgb_linear, gain, bias, turbulence = spec[:7]
     warp = spec[7] if len(spec) > 7 else 0.0       # optional: Verzerrung (fließende Formen)
     period = (1.0 / (base_freq / s)) * res / W     # Wellenlänge in Pixeln des Texturbildes
-    n = _fbm(res, period, octaves, seed, turbulence, warp=warp)
-    alpha = np.clip(gain * n + bias, 0, 1)
+    alpha = _fbm(res, period, octaves, seed, turbulence, warp=warp)
+    alpha *= gain
+    alpha += bias
+    np.clip(alpha, 0, 1, out=alpha)
     rgb = _lin_to_srgb(np.array(rgb_linear, np.float32))
     return rgb, alpha
 
@@ -132,8 +138,15 @@ def _soft(a, radius):
     return np.asarray(img, np.float32) / 255
 
 
-def _detail(kind, res, s, seed, density=1.0):
-    """Feine Bodendetails als Deckkraft-Array (0..1). Größen gelten für 2000 px und skalieren mit s."""
+def _detail(kind, res, s, seed, density=1.0, done=None):
+    """Feine Bodendetails als Deckkraft-Array (0..1). Größen gelten für 2000 px und skalieren mit s.
+    done: Zwischenspeicher einer Textur für die Felsrisse, die auch ihre helle Kante (cracks_hi) braucht; so entstehen
+    sie nur einmal (fünf Oktaven, die feinsten Pixel für Pixel). Andere Details werden nicht aufgehoben (Speicher)."""
+    if kind == "cracks" and done is not None:
+        key = (kind, res, s, seed)
+        if key not in done:
+            done[key] = _detail(kind, res, s, seed, density)
+        return done[key]
     rng = np.random.default_rng(seed)
     if kind == "grain":           # Körnung des Bodens
         n = _soft(rng.random((res, res), np.float32), 0.7 * s)
@@ -178,7 +191,7 @@ def _detail(kind, res, s, seed, density=1.0):
         return np.clip((n - 0.56) * 5, 0, 1)
     if kind == "cracks_hi":       # helle Bruchkante, leicht versetzt neben dem Riss
         shift = max(1, int(round(1.2 * s)))
-        return np.roll(_detail("cracks", res, s, seed), (-shift, -shift), axis=(0, 1))
+        return np.roll(_detail("cracks", res, s, seed, done=done), (-shift, -shift), axis=(0, 1))
     if kind == "cracks":          # Felsrisse: Nulllinien eines Simplex-Rauschens - lange, mäandernde Linien
         n = _fbm(res, 45 * s, 5, seed, False)
         ridged = 1 - np.abs(n - n.mean()) / (n.std() * 3)
@@ -199,16 +212,25 @@ def _stretch_p2_p98(n):
 
 def palette_base(res, s, palette, seed):
     """Deckender Untergrund als Farbverlauf: großräumiges, fließendes Simplex-Rauschen wird auf eine Palette
-    abgebildet (z.B. saftiges Grün - Gelbgrün - Oliv - trockene Stellen), statt einer einzigen Grundfarbe."""
+    abgebildet (z.B. saftiges Grün - Gelbgrün - Oliv - trockene Stellen), statt einer einzigen Grundfarbe.
+    Liefert die drei Farbkanäle getrennt (3 × res × res), siehe _texture."""
     big = _fbm(res, 900 * s, 3, seed, False, warp=0.6)
     mid = _fbm(res, 260 * s, 3, seed + 1, False, warp=0.4)
     t = _stretch_p2_p98(0.7 * big + 0.3 * mid)
     cols = np.array([_hex_rgb(c) for c in palette], np.float32)
     x = t * (len(cols) - 1)
     i = np.clip(np.floor(x).astype(np.int32), 0, len(cols) - 2)
-    f = (x - i)[..., None]
+    f = x - i
     f = f * f * (3 - 2 * f)                     # weiche Übergänge zwischen den Farbstufen
-    return cols[i] * (1 - f) + cols[i + 1] * f
+    g = 1 - f
+    # je Kanal nachschlagen statt ganze Farbtripel: dieselben Rechenschritte, bitgleich, aber ohne die großen
+    # (res × res × 3)-Zwischenfelder
+    out = np.empty((3, res, res), np.float32)
+    for c in range(3):
+        col = np.ascontiguousarray(cols[:, c])
+        np.multiply(col[i], g, out=out[c])
+        out[c] += col[i + 1] * f
+    return out
 
 
 def relief(res, s, period, seed, light):
@@ -241,31 +263,55 @@ def texture(W, s, layers, res=None, extras=(), base=None, palette=None, shading=
 
 
 def _texture(W, s, layers, res, extras, base, palette, shading):
-    out_rgb = np.zeros((res, res, 3), np.float32)   # vormultipliziert
+    """Legt die Schichten übereinander (vormultiplizierte Farbe). Die drei Farbkanäle liegen getrennt (3 × res × res)
+    und werden auf Ort und Stelle verrechnet: dieselben Rechenschritte wie mit verschachtelten RGB-Feldern, also
+    bitgleich, aber ohne große Zwischenfelder je Schicht (mehr als doppelt so schnell)."""
+    rgb = np.zeros((3, res, res), np.float32)
     out_a = np.zeros((res, res), np.float32)
     if base:   # deckender Untergrund: Bild ohne Transparenz, komprimiert viel besser
-        out_rgb[:] = palette_base(res, s, palette, 61) if palette else _hex_rgb(base)
+        if palette:
+            rgb[:] = palette_base(res, s, palette, 61)
+        else:
+            rgb[:] = _hex_rgb(base)[:, None, None]
         out_a[:] = 1
+
+    def over(color, a, cover=None):
+        """Farbe color (3 Kanäle) mit Deckkraft a darüber: rgb = color * cover + rgb * (1 - a), cover = a; mit
+        cover = a * Deckkraft bleibt die Deckkraft des Bildes unverändert (siehe Relief)."""
+        inv = 1 - a
+        cover = a if cover is None else cover
+        for c in range(3):
+            ch = rgb[c]
+            ch *= inv
+            ch += color[c] * cover
+        return inv
+
     for spec, opacity in layers:
-        rgb, alpha = _layer(W, s, res, spec)
+        color, alpha = _layer(W, s, res, spec)
         a = alpha * opacity
-        out_rgb = rgb[None, None, :] * a[..., None] + out_rgb * (1 - a[..., None])
-        out_a = a + out_a * (1 - a)
+        out_a *= over(color, a)
+        out_a += a
     # feine Details (Körnung, Gras, Rippel, Risse ...): extras = (Art, Farbe #rrggbb, Deckkraft, Seed[, Dichte])
+    done = {}   # eine Textur fragt manche Details zweimal ab (Risse und ihre helle Kante): nur einmal rechnen
     for ex in extras:
         kind, color, opacity, seed = ex[:4]
-        a = _detail(kind, res, s, seed, *(ex[4:5] or [1.0])) * opacity
-        out_rgb = _hex_rgb(color)[None, None, :] * a[..., None] + out_rgb * (1 - a[..., None])
-        out_a = a + out_a * (1 - a)
+        a = _detail(kind, res, s, seed, *(ex[4:5] or [1.0]), done=done) * opacity
+        out_a *= over(_hex_rgb(color), a)
+        out_a += a
     if shading:   # Relief: Licht warm-hell, Schatten kühl-dunkel, nur wo schon etwas ist (Deckkraft bleibt)
         strength, period, lx, ly, seed = shading
         sh = relief(res, s, period, seed, (lx, ly))
         for col, a in (("#fff4d6", np.clip(sh, 0, 1) * strength), ("#26301f", np.clip(-sh, 0, 1) * strength)):
             # "darüber, aber nur wo schon etwas ist": vormultiplizierte Farbe, Deckkraft bleibt unverändert
-            out_rgb = _hex_rgb(col)[None, None, :] * (a * out_a)[..., None] + out_rgb * (1 - a[..., None])
-    img = np.empty((res, res, 4), np.uint8)
-    img[..., :3] = np.clip(out_rgb / np.maximum(out_a, 1e-6)[..., None] * 255, 0, 255).astype(np.uint8)
-    img[..., 3] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
+            over(_hex_rgb(col), a, a * out_a)
+    den = np.maximum(out_a, 1e-6)
+    img = np.empty((res, res, 3 if base else 4), np.uint8)
+    for c in range(3):
+        ch = rgb[c]
+        ch /= den
+        ch *= 255
+        img[..., c] = np.clip(ch, 0, 255, out=ch)
     if base:
-        return webp_uri(Image.fromarray(img[..., :3], "RGB"), quality=82, method=0)
+        return webp_uri(Image.fromarray(img, "RGB"), quality=82, method=0)
+    img[..., 3] = np.clip(out_a * 255, 0, 255)
     return webp_uri(Image.fromarray(img, "RGBA"), quality=82, alpha_quality=70, method=0)

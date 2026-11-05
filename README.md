@@ -104,8 +104,24 @@ Der Generator braucht für die sieben Beispiele 19 statt 26 s (Hafenstadt 2,7 st
 Großstädte gewinnen wenig, ihre Häuserzeilen entstehen anders). Im Browser unter Pyodide sind es für fünf Beispiele
 38 statt 49 s. Die Häuser sind fast dieselben wie zuvor: Der Toleranzrand von 0,05 bzw. 0,15 px hat jetzt Gehrung statt
 runder Ecken, dadurch liegen einzelne Häuser um Bruchteile eines Pixels anders, und in einzelnen Karten entsteht ein Haus
-mehr oder weniger (Vergleichstests zu Version 1.37.2 neu geschrieben). Das Zeichnen bleibt etwa gleich schnell; dort
-kosten die Rauschtexturen (numpy) die meiste Zeit.
+mehr oder weniger (Vergleichstests zu Version 1.37.2 neu geschrieben).
+
+## Schneller zeichnen, bitgleich
+
+Beim Zeichnen kosten die Rauschtexturen (numpy) die meiste Zeit, im Browser (Pyodide, nur ein Kern) außerdem die
+Ziegelreihen der Dächer. Seit Version 1.37.3 rechnen diese Stellen mit denselben Rechenschritten in derselben Reihenfolge,
+aber ohne unnötige Zwischenfelder und GEOS-Aufrufe. Alle Karten bleiben byte-gleich (die Vergleichstests sind unverändert):
+
+- `simplex.Simplex2.noise` rechnet je Ecke auf Ort und Stelle (`out=`, `*=`) und schlägt die Gradienten je Achse nach:
+  gut doppelt so schnell.
+- `noise._texture` legt die Schichten mit getrennten Farbkanälen (3 × Breite × Höhe) auf Ort und Stelle übereinander statt
+  mit verschachtelten RGB-Feldern je Schicht; `noise.palette_base` liefert den Farbverlauf ebenso je Kanal.
+- Die Felsrisse (Gebirge) entstehen je Textur nur einmal; vorher rechnete die helle Bruchkante sie ein zweites Mal.
+- Die Ziegelreihen schneidet `roofs._clip_line` selbst mit der Dachfläche (Schnittpunkte mit den Kanten, paarweise innen)
+  statt mit GEOS; die Fugen einer Dachfläche werden in einem einzigen Punkttest geprüft statt je Reihe.
+
+Gemessen: Zeichnen der sieben Beispiele in der Werkstatt (mit mehreren Threads) 26 statt 37 s; mit einem Kern wie im
+Browser für vier Beispiele 27 statt 35 s; unter Pyodide für fünf Beispiele 61 statt 78 s (Hafenstadt 11,5 statt 15,1 s).
 
 ## Aufbau
 
