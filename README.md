@@ -85,6 +85,28 @@ in eigenen Prozessen nebeneinander; bei mindestens vier Kernen wird das PNG scho
 Karten bleiben dabei bitgenau gleich. Klappt das Starten der Render-Prozesse nicht, rendert das Programm wie
 früher nacheinander.
 
+## Häuser einpassen ohne GEOS
+
+Shapely/GEOS ist für beliebige Formen gebaut und stellt bei jeder Verschneidung einen vollständigen Schnittgraphen auf.
+Beim Einpassen der Häuser vergleicht der Generator aber tausende Male nur ein Rechteck oder eine einfache Hausform mit
+einem kleinen Grundstück. Diese Stellen rechnen ohne GEOS, in reinem Python (auf jedem Prozessor gleich):
+
+- `geo.fit_rect` (größtes Rechteck im Grundstück) rechnet im Achsensystem des Grundstücks, in dem das Rechteck
+  achsenparallel liegt: Abschneiden an vier Geraden (Sutherland-Hodgman) und die Gaußsche Flächenformel
+  (`geo.local_rings`, `geo.area_in_box`). Etwa viermal so schnell wie zuvor.
+- `shapes._fit` (Sonderformen wie Fünfeck, Achteck, L-Form): Bei einem konvexen Grundstück steht der größte Maßstab, mit
+  dem die Form hineinpasst, direkt fest (`shapes._largest_scale`); nur bei nicht konvexen Grundstücken prüft weiter GEOS.
+- `geo.hip_planes` (Walmdach für Grundrisse, die keine Rechtecke sind): Bei konvexen Grundrissen ist jede Dachfläche ein
+  Schnitt von Halbebenen (exakt, mit durchgehenden Graten); Grundrisse mit einspringenden Ecken bekommen weiter die
+  Voronoi-Zerlegung. Generator und Zeichnen fragen dasselbe Haus ab, das Ergebnis wird gemerkt.
+
+Der Generator braucht für die sieben Beispiele 19 statt 26 s (Hafenstadt 2,7 statt 4,1 s, Oasenstadt 1,1 statt 2,5 s;
+Großstädte gewinnen wenig, ihre Häuserzeilen entstehen anders). Im Browser unter Pyodide sind es für fünf Beispiele
+38 statt 49 s. Die Häuser sind fast dieselben wie zuvor: Der Toleranzrand von 0,05 bzw. 0,15 px hat jetzt Gehrung statt
+runder Ecken, dadurch liegen einzelne Häuser um Bruchteile eines Pixels anders, und in einzelnen Karten entsteht ein Haus
+mehr oder weniger (Vergleichstests zu Version 1.37.2 neu geschrieben). Das Zeichnen bleibt etwa gleich schnell; dort
+kosten die Rauschtexturen (numpy) die meiste Zeit.
+
 ## Aufbau
 
 | Datei | Aufgabe |
@@ -92,7 +114,7 @@ früher nacheinander.
 | `einrichten.py` | richtet die Python-Umgebung (`.venv`) ein und hält sie aktuell (Aufruf der Startskripte) |
 | `stadtkarte/config.py` | YAML einlesen und prüfen, Standardwerte (`DEFAULTS`, `OPTIONAL`), Himmelsrichtungen |
 | `stadtkarte/generator.py` | setzt Gelände, Stadt und Umland zum Kartenmodell zusammen (Ausschnitt, Festung, Leuchtturm, Mühlen) |
-| `stadtkarte/geo.py` | Geometrie-Hilfen (Flächen, Linien, Rechtecke, Achsen) und 1D-Rauschen |
+| `stadtkarte/geo.py` | Geometrie-Hilfen (Flächen, Linien, Rechtecke, Achsen), Flächenrechnung ohne GEOS für die Häuser, Walmdächer, 1D-Rauschen |
 | `stadtkarte/simplex.py` | Simplex-Rauschen, bitgenau auf jedem Prozessor |
 | `stadtkarte/bilder.py` | Bilder als WebP: Data-URIs für die Texturen, Bytes für Downloads |
 | `stadtkarte/terrain.py` | Küste, Inseln, Fluss |

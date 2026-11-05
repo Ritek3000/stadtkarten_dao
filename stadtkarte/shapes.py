@@ -7,11 +7,13 @@ verkleinert, bis sie vollständig ins Grundstück passt. Normal sind Rechtecke/Q
 Grundstücke (Ecken, Restflächen) bekommen die Form, die ihre Fläche am besten nutzt; ab und zu entsteht
 zur Abwechslung ein Sonderbau (Achteck, Sechseck, Fünfeck, Raute).
 """
+import math
+
 import numpy as np
 import shapely
 from shapely.geometry import Polygon
 
-from .geo import axes, fit_rect, min_width, vlen
+from .geo import axes, fit_rect, min_width, signed_area, vlen
 
 SPECIAL = ("achteck", "sechseck", "fuenfeck", "raute")
 
@@ -39,19 +41,66 @@ def _unit_shapes(rng, aspect):
     return out
 
 
-def _fit(strict, o, u, v, l1, l2, pts):
-    """Form ins Grundstück skalieren (Binärsuche um die Mitte); liefert (Polygon, Faktor) oder (None, 0)."""
+def _halfplanes(poly):
+    """Halbebenen (nx, ny, d) mit nx * x + ny * y <= d, deren Schnitt das konvexe Polygon poly ist; None, wenn poly
+    Löcher hat oder nicht konvex ist."""
+    if poly.geom_type != "Polygon" or poly.interiors:
+        return None
+    pts = [(float(x), float(y)) for x, y in list(poly.exterior.coords)[:-1]]
+    if len(pts) < 3:
+        return None
+    sign = 1.0 if signed_area(pts) > 0 else -1.0
+    out = []
+    qx, qy = pts[-1]
+    for x, y in pts:
+        ex, ey = x - qx, y - qy
+        if ex or ey:
+            nx, ny = sign * ey, -sign * ex      # Normale nach außen
+            out.append((nx, ny, nx * qx + ny * qy))
+        qx, qy = x, y
+    # konvex genau dann, wenn keine Ecke außerhalb einer Kante liegt (Spiel 1e-6 px für Rundungsreste)
+    for nx, ny, d in out:
+        tol = 1e-6 * math.hypot(nx, ny)
+        if any(nx * x + ny * y - d > tol for x, y in pts):
+            return None
+    return out
+
+
+def _largest_scale(planes, world, c):
+    """Größter Faktor k, mit dem die um c skalierte Form c + k * (world - c) ganz im konvexen Grundstück liegt. Bei einem
+    konvexen Grundstück genügt es, die Ecken der Form zu prüfen (auch bei der L-Form, deren Hülle dann mit hineinpasst);
+    jede Ecke der Form ergibt mit jeder Kante des Grundstücks eine obere Schranke für k."""
+    cx, cy = float(c[0]), float(c[1])
+    k = math.inf
+    for nx, ny, d in planes:
+        room = d - (nx * cx + ny * cy)
+        if room < 0:
+            return 0.0                          # die Mitte liegt nicht im Grundstück
+        for x, y in world:
+            t = nx * (x - cx) + ny * (y - cy)
+            if t > 0 and room < k * t:
+                k = room / t
+    return k
+
+
+def _fit(strict, planes, o, u, v, l1, l2, pts):
+    """Form ins Grundstück skalieren (Binärsuche um die Mitte); liefert (Polygon, Faktor) oder (None, 0).
+    Bei einem konvexen Grundstück (planes, siehe _halfplanes) steht der größte passende Faktor direkt fest, die Suche
+    vergleicht dann nur noch Zahlen; sonst prüft GEOS jede Stufe (strict ist dafür vorbereitet)."""
     c = o + u * l1 / 2 + v * l2 / 2
     world = np.array([o + u * (x * l1) + v * (y * l2) for x, y in pts])
+    k_max = _largest_scale(planes, world.tolist(), c) if planes is not None else None
+
+    def fits(k, cand):
+        return k <= k_max if k_max is not None else strict.contains(cand())
+
     lo, hi, best = 0.35, 1.0, None
-    full = Polygon(world)
-    if strict.contains(full):
-        return full, 1.0
+    if fits(1.0, lambda: Polygon(world)):
+        return Polygon(world), 1.0
     for _ in range(9):
         mid = (lo + hi) / 2
-        cand = Polygon(c + (world - c) * mid)
-        if strict.contains(cand):
-            best, lo = (cand, mid), mid
+        if fits(mid, lambda: Polygon(c + (world - c) * mid)):
+            best, lo = (Polygon(c + (world - c) * mid), mid), mid
         else:
             hi = mid
     return best if best else (None, 0.0)
@@ -78,13 +127,18 @@ def house_shape(piece, rng, min_w, max_ratio, special_chance=0.12):
                 return ell, "l"
         return _square_up(rect), _rect_name(rect)
 
-    strict = piece.buffer(0.15)
-    shapely.prepare(strict)
+    # 0,15 px Spiel. Konvexes Grundstück: Faktoren direkt ausrechnen (mit Gehrung statt runder Ecken bleiben es wenige
+    # Kanten); sonst prüft GEOS
+    planes = _halfplanes(piece.buffer(0.15, join_style="mitre"))
+    strict = None
+    if planes is None:
+        strict = piece.buffer(0.15)
+        shapely.prepare(strict)
     cands = []
     for name, pts, arm in _unit_shapes(rng, aspect):
         if not want_special and name in SPECIAL and name != "fuenfeck":   # Sonderbauten nur auf Wunsch
             continue
-        shp, k = _fit(strict, o, u, v, l1, l2, pts)
+        shp, k = _fit(strict, planes, o, u, v, l1, l2, pts)
         if shp is None or min_width(shp) < min_w:
             continue
         if arm is not None and arm * l2 * k < min_w * 0.75:   # Flügel der L-Form nicht zu schmal
