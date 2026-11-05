@@ -977,50 +977,6 @@
     }
    }
   },
-  "stil_tusche": {
-   "hinweise": [],
-   "zahlen": {
-    "gebaeude": 105,
-    "baeume": 870,
-    "landstrassen": 4,
-    "gassen": 9,
-    "bruecken": 3,
-    "viertel": 3,
-    "beschriftungen": 7,
-    "tore": 4,
-    "tuerme": 12,
-    "schiffe": 1,
-    "felder": 127,
-    "stadtflaeche": 9754
-   },
-   "modell": "57597654af0d98cde8ee",
-   "karten": {
-    "tag": {
-     "svg": "a3851be7eae3822417cf",
-     "bilder": [
-      "c517261f8487f70d7cfa",
-      "d9918ccede27c0aa0015",
-      "e225c9af7c9cacf1dac4",
-      "5abccc48280ce0f14b67",
-      "9ba7c1a7b6697316dc5c",
-      "47085e3b439c935eaffb",
-      "e6a92c3b3292e2e67c8c"
-     ]
-    },
-    "nacht": {
-     "svg": "e5463539906475892fe5",
-     "bilder": [
-      "c517261f8487f70d7cfa",
-      "d9918ccede27c0aa0015",
-      "e225c9af7c9cacf1dac4",
-      "5abccc48280ce0f14b67",
-      "9ba7c1a7b6697316dc5c",
-      "47085e3b439c935eaffb",
-      "e6a92c3b3292e2e67c8c"
-     ]
-    }
-   }
-  },
   "stil_aquarell": {
    "hinweise": [],
    "zahlen": {
@@ -1148,68 +1104,6 @@
     }
    }
   },
-  "stil_farbdruck": {
-   "hinweise": [],
-   "zahlen": {
-    "gebaeude": 105,
-    "baeume": 870,
-    "landstrassen": 4,
-    "gassen": 9,
-    "bruecken": 3,
-    "viertel": 3,
-    "beschriftungen": 7,
-    "tore": 4,
-    "tuerme": 12,
-    "schiffe": 1,
-    "felder": 127,
-    "stadtflaeche": 9754
-   },
-   "modell": "57597654af0d98cde8ee",
-   "karten": {
-    "tag": {
-     "svg": "b85b043c99abd9040fe7",
-     "bilder": [
-      "e1a19ccbb622449a2113",
-      "3889e1efa75b3491b8fb",
-      "e225c9af7c9cacf1dac4",
-      "5abccc48280ce0f14b67",
-      "9ba7c1a7b6697316dc5c",
-      "47085e3b439c935eaffb",
-      "e6a92c3b3292e2e67c8c"
-     ]
-    }
-   }
-  },
-  "stil_pastell": {
-   "hinweise": [],
-   "zahlen": {
-    "gebaeude": 105,
-    "baeume": 870,
-    "landstrassen": 4,
-    "gassen": 9,
-    "bruecken": 3,
-    "viertel": 3,
-    "beschriftungen": 7,
-    "tore": 4,
-    "tuerme": 12,
-    "schiffe": 1,
-    "felder": 127,
-    "stadtflaeche": 9754
-   },
-   "modell": "57597654af0d98cde8ee",
-   "karten": {
-    "tag": {
-     "svg": "30dbb56c61d920f82cd4",
-     "bilder": [
-      "e225c9af7c9cacf1dac4",
-      "5abccc48280ce0f14b67",
-      "9ba7c1a7b6697316dc5c",
-      "47085e3b439c935eaffb",
-      "e6a92c3b3292e2e67c8c"
-     ]
-    }
-   }
-  },
   "stil_bleistift": {
    "hinweise": [],
    "zahlen": {
@@ -1229,8 +1123,9 @@
    "modell": "57597654af0d98cde8ee",
    "karten": {
     "tag": {
-     "svg": "e4e766196d23b2ccc0a7",
+     "svg": "b1014b4093d9a53633f1",
      "bilder": [
+      "3934b66982fd1a89fa6a",
       "3e30560f48cbbf8bce51",
       "e225c9af7c9cacf1dac4",
       "5abccc48280ce0f14b67",
@@ -1238,32 +1133,12 @@
       "47085e3b439c935eaffb",
       "e6a92c3b3292e2e67c8c"
      ]
-    }
-   }
-  },
-  "stil_stich": {
-   "hinweise": [],
-   "zahlen": {
-    "gebaeude": 105,
-    "baeume": 870,
-    "landstrassen": 4,
-    "gassen": 9,
-    "bruecken": 3,
-    "viertel": 3,
-    "beschriftungen": 7,
-    "tore": 4,
-    "tuerme": 12,
-    "schiffe": 1,
-    "felder": 127,
-    "stadtflaeche": 9754
-   },
-   "modell": "57597654af0d98cde8ee",
-   "karten": {
-    "tag": {
-     "svg": "8920be27693744dc5293",
+    },
+    "nacht": {
+     "svg": "a2ccfba1d64caaf04a91",
      "bilder": [
-      "7b5269d1b8b6c4cf9195",
-      "f841cb75a89275fd5e71",
+      "3934b66982fd1a89fa6a",
+      "3e30560f48cbbf8bce51",
       "e225c9af7c9cacf1dac4",
       "5abccc48280ce0f14b67",
       "9ba7c1a7b6697316dc5c",

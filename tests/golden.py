@@ -147,9 +147,9 @@ def faelle():
     }
     for form in ("oval", "vieleck", "gewachsen", "unregelmaessig"):
         f[f"form_{form}"] = (klein(seed=9, stadtform=form), ("tag",))
-    for stil in STILE:   # die Zeichenstile über Standard und Pergament hinaus (Tusche mit Schrift in Tinte auch nachts)
+    for stil in STILE:   # die Zeichenstile über Standard und Pergament hinaus (Bleistift mit Schrift in Graphit auch nachts)
         if stil not in ("standard", "pergament"):
-            f[f"stil_{stil}"] = (klein(ausgabe={"stil": stil}), ("tag", "nacht") if stil == "tusche" else ("tag",))
+            f[f"stil_{stil}"] = (klein(ausgabe={"stil": stil}), ("tag", "nacht") if stil == "bleistift" else ("tag",))
     for name, raw in _abstuerze().items():
         f[f"abstuerz_{name}"] = (copy.deepcopy(raw), ("tag",))
     return f

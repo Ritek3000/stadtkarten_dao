@@ -161,7 +161,8 @@ Browser für vier Beispiele 27 statt 35 s; unter Pyodide für fünf Beispiele 61
 | `stadtkarte/gebirge.py`, `stadtkarte/schlucht.py` | Gebirge mit Höhenrelief und die Klamm als Bild über dem Fels bzw. dem Fluss |
 | `stadtkarte/wasser.py` | Wasser mit Tiefe, Brandung und Flussufern als Bild |
 | `stadtkarte/umgebung.py`, `stadtkarte/papier.py`, `stadtkarte/staub.py` | Bodentönung nach Umgebung, Papierstruktur des Pergament-Stils, Staub |
-| `stadtkarte/stile.py` | weitere Zeichenstile (Tusche, Aquarell, Sepia-Stich …): Filter, Papier- und Randtexturen, Schriftfarben |
+| `stadtkarte/bleistift.py` | Zeichenstil Bleistift: Filter mit zittrigen Doppelstrichen und Schraffurkachel |
+| `stadtkarte/stile.py` | weitere Zeichenstile (Aquarell, Sepia-Stich, Bleistift …): Filter, Papier- und Randtexturen, Schriftfarben |
 | `stadtkarte/webpaket.py` | Web-Paket: Kartenbild, Beschriftung, Ortsliste und Stadtbeschreibung |
 | `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF; `render_svg` setzt die Karte aus Ebenen zusammen (`water_svg`, `land_svg`, `streets_svg` … `labels_svg`), von unten nach oben |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
@@ -501,17 +502,13 @@ das Ergebnis des vorigen. Nicht übernommen werden Bäume, Felder, Wald, Schiffe
 |---|---|
 | `pergament` (Standard) | wie auf altem Papier: Papierstruktur mit Fasern, Körnung und Stockflecken, warmer Sepiaton, unregelmäßig gebräunter Rand, Küstenlinie wie mit der Feder gezeichnet |
 | `standard` | ohne Papier: klare Farben, dunkle Vignette am Rand |
-| `tusche` | Feder und Tinte auf Elfenbeinpapier: Umrisse als dunkle Tintenlinien, fast ohne Farbe, Schrift in Tinte |
 | `aquarell` | weiche, leicht verlaufene Farben, Papierkörnung, zum Rand hin ausbleichend |
 | `sepia` (Sepia-Stich) | einfarbig braun wie ein alter Druck, mit Papierfasern und dunklem Rand |
 | `schatzkarte` | gealtertes, fleckiges Pergament in gedeckten Farben mit angebrannten Ecken |
 | `abendlicht` (Goldene Stunde) | die Karte in warmem Abendlicht, Lichtschein oben rechts, dunkler Rand |
-| `farbdruck` | wenige Farbflächen und Rasterpunkte wie eine alte Lithografie |
-| `pastell` | helle, sanfte Farben mit klaren Umrissen, Schrift in dunklem Violett |
-| `bleistift` | Graustufen mit feiner Schraffur wie eine Skizze, Schrift in Graphit |
-| `stich` (Kolorierter Stich) | Tintenlinien mit blasser Handkolorierung |
+| `bleistift` | Skizze in Graphit: zittrige Doppelstriche, Schraffur nach Helligkeit (helle Flächen bleiben Papier, dunkle bekommen Kreuzschraffur), Schrift in Graphit |
 
-Andere Schreibweisen gehen auch, etwa `Goldene Stunde`, `Sepia-Stich`, `Kupferstich` oder `Skizze`. Die Stile ab `tusche`
+Andere Schreibweisen gehen auch, etwa `Goldene Stunde`, `Sepia-Stich` oder `Skizze`. Die entfernten Stile `tusche`, `pastell`, `farbdruck` und `stich` in alten Beschreibungen werden zu `bleistift`, `aquarell`, `sepia` bzw. `bleistift`. Die Stile ab `aquarell`
 legen einen SVG-Filter über die gezeichnete Karte (Farben umrechnen, Umrisse aus Helligkeitskanten als Tintenlinien,
 weichzeichnen) und darüber eine Papier- bzw. Randtextur (`stadtkarte/stile.py`). Beschriftung, Nachtlichter, Leuchtfeuer und
 Staub liegen über dem Filter und bleiben scharf; die SVG-Datei bleibt eine Vektorkarte. Die Nachtkarte dunkelt die gestaltete

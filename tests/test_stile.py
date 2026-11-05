@@ -21,14 +21,14 @@ class Angaben(unittest.TestCase):
                 self.assertEqual(config.from_dict({"ausgabe": {"stil": stil}})["ausgabe"]["stil"], stil)
 
     def test_andere_schreibweisen(self):
-        for roh, stil in (("Goldene Stunde", "abendlicht"), ("Sepia-Stich", "sepia"), ("Kolorierter Stich", "stich"),
-                          ("Kupferstich", "stich"), ("Feder", "tusche"), ("Skizze", "bleistift"), ("alt", "pergament")):
+        for roh, stil in (("Goldene Stunde", "abendlicht"), ("Sepia-Stich", "sepia"), ("Skizze", "bleistift"),
+                          ("Feder", "bleistift"), ("Pastell", "aquarell"), ("Farbdruck", "sepia"), ("alt", "pergament")):
             with self.subTest(roh):
                 self.assertEqual(config.from_dict({"ausgabe": {"stil": roh}})["ausgabe"]["stil"], stil)
         self.assertTrue(set(STIL_ALIASE.values()) <= set(STILE))
 
     def test_unbekannter_stil_nennt_die_moeglichen(self):
-        with self.assertRaisesRegex(ValueError, "tusche.*aquarell"):
+        with self.assertRaisesRegex(ValueError, "aquarell.*bleistift"):
             config.from_dict({"ausgabe": {"stil": "comic"}})
 
     def test_filter_und_texturen(self):
@@ -38,7 +38,7 @@ class Angaben(unittest.TestCase):
                 self.assertTrue(filt.startswith('<filter id="stil"'))
                 self.assertIn('result="out"', filt)   # der letzte Schritt liefert das Ergebnis
                 mul, deck = stile.bilder(stil, 500, 0.25)
-                self.assertTrue(mul or deck or stile.muster(stil, 0.25, 500) or stil == "pastell")
+                self.assertTrue(mul or deck)
         self.assertEqual(stile.filter_svg("standard", 1, 2000), "")
         self.assertEqual(stile.filter_svg("pergament", 1, 2000), "")
 
@@ -66,7 +66,7 @@ class Zeichnen(unittest.TestCase):
             self.assertGreater(np.abs(bilder[stil] - bilder["standard"]).mean(), 5, stil)
 
     def test_filter_umfasst_die_karte_aber_nicht_beschriftung_und_nachtlichter(self):
-        svg = self.zeichne("tusche", nacht=True)
+        svg = self.zeichne("bleistift", nacht=True)
         start = svg.index('<g filter="url(#stil)">')
         ende = svg.index("</g></g>", start)
         self.assertLess(ende, svg.index("glowNight)") if "glowNight)" in svg else len(svg))
@@ -75,7 +75,7 @@ class Zeichnen(unittest.TestCase):
         self.assertIn('filter="url(#stil)"', karte)
 
     def test_schrift_in_tinte(self):
-        for stil in ("tusche", "pastell", "bleistift"):
+        for stil in ("bleistift",):
             with self.subTest(stil):
                 _, schrift = split_labels(self.zeichne(stil))
                 ink, halo = stile.schrift(stil)
@@ -87,7 +87,7 @@ class Zeichnen(unittest.TestCase):
     def test_vorschau_sieht_aus_wie_die_volle_aufloesung(self):
         """Die Kanten rechnen in Kartenmaßen: die halb so große Vorschau der Werkstatt hat so viel Tinte wie die volle
         Karte (bei der kleinsten Bildgröße der Oberfläche; bei sehr kleinen Karten sind die Radien unter einem Pixel)."""
-        m = generate(config.from_dict(klein(ausgabe={"bildgroesse": 1500, "stil": "tusche"})))
+        m = generate(config.from_dict(klein(ausgabe={"bildgroesse": 1500, "stil": "bleistift"})))
         svg = render_svg(m)
         voll = Image.open(io.BytesIO(to_png(svg))).convert("L").resize((750, 750), Image.BILINEAR)
         halb = Image.open(io.BytesIO(to_png(svg, zoom=0.5))).convert("L")

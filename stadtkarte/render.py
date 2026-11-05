@@ -2137,7 +2137,6 @@ def paper_svg(o, m):
     elif m["cfg"]["ausgabe"].get("stil") in stile.EIGENE:
         stil = m["cfg"]["ausgabe"]["stil"]
         mul, deck = stile.bilder(stil, W, m["s"])
-        o.append(stile.muster(stil, m["s"], W))
         if mul:
             o.append(f'<image href="{mul}" x="0" y="0" width="{W}" height="{W}" preserveAspectRatio="none" '
                      f'style="mix-blend-mode:multiply"/>')
