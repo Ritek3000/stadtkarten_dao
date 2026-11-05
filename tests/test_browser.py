@@ -33,17 +33,38 @@ class BrowserApiTest(unittest.TestCase):
         self.assertEqual((job.result(), job.result()), (1, 1))
 
 
+def bauskript():
+    import importlib.util
+    import pathlib
+    spec = importlib.util.spec_from_file_location("web_bau", pathlib.Path(__file__).parents[1] / "packaging" / "web.py")
+    web = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(web)
+    return web
+
+
 class WebBauTest(unittest.TestCase):
     def test_index_html_passt_zum_bauskript(self):
-        import importlib.util
-        import pathlib
-        spec = importlib.util.spec_from_file_location("web_bau", pathlib.Path(__file__).parents[1] / "packaging" / "web.py")
-        web = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(web)
-        html = web.index_html()   # bricht ab, wenn sich die Pfade in index.html geändert haben
+        html = bauskript().index_html()   # bricht ab, wenn sich die Pfade in index.html geändert haben
         self.assertIn('<script src="werkstatt.js"></script>', html)
         self.assertNotIn('"/static/', html)
         self.assertIn("window.stadtkarteDownload", html)
+
+    def test_kopfzeile_der_webseite_nur_in_der_browserversion(self):
+        import pathlib
+        html = bauskript().index_html()
+        self.assertIn("<title>Stadtkartenwerkstatt – Die Alte Ordnung</title>", html)
+        for erwartet in ('aria-label="Hauptnavigation"', 'href="https://www.dao-rpg.de/stadtkartenwerkstatt/" aria-current="page"'):
+            self.assertIn(erwartet, html)
+        self.assertEqual(html.count("<header"), 1)
+        for id_ in ("btnHome", "btnTheme", "ver", "burger", "menu"):   # jede Kennung genau einmal; das Skript greift sie per getElementById
+            self.assertEqual(html.count(f'id="{id_}"'), 1, id_)
+        original = (pathlib.Path(__file__).parents[1] / "stadtkarte" / "ui" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('id="burger"', original)   # die lokale Oberfläche behält ihre schlichte Kopfzeile
+        self.assertNotIn("dao-rpg.de", original)
+
+    def test_kopfzeile_bricht_ab_wenn_die_oberflaeche_nicht_mehr_passt(self):
+        with self.assertRaises(SystemExit):
+            bauskript().kopfzeile("<html><title>Stadtkarten-Werkstatt</title></html>")
 
 
 if __name__ == "__main__":

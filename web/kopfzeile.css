@@ -1,0 +1,55 @@
+/* Kopfzeile: wie auf den übrigen Seiten von dao-rpg.de (Sor-Symbol, Hauptnavigation, Hell/Dunkel, Bürger-Menü) */
+header.bar { position: relative; z-index: 30; display: flex; align-items: center; gap: .8rem 1.2rem; flex-wrap: wrap; padding: .7rem clamp(1rem, 3vw, 1.8rem); border-bottom: 1px solid var(--line); }
+.brand { display: flex; gap: .65rem; align-items: center; color: inherit; text-decoration: none; }
+.brand .mark { width: 20px; height: 26px; background: url(/static/sor-symbol.png) center/contain no-repeat; flex: none; }
+.brand .bwrap { display: flex; flex-direction: column; line-height: 1.05; }
+.brand .name { font-family: var(--font-display); font-size: 1.3rem; line-height: 1.1; }
+.brand h1 { font-family: var(--font-body); font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); line-height: 1.2; margin-top: .15rem; white-space: nowrap; }
+.brand .ver { font-weight: 400; letter-spacing: .02em; text-transform: none; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-left: .35rem; }
+.brand .ver:empty { display: none; }
+.navwrap { display: flex; align-items: center; gap: 1.2rem; margin-left: auto; }
+nav.links { display: flex; gap: 1.5rem; font-size: 1rem; }
+nav.links a { text-decoration: none; color: var(--ink-soft); position: relative; transition: color var(--t-kurz) ease; }
+nav.links a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: var(--gold);
+  transform: scaleX(0); transform-origin: left; transition: transform var(--t-kurz) var(--ease-klinge); }
+nav.links a:hover, nav.links a:focus-visible { color: var(--ink); }
+nav.links a:hover::after, nav.links a:focus-visible::after { transform: scaleX(1); }
+
+.theme, .burger { width: 40px; height: 40px; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 50%;
+  color: var(--ink-soft); cursor: pointer; padding: 0; transition: color var(--t-kurz) ease, border-color var(--t-kurz) ease; }
+.theme:hover, .burger:hover, .theme:focus-visible, .burger:focus-visible { color: var(--ink); border-color: var(--line); }
+.theme svg { width: 20px; height: 20px; grid-area: 1/1; transition: transform .5s var(--ease-staub), opacity .3s ease; }
+.theme .sonne circle, .theme .mond { fill: currentColor; stroke: none; }
+:root[data-theme="dark"] .theme .sonne { opacity: 0; transform: rotate(-90deg) scale(.6); }
+:root:not([data-theme="dark"]) .theme .mond { opacity: 0; transform: rotate(90deg) scale(.6); }
+
+.menubox { position: relative; }
+.burger span { display: block; width: 18px; height: 1.5px; background: currentColor; grid-area: 1/1; transition: transform .3s var(--ease-klinge), opacity .2s ease; }
+.burger span:nth-child(1) { transform: translateY(-6px); } .burger span:nth-child(3) { transform: translateY(6px); }
+.burger[aria-expanded="true"] span:nth-child(1) { transform: rotate(45deg); }
+.burger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.burger[aria-expanded="true"] span:nth-child(3) { transform: rotate(-45deg); }
+.menu { position: absolute; right: 0; top: calc(100% + .6rem); z-index: 40; min-width: 13rem; padding: .6rem 0; background: var(--surface);
+  border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+.menu.open { animation: menuIn .28s var(--ease-staub); }
+@keyframes menuIn { from { opacity: 0; transform: translateY(-6px); } }
+.menu a { padding: .5rem 1.2rem; text-decoration: none; color: var(--ink-soft); }
+.menu a:hover, .menu a:focus-visible { color: var(--ink); background: color-mix(in srgb, var(--gold) 12%, transparent); outline: none; }
+.menu .sep { height: 1px; background: var(--line); margin: .4rem 1.2rem; }
+.menu .m-only { display: none; }
+
+@media (max-width: 820px) {
+  nav.links { display: none; }
+  .menu .m-only { display: block; }
+  .brand .name { font-size: 1.15rem; }
+}
+@media (max-width: 640px) {
+  .brand .ver { display: none; }
+  #btnHome { order: 3; margin-right: auto; }
+}
+@media (max-width: 400px) {
+  .brand .name { font-size: 1.05rem; }
+  .brand h1 { font-size: .6rem; letter-spacing: .1em; }
+  .navwrap { gap: .6rem; }
+}
+
