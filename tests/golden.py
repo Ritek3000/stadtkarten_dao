@@ -123,6 +123,13 @@ def faelle():
                                    {"name": "Windmühle", "typ": "muehle"}, {"name": "Hof", "typ": "bauernhof"},
                                    {"name": "Wassermühle", "typ": "wassermuehle"}, {"name": "Dom", "typ": "kathedrale"},
                                    {"name": "Schenke", "typ": "gasthaus", "anzahl": 3}]), ("tag",)),
+        # Marktplatz, Badehaus, Magierturm, Arena, Färberei, Hafenkran, Kloster, Richtstätte (neu in 1.38)
+        "neue_orte": (klein(seed=5, einwohner=9000, orte=[
+            {"name": "Marktplatz", "typ": "marktplatz", "kuerzel": "M"}, {"name": "Badehaus", "typ": "badehaus", "kuerzel": "B"},
+            {"name": "Turm des Magiers", "typ": "magierturm", "kuerzel": "T"}, {"name": "Arena", "typ": "arena", "kuerzel": "A"},
+            {"name": "Färberei", "typ": "faerberei", "kuerzel": "F"}, {"name": "Hafenkran", "typ": "hafenkran", "kuerzel": "K"},
+            {"name": "Kloster", "typ": "kloster", "kuerzel": "KL"}, {"name": "Galgenhügel", "typ": "richtstaette", "kuerzel": "G"}]),
+            ("tag", "nacht")),
         "eigene_mauer": (klein(stadtform="eigene", mauer={"punkte": eigene}), ("tag",)),   # selbst gezeichnete Mauer
         "eigene_gelaende": (klein(stadtform="eigene"), ("tag",)),            # nur Gelände, die Mauer fehlt noch
         # Raster, keine Legende, flache Dächer ohne Details, von Hand verschobene Beschriftung

@@ -20,11 +20,18 @@ ROTATION = {"nord": 0, "ost": 90, "sued": 180, "west": 270, "keine": 0}
 # andere Schreibweisen für besondere Orte
 PLACE_ALIASES = {"windmuehle": "muehle", "wasserrad": "wassermuehle", "halle": "rathaus", "dorfhalle": "rathaus",
                  "stadthalle": "rathaus", "schloss": "palast", "hof": "bauernhof", "bauernhaus": "bauernhof",
-                 "gehoeft": "bauernhof", "dom": "kathedrale", "muenster": "kathedrale"}
+                 "gehoeft": "bauernhof", "dom": "kathedrale", "muenster": "kathedrale",
+                 "markt": "marktplatz", "wochenmarkt": "marktplatz", "bad": "badehaus", "badhaus": "badehaus",
+                 "therme": "badehaus", "thermen": "badehaus", "magier": "magierturm", "zaubererturm": "magierturm",
+                 "amphitheater": "arena", "kolosseum": "arena", "abtei": "kloster", "faerber": "faerberei",
+                 "galgen": "richtstaette", "galgenhuegel": "richtstaette", "richtplatz": "richtstaette",
+                 "kran": "hafenkran", "tretkran": "hafenkran", "tretradkran": "hafenkran"}
 
 # Arten besonderer Orte (nach PLACE_ALIASES); Festungen (FORT_TYPES) baut der Generator getrennt von den übrigen Orten
 PLACE_TYPES = frozenset({"gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "kontor", "werft", "adelshaus",
-                         "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof"}) | FORT_TYPES
+                         "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof",
+                         "marktplatz", "badehaus", "magierturm", "arena", "faerberei", "hafenkran", "kloster",
+                         "richtstaette"}) | FORT_TYPES
 FORT_PLACES = ("insel", "landzunge", "land")   # mögliche Lagen einer Festung
 MAX_BRIDGES = 5   # so viele Brücken über den Fluss in der Stadt sind höchstens möglich (gelaende.bruecken)
 OUTPUT_FORMATS = ("svg", "png", "pdf", "html", "web")

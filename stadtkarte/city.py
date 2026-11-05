@@ -17,7 +17,21 @@ from .geo import (Noise1D, axes, blob, clean, cut, fit_rect, lines, merge_polys,
 from .roofs import shade as shade_hex
 from .styles import BIG_LANDMARKS, BIOMES, DISTRICT_TYPES, FORT_TYPES, LANDMARK_COLORS
 
-COMPACT = {"friedhof", "kaserne", "tempel", "palast", "kathedrale"}
+COMPACT = {"friedhof", "kaserne", "tempel", "palast", "kathedrale", "marktplatz", "badehaus", "arena"}
+# neuere Orte (seit 1.38): eigener Bau auf einem ganzen Block, notfalls auf dem nächsten passenden
+NEWER = {"marktplatz", "badehaus", "magierturm", "arena", "faerberei"}
+# dürfen wie COMPACT auch große Blöcke ganz belegen, brauchen aber keinen rechteckigen
+ROOMY = {"magierturm", "faerberei"}
+# Mindestfläche des Bauplatzes eines großen Orts (px² bei 2000 px), sonst 900; legt man Blöcke zusammen, gilt MERGED_NEED
+BLOCK_NEED = {"friedhof": 2500, "kaserne": 2500, "tempel": 1500, "rathaus": 1500, "palast": 5000, "kathedrale": 4500,
+              "marktplatz": 2500, "badehaus": 2000, "magierturm": 1500, "arena": 3500, "faerberei": 1500}
+MERGED_NEED = {"friedhof": 5000, "kaserne": 4500, "tempel": 3500, "rathaus": 3500, "palast": 11000, "kathedrale": 10000,
+               "marktplatz": 5000, "badehaus": 4000, "arena": 6000}
+# Planen der Marktstände: (Grundfarbe, Streifen)
+STALL_COLORS = [("#b8483a", "#efe2c4"), ("#3f6a8a", "#efe2c4"), ("#c79a3a", "#7a3a2a"), ("#5d7a3a", "#efe2c4"),
+                ("#7a4a8a", "#efe2c4"), ("#c46a2a", "#f2d8a0")]
+# Farbbottiche der Färberei: Waid, Krapp, Wau, Grünspan, Purpur, Indigo
+DYE_COLORS = ["#3d5a9a", "#a8322e", "#d8b23a", "#4f8a4a", "#7a3a7a", "#24345e"]
 RING_ROAD_WIDTH = 9.5   # Straßen bis zu dieser Breite (mal s) sind Ringgassen, breitere Hauptstraßen (auch im Blender-Export)
 
 
@@ -1501,7 +1515,7 @@ class CityBuilder:
             else:
                 b["removed"] = True
 
-    def _replace_block(self, blk, color, label_src, inset):
+    def _replace_block(self, blk, color, label_src, inset, strict=False):
         # erst prüfen, ob ein rechteckiges Sondergebäude hineinpasst, dann den Block räumen
         parts = clean(blk["poly"].buffer(-inset, join_style="mitre"), 10)
         if not parts:
@@ -1509,19 +1523,28 @@ class CityBuilder:
         poly = fit_rect(max(parts, key=lambda p: p.area), 2 * MIN_HOUSE * self.s)   # Sondergebäude ebenfalls rechteckig
         if poly is None:
             return None
+        ids, was, trees = blk["ids"], [self.out["buildings"][i].get("removed") for i in blk["ids"]], self.out["yard_trees"]
         for i in blk["ids"]:
             self.out["buildings"][i]["removed"] = True
         blk["ids"] = []
         self.out["yard_trees"] = [t for t in self.out["yard_trees"] if not blk["poly"].contains(Point(t[0], t[1]))]
         special = {"tempel": self._temple, "kaserne": self._barracks, "friedhof": self._cemetery,
                    "rathaus": self._townhall, "palast": self._palace,
-                   "kathedrale": self._cathedral}.get(label_src)
+                   "kathedrale": self._cathedral, "marktplatz": self._market, "badehaus": self._bathhouse,
+                   "magierturm": self._wizard_tower, "arena": self._arena, "faerberei": self._dyeworks}.get(label_src)
         if special:
             b = special(poly, color, blk["district"])
             if b is not None:
                 self.out["buildings"].append(b)
                 self.out["buildings"] += b.pop("annex", [])   # Anbauten (Rathaus-, Domtürme) über dem Hauptbau zeichnen
                 return b
+            if strict:   # Bau passt nicht: Block unverändert lassen (die Häuser bleiben stehen)
+                for i, w in zip(ids, was):
+                    self.out["buildings"][i]["removed"] = w
+                    if w is None:
+                        del self.out["buildings"][i]["removed"]
+                blk["ids"], self.out["yard_trees"] = ids, trees
+                return None
         if label_src == "adelshaus":   # Herrenhaus mit Garten
             c = poly.centroid
             poly = shapely.affinity.scale(poly, 0.62, 0.62, origin=c)
@@ -1720,6 +1743,215 @@ class CityBuilder:
         return {"poly": cross_in_rect(chapel.minimum_rotated_rectangle).intersection(area), "form": "kreuz",
                 "courtyard": True, "color": color, "district": district}   # Friedhofskapelle als kleines Gotteshaus
 
+    def _market(self, area, color, district):
+        """Marktplatz: der ganze Block wird Pflasterplatz mit Ständen in Reihen und einem Marktbrunnen, an der
+        Rückseite steht die Stadtwaage (das beschriftete Gebäude)."""
+        s, rng = self.s, self.rng
+        o, u, v, L, D = self._frame(area)
+        if min(L, D) < 40 * s:
+            return None
+        R = lambda *a: self._rect(o, u, v, *a)
+        hw, hd = min(0.34 * L, 30 * s), min(0.22 * D, 14 * s)
+        hall = R(L / 2 - hw / 2, D - hd - 2 * s, L / 2 + hw / 2, D - 2 * s).intersection(area)
+        if hall.geom_type != "Polygon":
+            return None
+        self.out["grounds"].append((area, "plaza"))
+        c = o + u * (L / 2) + v * ((D - hd - 2 * s) * 0.5)
+        fr = min(7 * s, 0.12 * min(L, D))
+        self.out["fountains"].append((float(c[0]), float(c[1]), fr))
+        room = area.buffer(-5 * s).difference(hall.buffer(5 * s)).difference(Point(float(c[0]), float(c[1])).buffer(fr + 8 * s))
+        shapely.prepare(room)
+        sw, sd = 9 * s, 6.5 * s                       # Standbreite und -tiefe wie auf dem Wochenmarkt
+        for y in np.arange(7 * s, D - sd, 13 * s):
+            for x in np.arange(5 * s, L - sw, 12.5 * s):
+                if rng.random() < 0.15:
+                    continue                          # Lücken zwischen den Ständen
+                stall = R(x, y, x + sw, y + sd)
+                if room.contains(stall):
+                    self.out["stalls"].append({"poly": stall, "u": tuple(u), "v": tuple(v), "colors": rng.choice(STALL_COLORS)})
+        return {"poly": hall, "color": color, "district": district}
+
+    def _bathhouse(self, area, color, district):
+        """Badehaus: Ringbau um einen gefliesten Innenhof mit Wasserbecken, an der Rückseite eine Kuppel."""
+        s = self.s
+        o, u, v, L, D = self._frame(area)
+        R = lambda *a: self._rect(o, u, v, *a)
+        w = max(10 * s, 0.2 * min(L, D))              # Tiefe des Ringbaus
+        if min(L, D) - 2 * w < 18 * s:
+            return None
+        yard = R(w, w, L - w, D - w)
+        ring = area.difference(yard.buffer(1.5 * s, join_style="mitre"))
+        if ring.geom_type != "Polygon" or not ring.interiors:
+            return None
+        self.out["grounds"].append((yard, "tiles"))
+        self.out.setdefault("basins", []).append({"poly": R(w + 5 * s, w + 5 * s, L - w - 5 * s, D - w - 5 * s), "kind": "bad"})
+        mid = R(w / 2, w / 2, L - w / 2, D - w / 2).exterior
+        rd = min(0.8 * w, 0.18 * L)                   # Kuppel über dem Warmbad an der Rückseite
+        dome = Point(*(o + u * (L / 2) + v * (D - w / 2))).buffer(rd, quad_segs=6)
+        top = {"poly": dome, "color": "#7f9c94", "district": district, "landmark": True, "courtyard": True,
+               "dome": True, "ridges": [], "shade": None}
+        return {"poly": ring, "color": color, "district": district, "ridges": [LineString(mid.coords)], "shade": None,
+                "annex": [top]}
+
+    def _wizard_tower(self, area, color, district):
+        """Magierturm: hoher achteckiger Turm mitten in einem ummauerten Hof mit Runenkreis und dunklen Bäumen;
+        nachts glüht die Turmspitze violett."""
+        s, rng = self.s, self.rng
+        c = polylabel(area, tolerance=1 * s)
+        r = min(15 * s, 0.28 * min_width(area))
+        if r < 7 * s:
+            return None
+        tower = shapely.affinity.rotate(c.buffer(r, quad_segs=2), 22.5, origin=c)   # Achteck mit Kante oben
+        self.out["grounds"].append((area, "magic_yard"))
+        runes = c.buffer(r * 1.55, quad_segs=12)
+        if area.buffer(-3 * s).contains(runes):
+            self.out["grounds"].append((runes, "runes"))
+        keep = runes.buffer(3 * s)
+        inner = area.buffer(-5 * s)
+        for _ in range(8):
+            q = inner.representative_point()
+            x, y = q.x + rng.uniform(-40, 40) * s, q.y + rng.uniform(-40, 40) * s
+            if inner.contains(Point(x, y)) and not keep.contains(Point(x, y)):
+                self.out["yard_trees"].append((x, y, rng.uniform(5, 8) * s))
+        return {"poly": tower, "color": color, "district": district, "magic": True, "courtyard": True}
+
+    @staticmethod
+    def _ellipse(c, a, b, ang, n=48):
+        return Polygon([(c[0] + a * math.cos(t) * math.cos(ang) - b * math.sin(t) * math.sin(ang),
+                         c[1] + a * math.cos(t) * math.sin(ang) + b * math.sin(t) * math.cos(ang))
+                        for t in np.linspace(0, 2 * math.pi, n, endpoint=False)])
+
+    def _arena(self, area, color, district):
+        """Arena: ovale Ränge (Sitzreihen) um eine Sandfläche, an den Enden der langen Achse die Tore; die Ecken des
+        Blocks sind gepflastert."""
+        s = self.s
+        o, e1, e2 = axes(area)
+        a, b = vlen(e1) / 2 * 0.95, vlen(e2) / 2 * 0.95
+        w = max(9 * s, 0.3 * b)                       # Breite der Ränge
+        if b - w < 10 * s:
+            return None
+        c = o + e1 / 2 + e2 / 2
+        ang = math.atan2(e1[1], e1[0])
+        outer = self._ellipse(c, a, b, ang).intersection(area)
+        inner = self._ellipse(c, a - w, b - w, ang)
+        if outer.geom_type != "Polygon" or not outer.contains(inner):
+            return None
+        self.out["grounds"].append((area, "plaza"))
+        self.out["grounds"].append((inner, "arena"))
+        rows = [LineString(self._ellipse(c, a - w * k / 4, b - w * k / 4, ang).exterior.coords) for k in (1, 2, 3)]
+        ua = e1 / vlen(e1)
+        va = e2 / vlen(e2)
+        gates = [Polygon([c + ua * sg * x + va * y for x, y in ((a - w - 1 * s, -3 * s), (a + 1 * s, -3 * s),
+                                                                  (a + 1 * s, 3 * s), (a - w - 1 * s, 3 * s))])
+                 for sg in (-1, 1)]
+        return {"poly": outer.difference(inner), "color": color, "district": district, "ridges": [], "shade": None,
+                "rows": rows, "gates": gates}
+
+    def _dyeworks(self, area, color, district):
+        """Färberei: Werkstatt an der Rückseite, davor ein Hof mit bunten Farbbottichen und Trockengestellen voller
+        gefärbter Tücher. Der Hof liegt zum Wasser hin, wenn es nah ist."""
+        s, rng = self.s, self.rng
+        o, u, v, L, D = self._frame(area)
+        water = self.t["water"]
+        if not water.is_empty and water.distance(area) < 60 * s:
+            if LineString([o + v * D, o + u * L + v * D]).distance(water) < LineString([o, o + u * L]).distance(water):
+                o, v = o + v * D, -v
+        R = lambda *a: self._rect(o, u, v, *a)
+        if min(L, D) < 30 * s:
+            return None
+        yd = 0.58 * D
+        shop = R(0.06 * L, yd + 2 * s, 0.94 * L, D - 2 * s).intersection(area)
+        if shop.geom_type != "Polygon":
+            return None
+        yard = R(0, 0, L, yd).intersection(area)
+        self.out["grounds"].append((yard, "dyeyard"))
+        inner = yard.buffer(-4 * s)
+        shapely.prepare(inner)
+        vr = 3.4 * s                                  # Radius der Bottiche
+        basins = self.out.setdefault("basins", [])
+        for x in np.arange(6 * s + vr, L - vr, 10 * s):
+            for y in np.arange(5 * s + vr, yd - 15 * s, 10 * s):
+                vat = Point(*(o + u * x + v * y)).buffer(vr, quad_segs=4)
+                if inner.contains(vat) and rng.random() < 0.85:
+                    basins.append({"poly": vat, "kind": "farbe", "color": rng.choice(DYE_COLORS)})
+        cloths = self.out.setdefault("cloths", [])   # Trockengestell: eine Reihe Tücher kurz vor der Werkstatt
+        y = yd - 7 * s
+        for x in np.arange(6 * s, L - 10 * s, 6.5 * s):
+            cloth = R(x, y - 3 * s, x + 4.5 * s, y + 3 * s)
+            if inner.contains(cloth):
+                cloths.append({"poly": cloth, "color": rng.choice(DYE_COLORS)})
+        return {"poly": shop, "color": color, "district": district}
+
+    def _crane(self, di):
+        """Hafenkran: rundes Tretradhaus aus Holz direkt am Ufer, der Ausleger ragt übers Wasser. Bevorzugt im
+        gewünschten Viertel bzw. im Hafen nah am Kai, sonst am nächsten freien Stadtufer; Brücken, Werft und
+        Durchgangsstraßen bleiben frei, Stege und Schiffe halten Abstand vom Ausleger. Liefert das Kranhaus oder None."""
+        s, rng = self.s, self.rng
+        water = self.t["water"]
+        if self.t.get("mountain") or self.t.get("plateau"):   # Fels bzw. Plateaukante ist kein Ufer: nur am Fluss
+            if self.t["river"] is None or self.t["river"].is_empty:
+                return None
+            water = self.t["river"]
+        dl = self.district_list
+        if di is None:
+            di = next((i for i, d in enumerate(dl) if d["typ"] == "hafen" and not d["poly"].is_empty), None)
+        r, jib = 7.5 * s, 27 * s                        # Radius des Kranhauses, Länge des Auslegers ab der Mitte
+        alive = [b for b in self.out["buildings"] if not b.get("removed")]
+        crossings = unary_union([ln.buffer(w / 2 + 24 * s) for ln, w in self.out["internal_roads"] if ln.intersects(water)])
+        through = unary_union([ln.buffer(w / 2 + 1 * s) for ln, w in self.out["internal_roads"] if w > RING_ROAD_WIDTH * s])
+        keep_clear = unary_union([through, crossings]
+                                 + [unary_union(self.out["plazas"]).buffer(2 * s)] * bool(self.out["plazas"])
+                                 + [b["poly"].buffer(3 * s) for b in alive if b.get("landmark")]
+                                 + [g.buffer(2 * s) for g, _ in self.out["grounds"]]
+                                 + [z.buffer(4 * s) for z in getattr(self, "shipyard_zones", [])]
+                                 + [p.buffer(3 * s) for p in self.out["piers"]])
+        shapely.prepare(keep_clear)
+        paved = unary_union(self.out["paved"]) if self.out["paved"] else None
+        water_1 = water.buffer(1 * s)
+        cands = []
+        for area in ([dl[di]["poly"]] if di is not None else []) + [self.city_land]:
+            for ln in lines(water.boundary.intersection(area.buffer(2 * s))):
+                k = r + 2 * s
+                while k < ln.length - r - 2 * s:
+                    q, q2 = ln.interpolate(k), ln.interpolate(k + 2)
+                    k += 6 * s
+                    tx, ty = unit((q2.x - q.x, q2.y - q.y))
+                    nx, ny = -ty, tx                  # Normale zeigt ins Land
+                    if water.contains(Point(q.x + nx * 6 * s, q.y + ny * 6 * s)):
+                        nx, ny = -nx, -ny
+                    c = (q.x + nx * (r + 1.5 * s), q.y + ny * (r + 1.5 * s))
+                    house = Point(c).buffer(r, quad_segs=4)
+                    if house.intersects(water) or not self.city_land.contains(house) or keep_clear.intersects(house):
+                        continue
+                    e = (c[0] - nx * jib, c[1] - ny * jib)
+                    boom = LineString([(q.x, q.y), e])
+                    if not water_1.contains(boom) or keep_clear.intersects(boom.buffer(3 * s)):
+                        continue
+                    score = (paved.distance(house) / s if paved is not None else 0) \
+                        + house.centroid.distance(Point(self.center)) / (40 * s)
+                    cands.append((score, house, c, e))
+            if cands:
+                break
+        if not cands:
+            return None
+        cands.sort(key=lambda cd: cd[0])
+        _, house, c, e = rng.choice(cands[:4])
+        for b in alive:                               # Häuser auf dem Bauplatz weichen dem Kran
+            if b["poly"].intersects(house.buffer(2 * s)) and not b.get("landmark"):
+                b["removed"] = True
+        self.out["yard_trees"] = [t for t in self.out["yard_trees"] if not house.buffer(4 * s).contains(Point(t[0], t[1]))]
+        zone = LineString([c, e]).buffer(6 * s).union(Point(e).buffer(10 * s))
+        self.out["piers"] = [p for p in self.out["piers"] if not p.intersects(zone)]
+        self.out["ships"] = [sh for sh in self.out["ships"]
+                             if not ship_footprint(sh["x"], sh["y"], sh["len"], sh["wid"], sh["angle"]).intersects(zone)]
+        self.shipyard_zones = getattr(self, "shipyard_zones", []) + [zone]   # Stege und Schiffe meiden den Ausleger
+        rp = house.representative_point()
+        dd = next((i for i, d in enumerate(dl) if d["poly"].buffer(10 * s).contains(rp)), -1)
+        b = {"poly": house, "color": LANDMARK_COLORS["hafenkran"], "district": dd, "courtyard": True,
+             "crane": {"x": c[0], "y": c[1], "ex": e[0], "ey": e[1], "r": r}}
+        self.out["buildings"].append(b)
+        return b
+
     def landmarks(self):
         s, rng = self.s, self.rng
         names = {d["name"].lower(): i for i, d in enumerate(self.district_list)}
@@ -1734,7 +1966,7 @@ class CityBuilder:
             elif typ == "wassermuehle" and self.t["biome"]["chasm"]:   # der Fluss liegt tief unten in der Klamm
                 self.hint(f"In der Klamm ist keine Wassermühle möglich - '{o['name']}' wird eine Windmühle.")
                 typ = "muehle"
-            if typ in ("muehle", "bauernhof"):   # Windmühle und Bauernhof stehen vor der Stadt an einer Landstraße
+            if typ in ("muehle", "bauernhof", "kloster", "richtstaette"):   # vor der Stadt an einer Landstraße
                 self.out["deferred"].append(dict(o, typ=typ, typ_yaml=o["typ"]))
                 continue
             di = names.get(str(o.get("viertel", "")).lower())
@@ -1744,15 +1976,19 @@ class CityBuilder:
             alive = [b for b in self.out["buildings"] if not b.get("removed") and id(b) not in used
                      and (di is None or b["district"] == di)]
             target = None
+            if typ == "hafenkran":   # Tretradkran am Ufer, der Ausleger ragt übers Wasser
+                target = None if self.t["water"].is_empty else self._crane(di)
+                if target is None:
+                    self.hint(f"Kein Uferplatz für den Hafenkran '{o['name']}' gefunden.")
+                    continue
             if typ == "werft" and not self.t["water"].is_empty:
                 target = self._shipyard(di)
                 if target is None:
                     self.hint(f"Kein Uferplatz für die Werft '{o['name']}' - sie steht etwas abseits vom Wasser.")
             if target is None and typ in BIG_LANDMARKS:
                 blks = [bk for bk in self.blocks if (di is None or bk["district"] == di)
-                        and {"friedhof": 2500, "kaserne": 2500, "tempel": 1500, "rathaus": 1500,
-                             "palast": 5000, "kathedrale": 4500}.get(typ, 900) * s * s
-                        < bk["poly"].area < (16000 if typ in COMPACT else 9000) * s * s
+                        and BLOCK_NEED.get(typ, 900) * s * s
+                        < bk["poly"].area < (16000 if typ in COMPACT or typ in ROOMY else 9000) * s * s
                         and min_width(bk["poly"]) > (42 if typ in COMPACT else 28) * s
                         and (typ not in COMPACT or bk["poly"].area / bk["poly"].minimum_rotated_rectangle.area > 0.7)
                         # Blöcke mit einem schon gesetzten besonderen Ort nicht abräumen (sonst bliebe z.B. von der
@@ -1766,18 +2002,30 @@ class CityBuilder:
                 if typ == "friedhof" and (outside or not blks):
                     self.out["deferred"].append(o)   # wird vom Generator vor der Mauer angelegt
                     continue
-                if typ in COMPACT and not blks:
+                if (typ in COMPACT or typ in ROOMY) and not blks:
                     self.hint(f"Kein passender Block für '{o['name']}' gefunden.")
                 if typ == "werft":
                     blks.sort(key=lambda bk: bk["poly"].distance(self.t["water"]))
                     blks = blks[:3]
-                elif typ in ("palast", "kathedrale"):   # der größte Block an einer Hauptstraße
+                elif typ == "faerberei" and not self.t["water"].is_empty:   # Färber brauchen Wasser: nah am Ufer
+                    # nah am Wasser, aber auf einem annähernd rechteckigen Block (sonst passt die Werkstatt nicht)
+                    blks.sort(key=lambda bk: bk["poly"].distance(self.t["water"]) / s
+                              + 120 * (1 - bk["poly"].area / bk["poly"].minimum_rotated_rectangle.area))
+                    blks = blks[:6]
+                elif typ in ("palast", "kathedrale", "marktplatz", "arena"):   # der größte Block an einer Hauptstraße
                     blks.sort(key=lambda bk: bk["poly"].distance(self.main_streets) / s - bk["poly"].area / (200 * s * s))
-                    blks = blks[:2]
+                    blks = blks[:2 if typ in ("palast", "kathedrale") else 4]
                 else:
                     blks.sort(key=lambda bk: bk["poly"].distance(self.main_streets))
                     blks = blks[:6]
-                if blks:
+                if blks and typ in NEWER:   # neuere Orte: passt der Bau nicht auf den Block, den nächsten versuchen
+                    while blks and target is None:
+                        bk = rng.choice(blks)
+                        blks.remove(bk)
+                        if bk is not merged:
+                            self.blocks.remove(bk)
+                        target = self._replace_block(bk, LANDMARK_COLORS[typ], typ, 1.5 * s, strict=True)
+                elif blks:
                     bk = rng.choice(blks)
                     if bk is not merged:
                         self.blocks.remove(bk)
@@ -1796,6 +2044,12 @@ class CityBuilder:
                     target = rng.choice(alive[:12])
                 else:
                     target = rng.choice(alive)
+                if typ == "magierturm" and target.get("form") != "block":   # kein Hof frei: das Haus wird zum Turm
+                    c = target["poly"].centroid
+                    rr = max(5 * s, min(9 * s, math.sqrt(target["poly"].area) * 0.5))
+                    target["poly"] = shapely.affinity.rotate(c.buffer(rr, quad_segs=2), 22.5, origin=c)
+                    target["magic"] = True
+                    target.pop("form", None)
                 if LANDMARK_COLORS.get(typ) and target.get("form") != "block":
                     target["color"] = LANDMARK_COLORS[typ]
             if target is None:
@@ -1942,8 +2196,7 @@ class CityBuilder:
         """Großstadt: benachbarte kleine Blöcke (samt Gassen dazwischen) zu einem Bauplatz für ein großes Gebäude
         zusammenlegen, möglichst nah an einer Hauptstraße. Liefert einen Pseudo-Block oder None."""
         s = self.s
-        need = {"friedhof": 5000, "kaserne": 4500, "tempel": 3500, "rathaus": 3500,
-                "palast": 11000, "kathedrale": 10000}.get(typ, 2500) * s * s
+        need = MERGED_NEED.get(typ, 2500) * s * s
         free = [bk for bk in self.blocks if not any(self.out["buildings"][i].get("landmark") for i in bk["ids"])]
         pool = [bk for bk in free if di is None or bk["district"] == di]
         if not pool:
@@ -2156,8 +2409,7 @@ class CityBuilder:
         die Wege der einmündenden Straßen bleiben frei. Dazu Ziehbrunnen an breiten Straßenstellen."""
         s, rng = self.s, self.rng
         roads = unary_union([ln.buffer(w / 2 + 3 * s) for ln, w in self.out["internal_roads"]])
-        palette = [("#b8483a", "#efe2c4"), ("#3f6a8a", "#efe2c4"), ("#c79a3a", "#7a3a2a"), ("#5d7a3a", "#efe2c4"),
-                   ("#7a4a8a", "#efe2c4"), ("#c46a2a", "#f2d8a0")]
+        palette = STALL_COLORS
         for plaza in self.out["plazas"]:
             if plaza.is_empty or plaza.area < 1500 * s * s:
                 continue

@@ -10,6 +10,7 @@ from shapely.ops import nearest_points, polylabel, split, unary_union
 
 from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pick_shape, varied_shape
 from .config import OPTIONAL, ROTATION, place_info, to_canonical
+from .shapes import cross_in_rect
 from .fortress import build_fortress
 from . import leuchtturm, staub
 from .geo import Noise1D, axes, blob, lines, oriented_rect, polys, roof, ship_footprint, unit, vlen
@@ -412,10 +413,12 @@ def _lighthouse(s, W, city, terrain, islands, forts, forts_u):
 
 
 def _outside_places(rng, s, city, builder, ext_roads, shape, water, pools, forts_u):
-    """Friedhöfe ohne Platz im Ort (oder lage: ausserhalb), Windmühlen und Bauernhöfe an eine Landstraße vor die Mauer.
+    """Friedhöfe ohne Platz im Ort (oder lage: ausserhalb), Windmühlen, Bauernhöfe, Klöster und Richtstätten an eine
+    Landstraße vor die Mauer.
     Liefert (Tümpel ohne die neuen Flächen, Freihaltefläche samt neuen Flächen)."""
     for spec in city["deferred"]:
-        place = {"muehle": outside_windmill, "bauernhof": outside_farm}.get(spec["typ"], outside_cemetery)
+        place = {"muehle": outside_windmill, "bauernhof": outside_farm, "kloster": outside_monastery,
+                 "richtstaette": outside_gallows}.get(spec["typ"], outside_cemetery)
         area = place(rng, s, spec, builder, ext_roads, shape, water, pools, forts_u)
         if area is not None:
             forts_u = forts_u.union(area.buffer(10 * s))
@@ -818,6 +821,63 @@ def outside_farm(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
         t = o + u * (8 + k * 9) * s + v * (l2 - 6 * s)
         builder.out["yard_trees"].append((float(t[0]), float(t[1]), rng.uniform(5, 7) * s))
     _outside_label(builder, spec, area, B / 2 + 6 * s)
+    return area
+
+
+def outside_monastery(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
+    """Kloster an einer Landstraße: Klosterkirche mit kreuzförmigem Grundriss, dahinter der Kreuzgang um einen grünen
+    Innenhof mit Brunnen, daneben der Kräutergarten in Beeten, Obstbäume, alles hinter der Klostermauer."""
+    L, B = rng.uniform(115, 130) * s, rng.uniform(82, 92) * s
+    area = roadside_spot(rng, s, L, B, ext_roads, shape, water, pools, taken, start=100, gap=22, max_wet=0.05)
+    if area is None:
+        builder.hint(f"Kein Platz für das Kloster '{spec['name']}' gefunden.")
+        return None
+    o, e1, e2 = axes(area)
+    l1, l2 = vlen(e1), vlen(e2)
+    u, v = e1 / l1, e2 / l2
+
+    def rect(x0, y0, x1, y1):
+        return Polygon([o + u * x0 + v * y0, o + u * x1 + v * y0, o + u * x1 + v * y1, o + u * x0 + v * y1])
+    builder.out["grounds"].append((area, "cloister"))
+    xc = 0.56 * l1                                                                   # Ostende der Kirche
+    church = cross_in_rect(rect(8 * s, 8 * s, xc, 8 * s + 30 * s))
+    side = min(l2 - 8 * s - 40 * s, 0.4 * l1)                                        # Kreuzgang unter der Kirche
+    x0, y0 = xc - side - 4 * s, 40 * s
+    walk = rect(x0, y0, x0 + side, y0 + side)
+    garth = rect(x0 + 7 * s, y0 + 7 * s, x0 + side - 7 * s, y0 + side - 7 * s)
+    herbs = rect(xc + 10 * s, 10 * s, l1 - 9 * s, l2 - 9 * s)
+    builder.out["grounds"].append((garth, "garth"))
+    builder.out["grounds"].append((herbs, "herbs"))
+    gc = garth.centroid
+    builder.out["wells"].append((gc.x, gc.y, 3.2 * s))
+    ring = walk.difference(garth.buffer(1 * s, join_style="mitre"))
+    mid = rect(x0 + 3.5 * s, y0 + 3.5 * s, x0 + side - 3.5 * s, y0 + side - 3.5 * s).exterior
+    kirche = {"poly": church, "form": "kreuz", "color": "#8a7f6e", "district": -1, "landmark": True}
+    kirche["ridges"], kirche["shade"] = roof(church)
+    builder.out["buildings"].append(kirche)
+    builder.out["buildings"].append({"poly": ring, "color": "#9a6a4e", "district": -1, "ridges": [LineString(mid.coords)],
+                                     "shade": None})
+    for k in range(rng.randint(3, 5)):                                               # Obstbäume vor dem Kreuzgang
+        t = o + u * (8 + k * 9) * s + v * (l2 - 9 * s)
+        if not walk.buffer(4 * s).contains(Point(float(t[0]), float(t[1]))):
+            builder.out["yard_trees"].append((float(t[0]), float(t[1]), rng.uniform(5, 7) * s))
+    _outside_label(builder, spec, church, 22 * s)
+    return area
+
+
+def outside_gallows(rng, s, spec, builder, ext_roads, shape, water, pools, taken):
+    """Richtstätte: kahler Hügel an einer Landstraße, etwas weiter vor dem Tor, darauf ein Galgen aus zwei Pfosten und
+    einem Querbalken, daneben ein Rad auf einem Pfahl."""
+    area = roadside_spot(rng, s, 36 * s, 36 * s, ext_roads, shape, water, pools, taken, start=70, gap=16, max_wet=0.0)
+    if area is None:
+        builder.hint(f"Kein Platz für die Richtstätte '{spec['name']}' gefunden.")
+        return None
+    c = area.centroid
+    _, e1, _ = axes(area)
+    builder.out["grounds"].append((c.buffer(16 * s, quad_segs=10), "mound"))
+    builder.out.setdefault("gallows", []).append({"x": c.x, "y": c.y, "angle": math.degrees(math.atan2(e1[1], e1[0])),
+                                                  "len": 20 * s})
+    _outside_label(builder, spec, area, 20 * s)
     return area
 
 

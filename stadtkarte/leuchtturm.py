@@ -24,7 +24,8 @@ def place(s, W, city, terrain, islands, forts):
                            for sh in city["ships"]]
                         + [sh["lane"] for sh in city["ships"] if sh.get("lane") is not None]
                         + [sh["depart"] for sh in city["ships"] if sh.get("depart") is not None]
-                        + [p.buffer(2 * s) for p in city["piers"]] or [Point(-1e9, -1e9)])
+                        + [p.buffer(2 * s) for p in city["piers"]]
+                        + [b["poly"].buffer(8 * s) for b in city["buildings"] if b.get("crane")] or [Point(-1e9, -1e9)])
     paved = unary_union(city["paved"]) if city["paved"] else None
     anchor = paved.centroid if paved is not None and not paved.is_empty else shape.centroid
     # 1. vorgelagerte Insel: frei, groß genug, nicht zu weit vor der Stadt
