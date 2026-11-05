@@ -1348,7 +1348,9 @@ $("#btnResetLabels").onclick = () => {
 
 // Downloads
 document.querySelectorAll("[data-fmt]").forEach(b => b.onclick = () => {
-  if (resultId) window.location.href = `/api/download?id=${resultId}&format=${b.dataset.fmt}&version=${ansicht}`;
+  if (!resultId) return;
+  const url = `/api/download?id=${resultId}&format=${b.dataset.fmt}&version=${ansicht}`;
+  if (window.stadtkarteDownload) window.stadtkarteDownload(url); else window.location.href = url;   // die Browserversion (web/) liefert die Datei selbst
 });
 $("#btnSaveOut").onclick = async () => {
   try {

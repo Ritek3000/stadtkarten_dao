@@ -9,15 +9,18 @@ Dieselben Prozesse rechnen vorab die Texturen, die nicht von der Stadt abhängen
 im Hauptprozess läuft. Threads statt Prozesse bremsten den Generator durch die gemeinsame GIL stärker, als sie einbrachten.
 
 Klappt der Prozess-Pool nicht (z.B. eingeschränkte Umgebung), wird wie bisher im eigenen Prozess gerendert.
+Im Browser (Pyodide) gibt es weder Prozesse noch Threads: dort wird von Anfang an seriell gerechnet.
 """
 import multiprocessing
 import os
+import sys
 import threading
 from concurrent.futures import CancelledError, Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 
+BROWSER = sys.platform == "emscripten"   # Pyodide: keine Prozesse, keine Threads
 _POOL = None
-_BROKEN = False
+_BROKEN = BROWSER
 _LOCK = threading.Lock()
 
 
@@ -122,6 +125,18 @@ def shutdown():
         pool, _POOL = _POOL, None
     if pool is not None:
         pool.shutdown(wait=False, cancel_futures=True)
+
+
+class Sofort:
+    """Wie ein ThreadPoolExecutor, rechnet aber sofort im Aufrufer (für den Browser, wo es keine Threads gibt)."""
+
+    def submit(self, fn, *args, **kw):
+        done = Future()
+        try:
+            done.set_result(fn(*args, **kw))
+        except Exception as e:  # noqa: BLE001 - wie beim Pool erst bei result()
+            done.set_exception(e)
+        return done
 
 
 def png_async(svg, zoom=None):
