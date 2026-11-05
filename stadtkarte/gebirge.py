@@ -39,14 +39,20 @@ def _blur_float(a, sigma):
     return np.asarray(Image.fromarray(out, "F").resize((n, n), Image.BICUBIC)) if f > 1 else out
 
 
-def _ridges(res, period, octaves, seed, stretch, warp=0.0, power=3.0, gain=2.2):
+def _hoch3(x):
+    return x * x * x
+
+
+def _ridges(res, period, octaves, seed, stretch, warp=0.0, power=3.0, gain=2.2, exakt=False):
     """Gratrauschen (Ridged Multifractal): scharfe Kämme an den Nulllinien des Rauschens, jede feinere Stufe nur dort,
-    wo die gröbere schon hoch ist. stretch zieht die Rücken in Nord-Süd-Richtung (intern liegt das Tal im Süden)."""
+    wo die gröbere schon hoch ist. stretch zieht die Rücken in Nord-Süd-Richtung (intern liegt das Tal im Süden).
+    exakt=True (nur power 3): Multiplikation statt np.power; np.power rechnet in float32 mit AVX-512 im letzten Bit anders,
+    für die Höhenlinien (harte Schwelle) muss das Ergebnis auf jedem Prozessor gleich sein."""
     total = np.zeros((res, res), np.float32)
     amp, weight, norm = 1.0, 1.0, 0.0
     for o in range(octaves):
         n = grid(res, period / 2 ** o, seed * 16 + o, warp=warp if o < 2 else 0.0, stretch=stretch if o < 2 else 1.0).T
-        r = (1.0 - np.abs(n)) ** power * weight
+        r = (1.0 - np.abs(n)) ** power * weight if not exakt else _hoch3(1.0 - np.abs(n)) * weight
         weight = np.clip(r * gain, 0, 1)
         total += r * amp
         norm += amp
@@ -56,8 +62,8 @@ def _ridges(res, period, octaves, seed, stretch, warp=0.0, power=3.0, gain=2.2):
     return total / norm
 
 
-def _hoehenfeld(W, s, data, res):
-    """(Felsmaske als Bild, Felsmaske 0..1, Höhe hs, Maßstab k) für Bildgröße res."""
+def _hoehenfeld(W, s, data, res, exakt=False):
+    """(Felsmaske als Bild, Felsmaske 0..1, Höhe hs, Maßstab k) für Bildgröße res; exakt siehe _ridges."""
     k = res / W
     rock_img = _mask(res, k, data["rock"])
     mask = np.asarray(rock_img, np.float32) / 255
@@ -67,8 +73,8 @@ def _hoehenfeld(W, s, data, res):
     far = _smooth(_blur_float(mask, 320 * s * k), 0.5, 1.0)
     env = 0.30 * near + 0.40 * mid + 0.30 * far
     # lange Rücken des Massivs und kleinere Seitenrücken
-    big = _ridges(res, 560 * s * k, 5, 311, 5.5, warp=0.7)
-    side = _ridges(res, 170 * s * k, 4, 312, 3.3, warp=0.4)
+    big = _ridges(res, 560 * s * k, 5, 311, 5.5, warp=0.7, exakt=exakt)
+    side = _ridges(res, 170 * s * k, 4, 312, 3.3, warp=0.4, exakt=exakt)
     h = env * (0.28 + 0.70 * big + 0.12 * side)
     inside = mask > 0.5
     hs = h / (np.percentile(h[inside], 99.5) + 1e-6) if inside.any() else h
@@ -80,8 +86,9 @@ def hoehenlinien(W, s, data, res=None, stufen=7):
     Höhenfeld wie image(), die Linien liegen also dort, wo die Rücken des Bildes verlaufen. Das Bild hat die volle
     Auflösung: Linien sind nur ein, zwei Pixel breit, und der Filter der Konturen schwellt sie hart."""
     res = res or W
-    rock_img, mask, hs, k = _hoehenfeld(W, s, data, res)
-    gh = np.hypot(*np.gradient(hs.astype(np.float64))) + 1e-5
+    rock_img, mask, hs, k = _hoehenfeld(W, s, data, res, exakt=True)
+    gy, gx = np.gradient(hs.astype(np.float64))
+    gh = np.sqrt(gx * gx + gy * gy) + 1e-5   # nicht np.hypot: das rundet je nach Prozessor (AVX-512) anders
     q = hs * stufen
     dist = np.abs(q - np.round(q)) / (gh * stufen)   # Abstand zur nächsten Höhenlinie in Pixeln
     halb = max(1.0 * s * k, 0.75)                    # halbe Strichstärke: 2 Kartenmaße, mindestens 1,5 Pixel
