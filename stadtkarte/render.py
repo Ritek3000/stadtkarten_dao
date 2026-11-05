@@ -793,6 +793,8 @@ def prewarm(cfg):
         if (os.cpu_count() or 1) < 3:   # sonst nähmen die Texturen dem Generator nur die Rechenzeit
             return
         g, aus = cfg["gelaende"], cfg["ausgabe"]
+        if stile.glatter_boden(aus.get("stil")):   # Konturen: ohne Bodentextur, der Vorlauf rechnete umsonst
+            return
         if aus.get("ausschnitt", OPTIONAL["ausgabe.ausschnitt"]) != OPTIONAL["ausgabe.ausschnitt"]:   # anderer Maßstab (m["s"]): Schlüssel nicht vorhersagbar
             return
         B = BIOMES[g["biotop"]]
@@ -1176,8 +1178,12 @@ def mountain_svg(o, m, rng):
     o.append(f'<rect width="{W}" height="{W}" fill="{B["rock"]}"/>')
     if rock is None or rock.is_empty:
         return
-    model_texture(m, "gebirge", gebirge.image, W, s, berg_daten(m))
-    o.append('<use href="#tex_gebirge"/>')
+    if m["cfg"]["ausgabe"].get("stil") == "konturen":   # nur Höhenlinien, keine Schummerung
+        model_texture(m, "gebirge_linien", gebirge.hoehenlinien, W, s, berg_daten(m))
+        o.append('<use href="#tex_gebirge_linien"/>')
+    else:
+        model_texture(m, "gebirge", gebirge.image, W, s, berg_daten(m))
+        o.append('<use href="#tex_gebirge"/>')
     # Hangschraffur: kurze Striche bergab (intern liegt das Land im Süden)
     minx, miny, maxx, maxy = rock.bounds
     n = int(min(3500, rock.area / (260 * s * s)))
@@ -1501,10 +1507,11 @@ def land_svg(o, m):
     s, W, B = m["s"], m["W"], m["biome"]
     # Land
     o.append(f'<path d="{path_d(m["land"])}" fill="{B["land"]}"/>')
-    o.append(f'<g clip-path="url(#landClip)">'
-             f'{noise_boden(m, B["land"])}/>'
-             f'<use href="#tex_umgebung"/></g>')
-    model_texture(m, "umgebung", umgebung.image, W, s, umgebung_daten(m))
+    if not stile.glatter_boden(m["cfg"]["ausgabe"].get("stil")):   # Konturen: glatter Boden, keine Körnung als Linienrauschen
+        o.append(f'<g clip-path="url(#landClip)">'
+                 f'{noise_boden(m, B["land"])}/>'
+                 f'<use href="#tex_umgebung"/></g>')
+        model_texture(m, "umgebung", umgebung.image, W, s, umgebung_daten(m))
     if m["cfg"]["ausgabe"].get("stil") == "pergament":   # Küste wie mit der Feder: leicht zitternd, Tinte
         o.append(f'<filter id="feder" x="-2%" y="-2%" width="104%" height="104%">'
                  f'<feTurbulence type="fractalNoise" baseFrequency="{0.035 / s:.4f}" numOctaves="2" seed="5"/>'
@@ -2221,7 +2228,8 @@ def labels_svg(o, m):
         o[start:] = ["".join(o[start:]).replace(f'fill="{C["text"]}"', f'fill="{ink}"')
                      .replace(f'stroke="{C["text_halo"]}"', f'stroke="{halo}"')
                      .replace('fill="#1d2118" fill-opacity="0.72" stroke="#c9b98f"',
-                              f'fill="{halo}" fill-opacity="0.85" stroke="{ink}"')]
+                              f'fill="{halo}" fill-opacity="{stile.legende_deckung(m["cfg"]["ausgabe"].get("stil"))}" '
+                              f'stroke="{ink}"')]
 
 
 def grid_svg(o, m):
@@ -2305,8 +2313,8 @@ def render_svg(m, nacht=None):
     if nacht:
         night_svg(o, m, lamps, forge_glow)
         magic_night_svg(o, m)
-    if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
-        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=True)
+    if m.get("lighthouse") and (nacht or stil != "konturen"):   # das Leuchtfeuer liegt über allem (nachts nach dem
+        lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=True)   # Abdunkeln: strahlt hell); in den Konturen am Tag nicht
     dust_svg(o, m)   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr
     o.append("</g>")  # Ende Drehung
 

@@ -23,8 +23,20 @@ _CACHE = {}
 
 EIGENE = [k for k in STILE if k not in ("standard", "pergament")]   # Stile aus diesem Modul
 
+_GLATT = ("konturen",)
+
 # Schriftfarben (Schrift, Schriftrand) für Stile mit heller Karte: dunkle Tinte statt heller Schrift
-_SCHRIFT = {"bleistift": ("#2d2d30", "#f4f2ee")}
+_SCHRIFT = {"bleistift": ("#2d2d30", "#f4f2ee"), "konturen": ("#000000", "#ffffff")}
+
+
+def legende_deckung(stil):
+    """Deckkraft der Legendenfläche bei hellen Stilen (die Konturen sind schwarz auf weiß: die Linien dahinter sollen nicht durchscheinen)."""
+    return 1 if stil == "konturen" else 0.85
+
+
+def glatter_boden(stil):
+    """True für Stile, die den Boden ohne Körnung, Flecken und Relief zeichnen (die Kantenfilter fänden darin nur Rauschen)."""
+    return stil in _GLATT
 
 
 def schrift(stil):
@@ -122,6 +134,9 @@ def filter_svg(stil, s, W):
     elif stil == "bleistift":
         from . import bleistift   # eigenes Modul: zittrige Doppelstriche und Schraffur nach Helligkeit
         p += bleistift.filter_teile(s)
+    elif stil == "konturen":
+        from . import konturen   # eigenes Modul: nur die Umrisse, schwarz auf weiß
+        p += konturen.filter_teile(s, W)
     if not p:
         return ""
     return (f'<filter id="stil" filterUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{W}" '

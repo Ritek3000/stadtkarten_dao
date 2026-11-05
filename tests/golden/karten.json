@@ -1221,6 +1221,72 @@
     }
    }
   },
+  "stil_konturen": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 105,
+    "baeume": 870,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 12,
+    "schiffe": 1,
+    "felder": 127,
+    "stadtflaeche": 9754
+   },
+   "modell": "57597654af0d98cde8ee",
+   "karten": {
+    "tag": {
+     "svg": "85078c988dab3014a033",
+     "bilder": [
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    },
+    "nacht": {
+     "svg": "98fe7465422808b1921a",
+     "bilder": [
+      "e225c9af7c9cacf1dac4",
+      "5abccc48280ce0f14b67",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "stil_konturen_gebirge": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 426,
+    "baeume": 967,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 3,
+    "viertel": 4,
+    "beschriftungen": 11,
+    "tore": 3,
+    "tuerme": 14,
+    "schiffe": 0,
+    "felder": 44,
+    "stadtflaeche": 32514
+   },
+   "modell": "253297c14d37b9c3b22c",
+   "karten": {
+    "tag": {
+     "svg": "d2ad4fd87f27c568a13c",
+     "bilder": [
+      "f258687bf2f35d744600",
+      "337559d927c365245d46",
+      "c2c20562736bb9ccc68c",
+      "96ebdfea7d0bfec8e4e2",
+      "24ec45b78dbde2b41c5d"
+     ]
+    }
+   }
+  },
   "abstuerz_wueste_west": {
    "hinweise": [],
    "zahlen": {
