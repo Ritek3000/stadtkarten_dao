@@ -327,6 +327,226 @@
     }
    }
   },
+  "heidedorf": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 115,
+    "baeume": 801,
+    "landstrassen": 3,
+    "gassen": 8,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 6,
+    "tore": 3,
+    "tuerme": 17,
+    "schiffe": 0,
+    "felder": 143,
+    "stadtflaeche": 10405
+   },
+   "modell": "fc3025f6d78853bcadfa",
+   "karten": {
+    "tag": {
+     "svg": "71ae0f4e7ee3f78c5fea",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "981027cc152925e6692d",
+      "5abccc48280ce0f14b67",
+      "3cda7ba531b747083085",
+      "3871cb88e24d04186055",
+      "b36a19e84174921ab9d9"
+     ]
+    }
+   }
+  },
+  "herbststadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 298,
+    "baeume": 3117,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 1,
+    "viertel": 4,
+    "beschriftungen": 8,
+    "tore": 4,
+    "tuerme": 16,
+    "schiffe": 1,
+    "felder": 89,
+    "stadtflaeche": 26011
+   },
+   "modell": "85bf5006e94a350bba91",
+   "karten": {
+    "tag": {
+     "svg": "25d31d7ff98d31500471",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "5dcd6774fa111c82c048",
+      "5abccc48280ce0f14b67",
+      "e317f467e6128239151c",
+      "3be5b4f7b1e4edf3c3b6",
+      "68426f8ff400b9a1c0e2"
+     ]
+    }
+   }
+  },
+  "auenstadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 324,
+    "baeume": 1828,
+    "landstrassen": 4,
+    "gassen": 12,
+    "bruecken": 2,
+    "viertel": 4,
+    "beschriftungen": 7,
+    "tore": 4,
+    "tuerme": 21,
+    "schiffe": 3,
+    "felder": 177,
+    "stadtflaeche": 22760
+   },
+   "modell": "19cc624c6a8a11b75671",
+   "karten": {
+    "tag": {
+     "svg": "befe51e10596b8094abf",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "a17a7915e3e7bd814ba1",
+      "5abccc48280ce0f14b67",
+      "17699c6b66f81cb55c8a",
+      "81010e833017fab30275",
+      "3da14f5c8479faf2738a",
+      "39ebeff4326b5ccc6045"
+     ]
+    },
+    "nacht": {
+     "svg": "7392796545d2de977dc9",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "a17a7915e3e7bd814ba1",
+      "5abccc48280ce0f14b67",
+      "17699c6b66f81cb55c8a",
+      "81010e833017fab30275",
+      "3da14f5c8479faf2738a",
+      "39ebeff4326b5ccc6045"
+     ]
+    }
+   }
+  },
+  "mittelmeerhafen": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 685,
+    "baeume": 616,
+    "landstrassen": 5,
+    "gassen": 9,
+    "bruecken": 2,
+    "viertel": 5,
+    "beschriftungen": 9,
+    "tore": 4,
+    "tuerme": 24,
+    "schiffe": 1,
+    "felder": 306,
+    "stadtflaeche": 45520
+   },
+   "modell": "76fa2ccb83231ab3f1a6",
+   "karten": {
+    "tag": {
+     "svg": "95b290702f5562ef1373",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "a70cd1227f776ad21ca3",
+      "5abccc48280ce0f14b67",
+      "815438e2150a5052e854",
+      "5fc0358fe941de10a489",
+      "a9d0af48b771f29c5180"
+     ]
+    },
+    "nacht": {
+     "svg": "667eaa2bff971c313cf0",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "a70cd1227f776ad21ca3",
+      "5abccc48280ce0f14b67",
+      "815438e2150a5052e854",
+      "5fc0358fe941de10a489",
+      "a9d0af48b771f29c5180"
+     ]
+    }
+   }
+  },
+  "dschungelstadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 168,
+    "baeume": 7769,
+    "landstrassen": 3,
+    "gassen": 8,
+    "bruecken": 3,
+    "viertel": 3,
+    "beschriftungen": 6,
+    "tore": 3,
+    "tuerme": 9,
+    "schiffe": 7,
+    "felder": 4,
+    "stadtflaeche": 16257
+   },
+   "modell": "d5eb30f0e2294ca62a05",
+   "karten": {
+    "tag": {
+     "svg": "30ed51403e2a6eee82a7",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "1133777b894b03a420ec",
+      "5abccc48280ce0f14b67",
+      "e83e30356e6cca46cb77",
+      "1ca2ade15380660e4d76",
+      "3da14f5c8479faf2738a",
+      "f60e58bb6438bbf773cc"
+     ]
+    }
+   }
+  },
+  "moordorf": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 106,
+    "baeume": 350,
+    "landstrassen": 2,
+    "gassen": 3,
+    "bruecken": 0,
+    "viertel": 2,
+    "beschriftungen": 4,
+    "tore": 2,
+    "tuerme": 18,
+    "schiffe": 0,
+    "felder": 180,
+    "stadtflaeche": 7803
+   },
+   "modell": "927a469fd67e6b0f341b",
+   "karten": {
+    "tag": {
+     "svg": "644fb24db800de2cbb2f",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "5abccc48280ce0f14b67",
+      "64c9d9f05898f7d39251",
+      "3c837c2361191e81fb29",
+      "2b05a6ee311ba82e5448"
+     ]
+    },
+    "nacht": {
+     "svg": "ff5791acd9df167f21fb",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "5abccc48280ce0f14b67",
+      "64c9d9f05898f7d39251",
+      "3c837c2361191e81fb29",
+      "2b05a6ee311ba82e5448"
+     ]
+    }
+   }
+  },
   "kueste_ost": {
    "hinweise": [],
    "zahlen": {

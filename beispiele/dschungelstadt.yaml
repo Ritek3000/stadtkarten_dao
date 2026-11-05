@@ -1,0 +1,43 @@
+# Siedlung im Regenwald: dichter Urwald, Baumfarne und Palmen, rote Erdwege, Pfahlhäuser über den Tümpeln
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\dschungelstadt.yaml
+
+name: Ixmaru
+seed: 1717
+einwohner: 2500
+
+gelaende:
+  biotop: dschungel   # Palisade, Palmblattdächer, Pfahlhäuser
+  kueste: ost
+  fluss: true
+  flussbreite: 50
+  inseln: 1
+  wald: [west, nordwest, suedwest]
+  felder: [suedost]
+
+mauer:
+  vorhanden: true
+  tore: 3
+
+viertel:
+  - name: Pfahlufer
+    typ: fischer
+    lage: ost
+  - name: Markt
+    typ: markt
+    lage: mitte
+  - name: Weberhütten
+    typ: handwerk
+    lage: west
+
+orte:
+  - name: Haus der Jaguarpriester
+    kuerzel: T1
+    typ: tempel
+  - name: Rasthaus
+    kuerzel: G1
+    typ: gasthaus
+
+ausgabe:
+  bildgroesse: 2000
+  formate: [svg, png]
+  legende: true

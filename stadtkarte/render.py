@@ -21,7 +21,7 @@ from .geo import axes, lines, polys, rings, ship_footprint, unit, vlen
 from . import gebirge, noise, papier, parallel, schlucht, staub, stile, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .config import OPTIONAL, ROTATION
-from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE
+from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE, WET_POOLS
 
 
 def f(v):
@@ -102,12 +102,16 @@ def defs(m):
   <rect x="{f(10 * s)}" y="{f(8 * s)}" width="{f(3.5 * s)}" height="{f(4.5 * s)}" rx="{f(1.2 * s)}"/></g></pattern>
 """]
     stripes = {"wheat": (C["field_wheat"], C["field_wheat2"]), "plowed": (C["field_plowed"], C["field_plowed2"]),
-               "meadow": (C["field_meadow"], C["field_meadow2"])}
+               "meadow": (C["field_meadow"], C["field_meadow2"]),
+               "olive": ("#b8ad7a", "#6f7f4a"), "vine": ("#a9865a", "#4f6a2e"), "peat": ("#4a3626", "#2e2218")}
     stripes.update(m["biome"]["field_colors"] or {})
     for i, fl in enumerate(m["fields"]):
         a, b = stripes[fl["kind"]]
         tone = fl.get("tone", 1.0)                       # jedes Feld etwas anders reif bzw. feucht
         a, b = _hls(shade(a, tone), 1.0, 0.78), _hls(shade(b, tone), 1.0, 0.78)   # etwas gedämpft, wie gemalt
+        if fl["kind"] in FIELD_PATTERNS:
+            out.append(FIELD_PATTERNS[fl["kind"]](i, fl["angle"], a, b, s))
+            continue
         w = (5 if fl["kind"] == "plowed" else 6) * s     # Furchen fein und mit wenig Kontrast
         out.append(f'<pattern id="field{i}" patternUnits="userSpaceOnUse" width="{f(w)}" height="{f(w)}" '
                    f'patternTransform="rotate({f(fl["angle"])})"><rect width="{f(w)}" height="{f(w)}" fill="{a}"/>'
@@ -115,6 +119,43 @@ def defs(m):
     out.append(f'<clipPath id="landClip"><path d="{path_d(m["land"])}"/></clipPath>')
     out.append(f'<clipPath id="seaClip"><path d="{path_d(m["water"])}"/></clipPath>')
     return "<defs>" + "".join(out) + "</defs>"
+
+
+def _olive_pattern(i, angle, a, b, s):
+    """Olivenhain: Bäume in versetzten Reihen auf trockenem Gras, jeder mit kleinem Schatten."""
+    w = 15 * s
+    trees = "".join(f'<circle cx="{f(x * s + 1.2 * s)}" cy="{f(y * s + 1.4 * s)}" r="{f(4.4 * s)}" fill="#000" '
+                    f'fill-opacity="0.28"/><circle cx="{f(x * s)}" cy="{f(y * s)}" r="{f(4.4 * s)}" fill="{b}" '
+                    f'stroke="#2a3418" stroke-width="{f(0.7 * s)}"/><circle cx="{f(x * s - 1.3 * s)}" '
+                    f'cy="{f(y * s - 1.3 * s)}" r="{f(1.8 * s)}" fill="#c9cfa8" fill-opacity="0.45"/>'
+                    for x, y in ((3.75, 3.75), (11.25, 11.25)))
+    return (f'<pattern id="field{i}" patternUnits="userSpaceOnUse" width="{f(w)}" height="{f(w)}" '
+            f'patternTransform="rotate({f(angle)})"><rect width="{f(w)}" height="{f(w)}" fill="{a}"/>{trees}</pattern>')
+
+
+def _vine_pattern(i, angle, a, b, s):
+    """Weinberg: schmale Rebzeilen mit Laubbüscheln auf hellem Boden."""
+    w, h = 6 * s, 5 * s
+    return (f'<pattern id="field{i}" patternUnits="userSpaceOnUse" width="{f(w)}" height="{f(h)}" '
+            f'patternTransform="rotate({f(angle)})"><rect width="{f(w)}" height="{f(h)}" fill="{a}"/>'
+            f'<rect x="{f(1.6 * s)}" width="{f(1 * s)}" height="{f(h)}" fill="{b}" fill-opacity="0.7"/>'
+            f'<circle cx="{f(2.1 * s)}" cy="{f(1.5 * s)}" r="{f(1.5 * s)}" fill="{b}"/></pattern>')
+
+
+def _peat_pattern(i, angle, a, b, s):
+    """Torfstich: dunkle, rechteckig ausgestochene Gruben mit Wasser, dazwischen gestapelte Torfsoden."""
+    w, h = 12 * s, 9 * s
+    return (f'<pattern id="field{i}" patternUnits="userSpaceOnUse" width="{f(w)}" height="{f(h)}" '
+            f'patternTransform="rotate({f(angle)})"><rect width="{f(w)}" height="{f(h)}" fill="{a}"/>'
+            f'<rect x="{f(1 * s)}" y="{f(1 * s)}" width="{f(6.5 * s)}" height="{f(7 * s)}" fill="{b}"/>'
+            f'<rect x="{f(1.8 * s)}" y="{f(2 * s)}" width="{f(4.8 * s)}" height="{f(5 * s)}" fill="#3a4a46" '
+            f'fill-opacity="0.55"/>'
+            f'<path d="M{f(9 * s)},{f(1.5 * s)}V{f(7.5 * s)}M{f(10.6 * s)},{f(1.5 * s)}V{f(7.5 * s)}" '
+            f'stroke="#8a7050" stroke-opacity="0.7" stroke-width="{f(1 * s)}" stroke-dasharray="{f(1.6 * s)} {f(0.5 * s)}"/>'
+            f'</pattern>')
+
+
+FIELD_PATTERNS = {"olive": _olive_pattern, "vine": _vine_pattern, "peat": _peat_pattern}
 
 
 def building_svg(b, s, flat=False):
@@ -242,6 +283,71 @@ def tree_svg(x, y, r, color, s, rng, kind):
         return (f'<path d="{d}" stroke="#2a2118" stroke-width="{f(2.6 * s)}" stroke-linecap="round"/>'
                 f'<path d="{d}" stroke="#6b5a45" stroke-width="{f(1.3 * s)}" stroke-linecap="round"/>'
                 f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.18)}" fill="#5a4a38" stroke="#2a2118" stroke-width="{f(0.8 * s)}"/>')
+    if kind == "birke":   # Birke: lichte, lockere Krone aus kleinen hellen Tupfen, weißer Stamm
+        n = rng.randint(6, 8)
+        a0 = rng.uniform(0, math.pi)
+        out = [f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.7)}" fill="{shade(color, 0.85)}" fill-opacity="0.8" {edge}/>']
+        for i in range(n):
+            a = a0 + 2 * math.pi * i / n
+            rr = r * rng.uniform(0.45, 0.7)
+            out.append(f'<circle cx="{f(x + math.cos(a) * rr)}" cy="{f(y + math.sin(a) * rr)}" r="{f(r * 0.28)}" '
+                       f'fill="{shade(color, rng.uniform(1.0, 1.3))}" fill-opacity="0.9"/>')
+        out.append(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.14)}" fill="#ece8dc" stroke="#2a2a26" '
+                   f'stroke-width="{f(0.6 * s)}"/>')
+        return "".join(out)
+    if kind == "wacholder":   # Wacholder: kleiner, dichter, blaugrüner Strauch mit Zacken
+        n = rng.randint(7, 9)
+        a0 = rng.uniform(0, math.pi)
+        rr = r * 0.62
+        pts = " ".join(f"{f(x + math.cos(a0 + math.pi * i / n) * (rr if i % 2 == 0 else rr * 0.7))},"
+                       f"{f(y + math.sin(a0 + math.pi * i / n) * (rr if i % 2 == 0 else rr * 0.7))}" for i in range(2 * n))
+        dark = shade("#3a5548", rng.uniform(0.85, 1.15))
+        return (f'<polygon points="{pts}" fill="{dark}" {edge}/>'
+                f'<circle cx="{f(x - rr * 0.25)}" cy="{f(y - rr * 0.25)}" r="{f(rr * 0.35)}" fill="#7f9a8a" fill-opacity="0.5"/>')
+    if kind == "zypresse":   # Zypresse: schmale, spitze Flammenform, sehr dunkel
+        dark = shade("#26402c", rng.uniform(0.85, 1.15))
+        ang = rng.uniform(-25, -5)
+        h, w = r * 1.05, r * 0.42
+        return (f'<g transform="translate({f(x)},{f(y)}) rotate({f(ang)})">'
+                f'<path d="M0,{f(-h)}C{f(w)},{f(-h * 0.4)} {f(w)},{f(h * 0.55)} 0,{f(h * 0.6)}'
+                f'C{f(-w)},{f(h * 0.55)} {f(-w)},{f(-h * 0.4)} 0,{f(-h)}Z" fill="{dark}" {edge}/>'
+                f'<path d="M{f(-w * 0.35)},{f(-h * 0.35)}C{f(-w * 0.5)},0 {f(-w * 0.4)},{f(h * 0.3)} {f(-w * 0.15)},'
+                f'{f(h * 0.45)}" fill="none" stroke="#5f7f5a" stroke-opacity="0.6" stroke-width="{f(1 * s)}"/></g>')
+    if kind == "olive":   # Olivenbaum: knorrige, silbergrüne Krone aus wenigen ungleichen Ballen
+        n = rng.randint(3, 4)
+        silver = _hls(color, 1.15, 0.55)
+        out = []
+        for _ in range(n):
+            bx, by = x + rng.uniform(-0.35, 0.35) * r, y + rng.uniform(-0.35, 0.35) * r
+            out.append(f'<circle cx="{f(bx)}" cy="{f(by)}" r="{f(r * rng.uniform(0.45, 0.6))}" '
+                       f'fill="{shade(silver, rng.uniform(0.88, 1.1))}" {edge}/>')
+        out.append(f'<circle cx="{f(x - r * 0.2)}" cy="{f(y - r * 0.2)}" r="{f(r * 0.3)}" fill="#dfe3c8" fill-opacity="0.35"/>')
+        return "".join(out)
+    if kind == "tropisch":   # Urwaldriese: breite Krone aus vielen Lappen, kräftiges Grün mit dunklen Lücken
+        n = rng.randint(8, 10)
+        a0 = rng.uniform(0, math.pi)
+        lobes = [(x + math.cos(a0 + 2 * math.pi * i / n) * r * 0.55,
+                  y + math.sin(a0 + 2 * math.pi * i / n) * r * 0.55, r * rng.uniform(0.42, 0.55)) for i in range(n)]
+        lobes.append((x, y, r * 0.7))
+        under = "".join(f'<circle cx="{f(a)}" cy="{f(b)}" r="{f(c)}" fill="{shade(color, 0.8)}" {edge}/>'
+                        for a, b, c in lobes)
+        over = "".join(f'<circle cx="{f(a - c * 0.15)}" cy="{f(b - c * 0.15)}" r="{f(c * 0.7)}" '
+                       f'fill="{shade(color, rng.uniform(1.0, 1.2))}"/>' for a, b, c in lobes)
+        return under + over
+    if kind == "farn":    # Baumfarn: Stern aus schmalen, gefiederten Wedeln
+        n = rng.randint(7, 9)
+        a0 = rng.uniform(0, math.pi)
+        out = []
+        for i in range(n):
+            a = a0 + 2 * math.pi * i / n + rng.uniform(-0.12, 0.12)
+            ex, ey = x + math.cos(a) * r * 0.9, y + math.sin(a) * r * 0.9
+            nx, ny = -math.sin(a) * r * 0.12, math.cos(a) * r * 0.12
+            mx, my = x + math.cos(a) * r * 0.5, y + math.sin(a) * r * 0.5
+            out.append(f'<path d="M{f(x)},{f(y)}Q{f(mx + nx)},{f(my + ny)} {f(ex)},{f(ey)}'
+                       f'Q{f(mx - nx)},{f(my - ny)} {f(x)},{f(y)}Z" fill="{shade(color, rng.uniform(1.0, 1.3))}" '
+                       f'stroke="#12240e" stroke-width="{f(0.7 * s)}"/>')
+        out.append(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * 0.12)}" fill="#3a2a16"/>')
+        return "".join(out)
     if kind == "alt":     # alter Riesenbaum mit dunklem Kern
         return (f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r)}" fill="{shade(color, 0.85)}" {edge}/>'
                 f'<circle cx="{f(x - r * 0.15)}" cy="{f(y - r * 0.15)}" r="{f(r * 0.72)}" fill="{color}"/>'
@@ -428,11 +534,26 @@ def pools_svg(o, m, rng):
                  f'<path d="{d}" fill="none" stroke="#bfe8de" stroke-opacity="0.8" stroke-width="{f(4 * s)}" filter="url(#softblur)"/>'
                  f'<path d="{d}" fill="none" stroke="{B["pool_edge"]}" stroke-width="{f(1.3 * s)}"/>')
         return
-    o.append(f'<clipPath id="poolClip"><path d="{d}"/></clipPath>'
-             f'<path d="{d}" fill="{B["pool"]}"/>'
-             f'<g clip-path="url(#poolClip)">{noise_open(m, "algae")} opacity="0.5"/>'
-             f'<path d="{d}" fill="none" stroke="#9fb092" stroke-opacity="0.35" stroke-width="{f(5 * s)}" filter="url(#softblur)"/></g>'
-             f'<path d="{d}" fill="none" stroke="{B["pool_edge"]}" stroke-width="{f(1.3 * s)}"/>')
+    if B["pool_style"] == "moor":   # Moorsee: fast schwarzes Wasser mit hellem Spiegel, torfbraunes Ufer
+        o.append(f'<path d="{d}" fill="none" stroke="#5a4630" stroke-opacity="0.8" stroke-width="{f(5 * s)}" '
+                 f'filter="url(#softblur)"/>'
+                 f'<clipPath id="poolClip"><path d="{d}"/></clipPath>'
+                 f'<path d="{d}" fill="{B["pool"]}"/>'
+                 f'<g clip-path="url(#poolClip)"><path d="{d}" fill="none" stroke="#a9b4b0" stroke-opacity="0.3" '
+                 f'stroke-width="{f(6 * s)}" filter="url(#softblur)" transform="translate({f(2 * s)},{f(2 * s)})"/></g>'
+                 f'<path d="{d}" fill="none" stroke="{B["pool_edge"]}" stroke-width="{f(1.3 * s)}"/>')
+    elif B["pool_style"] == "altwasser":   # Altarm: klares, stilles Wasser mit etwas Entengrütze
+        o.append(f'<clipPath id="poolClip"><path d="{d}"/></clipPath>'
+                 f'<path d="{d}" fill="{B["pool"]}"/>'
+                 f'<g clip-path="url(#poolClip)">{noise_open(m, "algae")} opacity="0.3"/>'
+                 f'<path d="{d}" fill="none" stroke="#d6e6dc" stroke-opacity="0.45" stroke-width="{f(4 * s)}" filter="url(#softblur)"/></g>'
+                 f'<path d="{d}" fill="none" stroke="{B["pool_edge"]}" stroke-width="{f(1.3 * s)}"/>')
+    else:
+        o.append(f'<clipPath id="poolClip"><path d="{d}"/></clipPath>'
+                 f'<path d="{d}" fill="{B["pool"]}"/>'
+                 f'<g clip-path="url(#poolClip)">{noise_open(m, "algae")} opacity="0.5"/>'
+                 f'<path d="{d}" fill="none" stroke="#9fb092" stroke-opacity="0.35" stroke-width="{f(5 * s)}" filter="url(#softblur)"/></g>'
+                 f'<path d="{d}" fill="none" stroke="{B["pool_edge"]}" stroke-width="{f(1.3 * s)}"/>')
     reeds = []
     for x, y, a in m["reeds"]:
         for _ in range(rng.randint(3, 5)):
@@ -440,7 +561,15 @@ def pools_svg(o, m, rng):
             ln = rng.uniform(4, 8) * s
             reeds.append(f"M{f(x)},{f(y)}l{f(math.cos(b) * ln)},{f(math.sin(b) * ln)}")
     if reeds:
-        o.append(f'<path d="{"".join(reeds)}" stroke="#a7a35e" stroke-width="{f(1 * s)}" stroke-linecap="round"/>')
+        o.append(f'<path d="{"".join(reeds)}" stroke="{"#9a8a5a" if B["pool_style"] == "moor" else "#a7a35e"}" '
+                 f'stroke-width="{f(1 * s)}" stroke-linecap="round"/>')
+    if B["pool_style"] == "moor" and m["reeds"]:   # Wollgras: weiße Büschel zwischen den Binsen am Ufer
+        tufts = []
+        for x, y, _ in m["reeds"]:
+            for _ in range(rng.randint(1, 3)):
+                tufts.append(f'<circle cx="{f(x + rng.uniform(-4, 4) * s)}" cy="{f(y + rng.uniform(-4, 4) * s)}" '
+                             f'r="{f(rng.uniform(0.9, 1.6) * s)}"/>')
+        o.append(f'<g fill="#f6f3ea" fill-opacity="0.9">{"".join(tufts)}</g>')
     for x, y, r in m["lilies"]:
         a = rng.uniform(0, 360)
         o.append(f'<g transform="translate({f(x)},{f(y)}) rotate({f(a)})"><path d="M0,0L{f(r)},{f(-r * 0.25)}'
@@ -543,6 +672,7 @@ def umgebung_daten(m):
         "worn": col("worn", _hls(B["road"], 0.72, 0.85)),
         "moss": col("moss", _hls(B["forest_floor"], 0.82, 1.1)),
         "shore": B.get("shore") if coastal else None,
+        "moist_strength": B["moist_strength"],
     }
 
 
@@ -1440,7 +1570,7 @@ def country_roads_svg(o, m):
                  f'stroke-linecap="round" stroke-linejoin="round"/>')
         o.append(f'<path d="{rd}" fill="none" stroke="{B["road"]}" stroke-width="{f(14 * s)}" '
                  f'stroke-linecap="round" stroke-linejoin="round"/>')
-        if not m["pools"].is_empty and B["pool_style"] == "sumpf":   # Knüppeldamm über dem Sumpfwasser
+        if not m["pools"].is_empty and B["pool_style"] in WET_POOLS:   # Knüppeldamm über Sumpf- und Moorwasser
             wet = "".join(line_d(ln.intersection(m["pools"].buffer(3 * s))) for ln, _ in m["ext_roads"])
             if wet:
                 o.append(f'<path d="{wet}" fill="none" stroke="#3e2f1c" stroke-width="{f(15 * s)}"/>'
@@ -1827,7 +1957,7 @@ def trees_svg(o, m, rng):
         if kind == "alt":
             r *= rng.uniform(1.5, 1.9)
         r *= rng.uniform(0.85, 1.15)
-        shadows.append(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * (0.75 if kind in ("tot", "palme") else 0.95))}"/>')
+        shadows.append(f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(r * (0.75 if kind in ("tot", "palme", "farn") else 0.6 if kind in ("zypresse", "wacholder") else 0.95))}"/>')
         parts.append(tree_svg(x, y, r, c, s, rng, kind))
     o.append(shadow_layer("".join(shadows), 3 * s, 3.5 * s, 0.45, s))
     o.append("<g>" + "".join(parts) + "</g>")

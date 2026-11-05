@@ -186,6 +186,9 @@ def _detail(kind, res, s, seed, density=1.0, done=None):
         v = np.sin(phase)
         fade = np.clip((_fbm(res, 260 * s, 3, seed + 3, False) - 0.5) * 6, 0, 1)   # nur stellenweise sichtbar
         return np.clip((v - 0.78) * 4.5, 0, 1) * fade
+    if kind == "patch":           # Flecken (Heidekraut): große, weich begrenzte Inseln, dazwischen freier Boden
+        n = _fbm(res, 230 * s, 4, seed, False, warp=0.4)
+        return np.clip((n - 0.54) * 6, 0, 1) * 0.8
     if kind == "drift":           # Schneeverwehungen: in Windrichtung 4:1 gestreckte, leicht verwehte Flecken
         n = _fbm(res, res / 10, 4, seed, False, warp=0.25, stretch=5.0)
         return np.clip((n - 0.56) * 5, 0, 1)

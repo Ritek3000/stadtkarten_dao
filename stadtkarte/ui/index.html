@@ -375,7 +375,7 @@ input[type=checkbox]:checked::before { transform: rotate(-45deg) scale(1); }
 const DIRS = [["nordwest","NW"],["nord","N"],["nordost","NO"],["west","W"],null,["ost","O"],["suedwest","SW"],["sued","S"],["suedost","SO"]];
 const DIR_NAMES = {nord:"Nord", nordost:"Nordost", ost:"Ost", suedost:"Südost", sued:"Süd", suedwest:"Südwest", west:"West", nordwest:"Nordwest", mitte:"Mitte"};
 const COAST = {nord:"Norden", ost:"Osten", sued:"Süden", west:"Westen", keine:"keine Küste"};
-const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf / Moor", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)", hochplateau:"Hochplateau"};
+const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf (Pfahlbauten)", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", heide:"Heide", herbst:"Herbstland", auwald:"Auwald (Flussaue)", mittelmeer:"Mittelmeer", dschungel:"Dschungel", hochmoor:"Hochmoor", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)", hochplateau:"Hochplateau"};
 const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel"};
 const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion"};
 const FORM = {zufall: "Zufall (je Seed)", rund: "Rund", oval: "Oval (langgestreckt)", unregelmaessig: "Unregelmäßig",
@@ -595,7 +595,7 @@ function formPages(side) {
 
   // 3. Befestigung
   const pageBefestigung = () => [
-    field("Stadtmauer", el("div", {class: "row"}, chk(cfg.mauer, "vorhanden"), el("span", {class: "hint"}, "Stein; Sumpf, Nordland, Steppe: Palisade; Wüste: Lehm"))),
+    field("Stadtmauer", el("div", {class: "row"}, chk(cfg.mauer, "vorhanden"), el("span", {class: "hint"}, "Stein; Sumpf, Nordland, Steppe, Dschungel, Hochmoor: Palisade; Wüste: Lehm"))),
     eigene ? field("Tore", el("div", {class: "hint"}, "Die Tore setzt du beim Zeichnen der Mauer (Taste T)."))
            : field("Tore", num(cfg.mauer, "tore", {min: 1, max: 8})),
     field("Vorstädte", el("label", {class: "row"},
@@ -924,6 +924,12 @@ const NAME_PARTS = {
   wueste: [["Sand", "Oasen", "Dünen", "Sonnen", "Salz", "Skorpion", "Palmen"], ["born", "quell", "tor", "stadt", "rast", "garten", "wacht"]],
   gebirge: [["Eisen", "Stein", "Fels", "Gold", "Kupfer", "Silber", "Granit", "Erz"], ["hall", "tiefe", "hort", "grund", "schacht", "halle", "esse"]],
   hochplateau: [["Hoch", "Wind", "Adler", "Fels", "Wolken", "Kalk", "Sturm"], ["kante", "stein", "burg", "feld", "horst", "mark", "wacht"]],
+  heide: [["Heide", "Wacholder", "Birken", "Schäfer", "Immen", "Sand", "Ginster", "Findling"], ["grund", "dorf", "loh", "heim", "hof", "stedt", "brink"]],
+  herbst: [["Ahorn", "Eichen", "Buchen", "Nebel", "Gold", "Wein", "Ernte", "Kastanien"], ["feld", "burg", "tal", "hain", "berg", "furt", "heim"]],
+  auwald: [["Erlen", "Weiden", "Auen", "Biber", "Reiher", "Eisvogel", "Pappel", "Fluss"], ["au", "werder", "furt", "wörth", "brück", "bach", "hausen"]],
+  mittelmeer: [["Porta", "Santa", "Monte", "Villa", "Costa", "Castel", "Mari"], ["cielo", "rossa", "vento", "luna", "bella", "fiore", "sole"]],
+  dschungel: [["Ix", "Tla", "Xo", "Ka", "Mu", "Ze", "Qua", "Yu"], ["maru", "tepa", "lán", "coatl", "naya", "tun", "pec"]],
+  hochmoor: [["Torf", "Moor", "Irr", "Wollgras", "Birken", "Nebel", "Unken"], ["hausen", "venn", "fehn", "bruch", "moor", "dorf", "kuhle"]],
 };
 const DISTRICT_NAMES = {
   hafen: ["Hafen", "Hafenviertel", "Kaiviertel"], handwerk: ["Handwerkerviertel", "Zunftviertel"], arbeiter: ["Arbeiterviertel", "Gerberviertel"],
@@ -955,7 +961,7 @@ function randomCfg() {
   const mtn = biotop === "gebirge", plat = biotop === "hochplateau";
   const sides = ["nord", "ost", "sued", "west"];
   const kueste = mtn || plat ? pick(sides) : wpick([...sides.map(s => [s, 2]), ["keine", 2]]);
-  const fluss = chance(0.6);
+  const fluss = biotop === "auwald" || chance(0.6);   // Altarme und Auwald gibt es nur am Fluss
   const wasser = (kueste !== "keine" && !mtn && !plat) || fluss;
   const g = {biotop, kueste, fluss, flussbreite: 30 + 2 * rnd(31), inseln: kueste !== "keine" && !mtn && !plat ? rnd(4) : 0,
     bruecken: fluss ? wpick([[1, 5], [2, 3], [3, 2], [4, 1]]) : 1};

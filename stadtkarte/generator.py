@@ -12,10 +12,10 @@ from .city import CityBuilder, city_radius, spread, fit_into_map, make_shape, pi
 from .config import OPTIONAL, ROTATION, place_info, to_canonical
 from .fortress import build_fortress
 from . import leuchtturm, staub
-from .geo import Noise1D, axes, blob, lines, oriented_rect, polys, roof, ship_footprint, unit, vlen
-from .styles import BIOMES, FORT_TYPES
-from .surroundings import hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
-from .terrain import make_coast, make_islands, make_pools, make_river
+from .geo import Noise1D, axes, blob, clean, lines, oriented_rect, polys, roof, ship_footprint, unit, vlen
+from .styles import BIOMES, FORT_TYPES, WET_POOLS
+from .surroundings import fill_forest, hamlet, make_bridges, make_fields, make_forest, scatter_trees, suburb_houses
+from .terrain import make_coast, make_islands, make_oxbows, make_pools, make_river
 
 
 def hint_lines(m):
@@ -331,7 +331,7 @@ def _pools_and_oases(rng, W, s, r, biome, center, terrain):
     terrain stehen die Tümpel nur dort, wo Häuser über Wasser stehen dürfen."""
     cx, cy = center
     water = terrain["water"]
-    pools = make_pools(rng, W, s, biome["pools"], water)
+    pools = make_pools(rng, W, s, biome["pools"], water, biome["pool_rough"])
     if biome["stilts"]:   # Pfahlbausiedlung: Wasserflächen und Kanäle mitten im Ort
         extra = []
         for _ in range(80):
@@ -343,6 +343,10 @@ def _pools_and_oases(rng, W, s, r, biome, center, terrain):
                 extra.append(blob(rng, x, y, r * rng.uniform(0.15, 0.28), rough=0.4,
                                   stretch=(rng.uniform(0.7, 1.4), rng.uniform(0.7, 1.4))))
         pools = unary_union([pools] + extra).difference(water.buffer(4 * s))
+    if biome["oxbows"]:   # Auwald: Altarme neben dem Fluss
+        arms = make_oxbows(rng, W, s, biome["oxbows"], terrain["river"], terrain["river_line"], (cx, cy), r)
+        if not arms.is_empty:
+            pools = unary_union([pools, arms]).difference(water.buffer(6 * s))
     oases = make_oases(rng, W, s, biome["oases"], (cx, cy), r, water)
     if oases:
         pools = unary_union([pools] + oases)
@@ -448,10 +452,20 @@ def _forest_and_fields(rng, W, s, cfg, rot, terrain, center, r, shape, pools, ro
                                        unary_union([water.buffer(10 * s), shape.buffer(60 * s), roads_u, forts_u.buffer(30 * s),
                                                     upper_slope]), land,
                                        biome["tree_spacing"], biome["forest_scale"])
+    if biome["river_forest"] and terrain["river"] is not None:   # Auwald: Waldstreifen beiderseits des Flusses
+        river = terrain["river"]
+        band = river.buffer(biome["river_forest"] * s).difference(river.buffer(12 * s)).intersection(land).difference(
+            unary_union([shape.buffer(60 * s), roads_u, forts_u.buffer(30 * s), forest.buffer(4 * s),
+                         pools.buffer(5 * s), water.difference(river).buffer(10 * s)]))
+        band = unary_union(clean(band, 2500 * s * s))
+        if not band.is_empty:
+            forest_trees = forest_trees + fill_forest(rng, s, band, biome["tree_spacing"])
+            forest = forest.union(band)
     blocked = unary_union([water.buffer(18 * s), shape.buffer(50 * s), roads_u, forest.buffer(25 * s),
                            forts_u.buffer(40 * s), pools.buffer(10 * s)])
     field_dirs = [to_canonical(d, rot) for d in g["felder"]]
-    fields = make_fields(rng, W, s, center, r, field_dirs, blocked, biome["field_kinds"], biome["field_prob"])
+    fields = make_fields(rng, W, s, center, r, field_dirs, blocked, biome["field_kinds"], biome["field_prob"],
+                         biome["field_names"])
     fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
     return forest, forest_trees, fields, fields_u
 
@@ -484,7 +498,7 @@ def _trees(rng, s, biome, pools, forest_trees, allowed, shape):
     if not pools.is_empty:   # Bruchwald: über Tümpeln nur vereinzelte Bäume; auf Eis und in Oasen keine
         keep = 0.3 if biome["pool_style"] == "sumpf" else 0.0
         forest_trees = [tr for tr in forest_trees if not pools.contains(Point(tr[0], tr[1])) or rng.random() < keep]
-    return forest_trees + scatter_trees(rng, s, allowed, shape)
+    return forest_trees + scatter_trees(rng, s, allowed, shape, biome["scatter"])
 
 
 def _upper_level(rng, W, s, center, r, terrain, forts, forts_u, forest, fields, fields_u):
@@ -501,7 +515,7 @@ def _upper_level(rng, W, s, center, r, terrain, forts, forts_u, forest, fields, 
         wood, wood_trees = make_forest(rng, W, s, center, r, [(side * 0.6, -0.8)], off, level,
                                        biome["tree_spacing"], biome["forest_scale"] * 0.7)
         more = make_fields(rng, W, s, center, r, [(0, -1), (-side * 0.7, -0.7)], off.union(wood.buffer(25 * s)),
-                           biome["field_kinds"], biome["field_prob"])
+                           biome["field_kinds"], biome["field_prob"], biome["field_names"])
         fields += more
         fields_u = unary_union([f["poly"] for f in fields]) if fields else Polygon()
         forest = forest.union(wood)
@@ -522,23 +536,25 @@ def _rocks_dunes_floes(rng, s, terrain, shape, pools, allowed, roads_u, fields_u
 
 
 def _swamp(rng, s, biome, pools, shape, city, houses):
-    """Sumpf: Stelzenhäuser über Wasser, Schilf am Ufer, Seerosen. Liefert (Schilf, Seerosen)."""
+    """Sumpf, Altarme und Moorseen: Stelzenhäuser über Wasser (nur Sumpf), Schilf am Ufer, Seerosen. Liefert (Schilf,
+    Seerosen)."""
     reeds, lilies = [], []
-    if not pools.is_empty and biome["pool_style"] == "sumpf":
-        for b in city["buildings"] + houses:
-            if b["poly"].intersection(pools).area > 0.2 * b["poly"].area:
-                b["stilts"] = True
+    if not pools.is_empty and biome["pool_style"] in WET_POOLS:
+        if biome["pool_style"] == "sumpf":
+            for b in city["buildings"] + houses:
+                if b["poly"].intersection(pools).area > 0.2 * b["poly"].area:
+                    b["stilts"] = True
         for ln in lines(pools.boundary):
             k = rng.uniform(0, 10) * s
             while k < ln.length:
-                if rng.random() < 0.55:
+                if rng.random() < biome["reed_prob"]:
                     q = ln.interpolate(k)
                     reeds.append((q.x, q.y, rng.uniform(0, 180)))
                 k += rng.uniform(9, 16) * s
         inner = pools.buffer(-6 * s)
-        if not inner.is_empty:
+        if not inner.is_empty and biome["lily_area"]:
             minx, miny, maxx, maxy = inner.bounds
-            for _ in range(int(inner.area / (900 * s * s))):
+            for _ in range(int(inner.area / (biome["lily_area"] * s * s))):
                 x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
                 if inner.contains(Point(x, y)) and (not shape.contains(Point(x, y)) or rng.random() < 0.3):
                     lilies.append((x, y, rng.uniform(2.5, 5) * s))
