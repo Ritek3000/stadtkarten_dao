@@ -377,7 +377,7 @@ const DIR_NAMES = {nord:"Nord", nordost:"Nordost", ost:"Ost", suedost:"Südost",
 const COAST = {nord:"Norden", ost:"Osten", sued:"Süden", west:"Westen", keine:"keine Küste"};
 const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf (Pfahlbauten)", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", heide:"Heide", herbst:"Herbstland", auwald:"Auwald (Flussaue)", mittelmeer:"Mittelmeer", dschungel:"Dschungel", hochmoor:"Hochmoor", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)", hochplateau:"Hochplateau"};
 const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel"};
-const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion"};
+const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion", marktplatz:"Marktplatz", badehaus:"Badehaus", magierturm:"Magierturm", arena:"Arena", faerberei:"Färberei (am Wasser)", hafenkran:"Hafenkran (am Ufer)", kloster:"Kloster (vor der Stadt)", richtstaette:"Richtstätte (vor der Stadt)"};
 const FORM = {zufall: "Zufall (je Seed)", rund: "Rund", oval: "Oval (langgestreckt)", unregelmaessig: "Unregelmäßig",
               vieleck: "Vieleckig (gerade Mauern)", gewachsen: "Gewachsen (mit Ausbuchtungen)",
               eigene: "Eigene (Mauer selbst zeichnen)"};
@@ -954,6 +954,14 @@ const PLACE_NAMES = {
   kaserne: ["Kaserne", "Stadtwache", "Wachhaus"],
   friedhof: ["Friedhof", "Gottesacker", "Alter Friedhof"],
   festung: ["Festung", "Seeburg", "Grenzwacht", "Bastion"],
+  marktplatz: ["Marktplatz", "Großer Markt", "Kornmarkt"],
+  badehaus: ["Badehaus", "Alte Thermen", "Badestube"],
+  magierturm: ["Turm des Magiers", "Sternwarte", "Arkanum"],
+  arena: ["Arena", "Kampfgrube", "Große Arena"],
+  faerberei: ["Färberei", "Blaufärberei", "Färberhof"],
+  hafenkran: ["Hafenkran", "Tretradkran", "Großer Kran"],
+  kloster: ["Kloster", "Abtei", "Kloster St. Orm"],
+  richtstaette: ["Galgenhügel", "Richtstätte", "Rabenhügel"],
 };
 
 function randomCfg() {
@@ -1018,10 +1026,12 @@ function randomCfg() {
 
   // Besondere Orte
   const nO = einwohner < 2500 ? 1 + rnd(4) : einwohner < GROSS ? 3 + rnd(6) : 5 + rnd(8);
-  const einmal = new Set(["palast", "rathaus", "kathedrale", "kaserne", "festung", "friedhof"]);
-  const mindest = {palast: 15000, kathedrale: 8000, kaserne: 5000, adelshaus: 1500, tempel: 1000, kontor: 1500, werft: 1500};   // Einwohner
-  const draussen = new Set(["muehle", "wassermuehle", "bauernhof", "festung"]);
-  let ptypes = OPT.place_types.filter(t => !(t === "wassermuehle" && !fluss) && !(t === "festung" && mtn) && !((mtn || plat) && ["muehle", "bauernhof", "wassermuehle"].includes(t))
+  const einmal = new Set(["palast", "rathaus", "kathedrale", "kaserne", "festung", "friedhof", "marktplatz", "arena", "magierturm", "kloster", "richtstaette", "hafenkran", "faerberei"]);
+  const mindest = {palast: 15000, kathedrale: 8000, kaserne: 5000, adelshaus: 1500, tempel: 1000, kontor: 1500, werft: 1500,
+    marktplatz: 3000, arena: 6000, badehaus: 2500, magierturm: 1500, faerberei: 1500, hafenkran: 1500, kloster: 1500, richtstaette: 800};   // Einwohner
+  const draussen = new Set(["muehle", "wassermuehle", "bauernhof", "festung", "kloster", "richtstaette"]);
+  let ptypes = OPT.place_types.filter(t => !(t === "wassermuehle" && !fluss) && !(t === "festung" && mtn) && !((mtn || plat) && ["muehle", "bauernhof", "wassermuehle", "kloster", "richtstaette"].includes(t))
+    && !(["faerberei", "hafenkran"].includes(t) && !wasser)
     && !((t === "kontor" || t === "werft") && (!hafen || hafen.groesse === "klein")) && einwohner >= (mindest[t] ?? 0));
   const benutzt = {};
   for (let i = 0; i < nO && ptypes.length; i++) {

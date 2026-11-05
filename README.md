@@ -194,6 +194,16 @@ Browser für vier Beispiele 27 statt 35 s; unter Pyodide für fünf Beispiele 61
 | `rathaus` (auch `dorfhalle`, `halle`) | lange Halle mit Turm zur Straße und gepflastertem Vorplatz mit Brunnen |
 | `palast` (auch `schloss`) | drei Flügel mit Eckpavillons um einen Ehrenhof zur Straße, dahinter ein Garten mit Hecken, Wegkreuz, Brunnen und Baumalleen, alles ummauert; braucht einen großen Block |
 | `bauernhof` (auch `hof`, `bauernhaus`) | vor der Stadt an einer Landstraße: Wohnhaus und großer Stall im Winkel, umzäunter Hofplatz mit Heuhaufen und Obstbäumen |
+| `marktplatz` (auch `markt`, `wochenmarkt`) | ein ganzer Block wird gepflasterter Marktplatz mit Ständen in Reihen, Marktbrunnen und einer Stadtwaage an der Rückseite |
+| `badehaus` (auch `bad`, `therme`) | Ringbau um einen gefliesten Innenhof mit Wasserbecken, an der Rückseite eine Kuppel über dem Warmbad |
+| `magierturm` (auch `magier`) | hoher achteckiger Turm in einem ummauerten Hof mit Runenkreis und dunklen Bäumen; nachts glüht die Turmspitze violett. Ohne freien Block wird ein Haus zum Turm |
+| `arena` (auch `amphitheater`, `kolosseum`) | ovale Ränge mit Sitzreihen und zwei Toren um eine Sandfläche; braucht einen großen Block |
+| `faerberei` (auch `faerber`) | Werkstatt mit Hof voller bunter Farbbottiche und Trockengestellen mit gefärbten Tüchern; bevorzugt auf einem Block nah am Wasser |
+| `hafenkran` (auch `kran`, `tretradkran`) | Tretradkran aus Holz direkt am Ufer, der Ausleger ragt übers Wasser; Stege und Schiffe halten Abstand. Ohne Wasser gibt es einen Hinweis statt eines Krans |
+| `kloster` (auch `abtei`) | vor der Stadt an einer Landstraße: Klosterkirche mit Kreuzgrundriss, Kreuzgang um einen Innenhof mit Brunnen, Kräutergarten in Beeten, Obstbäume, alles hinter einer Mauer |
+| `richtstaette` (auch `galgen`, `richtplatz`) | vor der Stadt an einer Landstraße: kahler Hügel mit Galgen und Rad auf dem Pfahl |
+
+Die neuen Orte stehen wie alle anderen mit Kürzel in der Legende. Wer sie nicht in `orte` aufführt, bekommt dieselben Karten wie vor Version 1.39.
 
 ### Mehrere gleiche Orte
 
@@ -586,7 +596,7 @@ beide beim Start vom Server (`/api/options`) und wiederholt sie nicht. Fehlen in
 deshalb in der Oberfläche wie in der Kommandozeile Wald im Westen und Felder im Osten und Süden; ein ausdrücklich leeres
 `wald:` bedeutet weiterhin „kein Wald“.
 
-**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 23 feste Karten (die
+**Karten-Vergleichstests:** Ein Umbau darf die Karten nicht verändern. `tests/test_karten.py` erzeugt 39 feste Karten (die
 Beispiele, dazu eigene Mauer, Binnenland, die Stadtformen, Nacht, Zuschnitt, Raster, fünf Brücken u.a.) und vergleicht sie mit den
 Fingerabdrücken in `tests/golden/karten.json`: Hinweise des Generators, Zahlen (Häuser, Bäume, Straßen …), das Kartenmodell
 nach dem Generator, das gezeichnete SVG ohne Bilder und die Bilder einzeln. Eine Abweichung nennt die Stufe: Ändert sich schon

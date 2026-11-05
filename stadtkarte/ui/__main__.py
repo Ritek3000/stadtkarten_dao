@@ -60,7 +60,8 @@ STATIC = HTML.with_name("static")
 STATIC_TYPES = {".woff2": "font/woff2", ".png": "image/png"}
 
 PLACE_TYPES = ["gasthaus", "laden", "schmiede", "muehle", "wassermuehle", "kontor", "werft", "adelshaus",
-               "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof", "festung"]
+               "palast", "rathaus", "tempel", "kathedrale", "kaserne", "friedhof", "bauernhof", "festung",
+               "marktplatz", "badehaus", "magierturm", "arena", "faerberei", "hafenkran", "kloster", "richtstaette"]
 RESULTS = {}            # Ergebnis-ID -> erzeugte Karte (die letzten paar bleiben im Speicher)
 GEN_LOCK = threading.Lock()       # eine Karte nach der anderen erzeugen und zeichnen (Rechenzeit und Speicher)
 RESULTS_LOCK = threading.Lock()   # RESULTS wird von parallelen Anfragen verändert

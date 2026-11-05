@@ -1698,9 +1698,152 @@ def grounds_svg(o, m):
             o.append(f'<path d="{d}" fill="{B["cemetery"]}" stroke="{C["outline"]}" stroke-width="{f(2.2 * s)}"/>'
                      f'<path d="{d}" fill="none" stroke="#9c958a" stroke-width="{f(1.2 * s)}" '
                      f'stroke-dasharray="{f(3 * s)} {f(2 * s)}"/>')
+        else:
+            special_ground_svg(o, g, d, kind, s, B)
     if m["graves"]:
         gd = "".join(path_d(g) for g in m["graves"])
         o.append(f'<path d="{gd}" fill="#bdb7a8" stroke="#1e1e1a" stroke-width="{f(0.6 * s)}"/>')
+
+
+def special_ground_svg(o, g, d, kind, s, B):
+    """Flächen der neueren besonderen Orte: Badehof, Arenasand, Färberhof, Kloster mit Innenhof und Kräutergarten,
+    Hof und Runenkreis des Magierturms, Hügel der Richtstätte."""
+    if kind == "tiles":            # Badehof: helle Fliesen im Raster
+        o.append(f'<path d="{d}" fill="#e3dccb" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>'
+                 f'<path d="{d}" fill="url(#cobble)" fill-opacity="0.35"/>')
+    elif kind == "arena":          # Sand der Kampfbahn mit Spuren
+        o.append(f'<path d="{d}" fill="#dcc690" stroke="#6d5a38" stroke-width="{f(1.2 * s)}"/>'
+                 f'<path d="{path_d(g.buffer(-4 * s))}" fill="none" stroke="#b79f68" stroke-width="{f(0.8 * s)}" '
+                 f'stroke-dasharray="{f(2 * s)} {f(4 * s)}"/>')
+    elif kind == "dyeyard":        # Färberhof: festgetretene Erde mit Farbflecken
+        o.append(f'<path d="{d}" fill="#8a7a62" fill-opacity="0.9" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>')
+        c = g.centroid
+        o.append("".join(f'<circle cx="{f(c.x + dx * s)}" cy="{f(c.y + dy * s)}" r="{f(rr * s)}" fill="{col}" '
+                         f'fill-opacity="0.22"/>' for dx, dy, rr, col in ((-14, -4, 6, "#3d5a9a"), (10, 3, 5, "#a8322e"),
+                                                                           (-2, 6, 4, "#d8b23a"))
+                         if g.contains(Point(c.x + dx * s, c.y + dy * s))))
+    elif kind == "cloister":       # Klostergelände: Wiese hinter einer Steinmauer
+        o.append(f'<path d="{d}" fill="#6f8a4e" fill-opacity="0.85"/>'
+                 f'<path d="{d}" fill="none" stroke="{C["outline"]}" stroke-width="{f(3.6 * s)}"/>'
+                 f'<path d="{d}" fill="none" stroke="#b0a998" stroke-width="{f(2 * s)}"/>')
+    elif kind == "garth":          # Innenhof des Kreuzgangs: kurzer Rasen mit Wegkreuz
+        c = g.centroid
+        _, e1, e2 = axes(g)
+        cross = "".join(f"M{f(c.x - e[0] / 2)},{f(c.y - e[1] / 2)}L{f(c.x + e[0] / 2)},{f(c.y + e[1] / 2)}" for e in (e1, e2))
+        o.append(f'<path d="{d}" fill="#7f9e57" stroke="#3f5a2e" stroke-width="{f(0.8 * s)}"/>'
+                 f'<path d="{cross}" stroke="#d6cbb0" stroke-width="{f(2 * s)}"/>')
+    elif kind == "herbs":          # Kräutergarten: Beete in Reihen
+        p0, e1, e2 = axes(g)
+        u = e1 / vlen(e1)
+        beds = [Polygon([p0 + u * k + e2 * 0.12, p0 + u * (k + 4 * s) + e2 * 0.12, p0 + u * (k + 4 * s) + e2 * 0.88,
+                         p0 + u * k + e2 * 0.88]) for k in np.arange(3 * s, vlen(e1) - 6 * s, 7 * s)]
+        greens = ("#5f8a3f", "#7a9a4a", "#4f7a45", "#8a9a52")
+        o.append(f'<path d="{d}" fill="#9a8463" stroke="#4a3a26" stroke-width="{f(1 * s)}"/>'
+                 + "".join(f'<path d="{path_d(bd)}" fill="{greens[i % 4]}" stroke="#2f4a26" stroke-width="{f(0.5 * s)}"/>'
+                           for i, bd in enumerate(beds) if not bd.is_empty))
+    elif kind == "magic_yard":     # Hof des Magierturms: dunkler Rasen hinter einer Mauer aus Schieferstein
+        o.append(f'<path d="{d}" fill="#4e5f48" fill-opacity="0.9"/>'
+                 f'<path d="{d}" fill="none" stroke="{C["outline"]}" stroke-width="{f(3.4 * s)}"/>'
+                 f'<path d="{d}" fill="none" stroke="#6d6888" stroke-width="{f(1.8 * s)}"/>')
+    elif kind == "runes":          # Runenkreis aus hellen Steinen um den Turm
+        c, r = g.centroid, math.sqrt(g.area / math.pi)
+        o.append(f'<circle cx="{f(c.x)}" cy="{f(c.y)}" r="{f(r)}" fill="none" stroke="#c9c0e8" stroke-opacity="0.8" '
+                 f'stroke-width="{f(1.2 * s)}" stroke-dasharray="{f(2.2 * s)} {f(1.6 * s)}"/>'
+                 f'<circle cx="{f(c.x)}" cy="{f(c.y)}" r="{f(r - 2.4 * s)}" fill="none" stroke="#9d92c8" '
+                 f'stroke-opacity="0.6" stroke-width="{f(0.6 * s)}"/>')
+    elif kind == "mound":          # Galgenhügel: kahle Erde, zum Rand hin heller
+        c, r = g.centroid, math.sqrt(g.area / math.pi)
+        o.append(f'<circle cx="{f(c.x + 2 * s)}" cy="{f(c.y + 2.5 * s)}" r="{f(r)}" fill="#000" fill-opacity="0.25"/>'
+                 f'<path d="{d}" fill="#8c7a5c" stroke="#4a3a26" stroke-width="{f(1 * s)}"/>'
+                 f'<circle cx="{f(c.x - 1.5 * s)}" cy="{f(c.y - 1.5 * s)}" r="{f(r * 0.6)}" fill="#a08c68" fill-opacity="0.8"/>')
+
+
+def basins_svg(o, m):
+    """Wasserbecken des Badehauses, Farbbottiche und gefärbte Tücher der Färberei."""
+    s, B = m["s"], m["biome"]
+    for bs in m.get("basins", ()):
+        d = path_d(bs["poly"])
+        if bs["kind"] == "bad":    # Becken mit Steinrand, Wasser und zwei Stufen an der Schmalseite
+            inner = bs["poly"].buffer(-2.2 * s, join_style="mitre")
+            o.append(f'<path d="{d}" fill="#bdb6a4" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>'
+                     f'<path d="{path_d(inner)}" fill="{B["river"]}" stroke="#5f7f88" stroke-width="{f(0.6 * s)}"/>'
+                     f'<path d="{path_d(inner.buffer(-2 * s, join_style="mitre"))}" fill="none" stroke="#e8f2f4" '
+                     f'stroke-opacity="0.5" stroke-width="{f(0.6 * s)}"/>')
+        else:                      # Bottich: Holzring mit Farbe
+            o.append(f'<path d="{d}" fill="#5a4128" stroke="{C["outline"]}" stroke-width="{f(0.7 * s)}"/>'
+                     f'<path d="{path_d(bs["poly"].buffer(-1 * s))}" fill="{bs["color"]}"/>')
+    cloths = m.get("cloths", ())
+    if cloths:
+        o.append(shadow_layer(f'<path d="{"".join(path_d(c["poly"]) for c in cloths)}"/>', 1.2 * s, 1.5 * s, 0.4, s))
+        o.append("".join(f'<path d="{path_d(c["poly"])}" fill="{c["color"]}" stroke="#2a2018" stroke-width="{f(0.5 * s)}"/>'
+                         for c in cloths))
+
+
+def specials_svg(o, m):
+    """Über den Dächern: Sitzreihen und Tore der Arena, Kuppel des Badehauses, Ausleger der Hafenkräne,
+    Kristall des Magierturms und der Galgen der Richtstätte."""
+    s = m["s"]
+    for b in m["buildings"]:
+        if b.get("rows"):
+            o.append(f'<path d="{"".join(line_d(r) for r in b["rows"])}" fill="none" stroke="#000" stroke-opacity="0.32" '
+                     f'stroke-width="{f(0.7 * s)}"/>'
+                     f'<path d="{"".join(path_d(g) for g in b["gates"])}" fill="#2a2018" fill-opacity="0.85"/>')
+        if b.get("dome"):
+            c = b["poly"].centroid
+            r = math.sqrt(b["poly"].area / math.pi)
+            o.append(f'<circle cx="{f(c.x - r * 0.25)}" cy="{f(c.y - r * 0.25)}" r="{f(r * 0.55)}" fill="#fff" fill-opacity="0.18"/>'
+                     f'<circle cx="{f(c.x)}" cy="{f(c.y)}" r="{f(r * 0.18)}" fill="#c9b47a" stroke="{C["outline"]}" '
+                     f'stroke-width="{f(0.5 * s)}"/>')
+        cr = b.get("crane")
+        if cr:                     # Ausleger aus zwei Balken mit Seil und Haken, das Tretrad als Ring auf dem Dach
+            x, y, ex, ey = cr["x"], cr["y"], cr["ex"], cr["ey"]
+            o.append(f'<path d="M{f(x + 2 * s)},{f(y + 2.5 * s)}L{f(ex + 2 * s)},{f(ey + 2.5 * s)}" stroke="#000" '
+                     f'stroke-opacity="0.35" stroke-width="{f(3 * s)}"/>'
+                     f'<path d="M{f(x)},{f(y)}L{f(ex)},{f(ey)}" stroke="{C["outline"]}" stroke-width="{f(3.4 * s)}" '
+                     f'stroke-linecap="round"/>'
+                     f'<path d="M{f(x)},{f(y)}L{f(ex)},{f(ey)}" stroke="#7a5a38" stroke-width="{f(2 * s)}" stroke-linecap="round"/>'
+                     f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(cr["r"] * 0.55)}" fill="none" stroke="#3a2a1a" '
+                     f'stroke-width="{f(1 * s)}"/>'
+                     f'<circle cx="{f(ex)}" cy="{f(ey)}" r="{f(1.6 * s)}" fill="#3a3a3a" stroke="#111" stroke-width="{f(0.5 * s)}"/>')
+        if b.get("magic"):
+            c = b["poly"].centroid
+            o.append(f'<circle cx="{f(c.x)}" cy="{f(c.y)}" r="{f(3.2 * s)}" fill="#b9a8ff" fill-opacity="0.35"/>'
+                     f'<path d="M{f(c.x)},{f(c.y - 2.4 * s)}L{f(c.x + 1.4 * s)},{f(c.y)}L{f(c.x)},{f(c.y + 2.4 * s)}'
+                     f'L{f(c.x - 1.4 * s)},{f(c.y)}Z" fill="#e4dcff" stroke="#3a2f6a" stroke-width="{f(0.5 * s)}"/>')
+    for gw in m.get("gallows", ()):  # Galgen: zwei Pfosten, Querbalken, Stricke; daneben das Rad auf dem Pfahl
+        L, k = gw["len"], 4.6 * s
+        posts = "".join(f'<rect x="{f(x - k / 2)}" y="{f(-k / 2)}" width="{f(k)}" height="{f(k)}" fill="#4a3522" '
+                        f'stroke="{C["outline"]}" stroke-width="{f(0.8 * s)}"/>' for x in (-L / 2, L / 2))
+        ropes = "".join(f'<path d="M{f(x)},{f(1.2 * s)}v{f(3 * s)}" stroke="#d9c79a" stroke-width="{f(0.8 * s)}"/>'
+                        f'<circle cx="{f(x)}" cy="{f(5.2 * s)}" r="{f(1.1 * s)}" fill="none" stroke="#d9c79a" '
+                        f'stroke-width="{f(0.7 * s)}"/>' for x in (-L * 0.15, L * 0.15))
+        spokes = "".join(f"M{f(math.cos(a) * 4.6 * s)},{f(-11 * s + math.sin(a) * 4.6 * s)}"
+                         f"L{f(-math.cos(a) * 4.6 * s)},{f(-11 * s - math.sin(a) * 4.6 * s)}" for a in (0, 1.05, 2.1))
+        o.append(f'<g transform="translate({f(gw["x"])},{f(gw["y"])}) rotate({f(gw["angle"])})">'
+                 f'<path d="M{f(-L / 2 + 2 * s)},{f(2.5 * s)}H{f(L / 2 + 2 * s)}M{f(2 * s)},{f(-8.5 * s)}h0" stroke="#000" '
+                 f'stroke-opacity="0.35" stroke-width="{f(3.6 * s)}" stroke-linecap="round"/>'
+                 f'<circle cx="{f(2 * s)}" cy="{f(-8.5 * s)}" r="{f(5 * s)}" fill="#000" fill-opacity="0.3"/>'
+                 f'<path d="M{f(-L / 2)},0H{f(L / 2)}" stroke="{C["outline"]}" stroke-width="{f(3.8 * s)}"/>'
+                 f'<path d="M{f(-L / 2)},0H{f(L / 2)}" stroke="#6b4c30" stroke-width="{f(2.4 * s)}"/>'
+                 f'{posts}{ropes}'
+                 f'<circle cx="0" cy="{f(-11 * s)}" r="{f(4.6 * s)}" fill="none" stroke="{C["outline"]}" stroke-width="{f(2 * s)}"/>'
+                 f'<circle cx="0" cy="{f(-11 * s)}" r="{f(4.6 * s)}" fill="none" stroke="#7a5a38" stroke-width="{f(1.1 * s)}"/>'
+                 f'<path d="{spokes}" stroke="#5a4128" stroke-width="{f(0.7 * s)}"/>'
+                 f'<circle cx="0" cy="{f(-11 * s)}" r="{f(1.2 * s)}" fill="#3a2a1a"/></g>')
+
+
+def magic_night_svg(o, m):
+    """Nachts: violetter Schein über den Magiertürmen (über der Dunkelheit, wie die übrigen Lichter)."""
+    s = m["s"]
+    towers = [b["poly"].centroid for b in m["buildings"] if b.get("magic")]
+    if not towers:
+        return
+    o.append('<defs><radialGradient id="glowMagic"><stop offset="0" stop-color="#d9c8ff" stop-opacity="0.9"/>'
+             '<stop offset="0.35" stop-color="#9a6cff" stop-opacity="0.5"/><stop offset="0.7" stop-color="#6a3cd8" '
+             'stop-opacity="0.15"/><stop offset="1" stop-color="#6a3cd8" stop-opacity="0"/></radialGradient></defs>')
+    o.append("".join(f'<circle cx="{f(c.x)}" cy="{f(c.y)}" r="{f(34 * s)}" fill="url(#glowMagic)"/>'
+                     f'<circle cx="{f(c.x)}" cy="{f(c.y)}" r="{f(2.6 * s)}" fill="#f2ecff" stroke="#3a2f6a" '
+                     f'stroke-width="{f(0.5 * s)}"/>' for c in towers))
 
 
 def fountains_wells_svg(o, m):
@@ -2121,6 +2264,7 @@ def render_svg(m, nacht=None):
     slums_svg(o, m)
     stilt_decks_svg(o, m)
     grounds_svg(o, m)
+    basins_svg(o, m)
     fountains_wells_svg(o, m)
     stalls_svg(o, m)
     terraces_svg(o, m)
@@ -2132,6 +2276,7 @@ def render_svg(m, nacht=None):
     if m.get("lighthouse"):
         lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=False)
     buildings_svg(o, m)
+    specials_svg(o, m)
     mills_svg(o, m)
     mines_svg(o, m)
     forge_glow = forges_svg(o, m)
@@ -2145,6 +2290,7 @@ def render_svg(m, nacht=None):
         o.append(f'</g></g><g transform="{rot}">')
     if nacht:
         night_svg(o, m, lamps, forge_glow)
+        magic_night_svg(o, m)
     if m.get("lighthouse"):   # das Leuchtfeuer liegt über allem (nachts nach dem Abdunkeln: strahlt hell)
         lighthouse_svg(o, m["lighthouse"], s, night=nacht, glow=True)
     dust_svg(o, m)   # Staub über allem, auch über Lichtern - in der Finsternis leuchtet nichts mehr

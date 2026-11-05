@@ -32,8 +32,13 @@ LANDMARK_COLORS = {
     "werft": "#456a78", "muehle": "#8a6a4a", "friedhof": "#8f8a80", "festung": "#7d7869", "gasthaus": None, "schmiede": "#4f5a66", "laden": None,
     "wassermuehle": "#7a3f3f", "rathaus": "#8c4f3a", "palast": "#55657e", "bauernhof": None,
     "kathedrale": "#6a707c",
+    # Stadtwaage am Marktplatz, Ziegeldach des Badehauses, Schiefer des Magierturms, Sandstein der Arena,
+    # Werkstatt der Färberei, Tretradkran aus Holz, Klosterkirche
+    "marktplatz": "#9a5a3c", "badehaus": "#b0735a", "magierturm": "#4b4470", "arena": "#b3a27f",
+    "faerberei": "#7a5e48", "hafenkran": "#6b4c30", "kloster": "#8a7f6e", "richtstaette": None,
 }
-BIG_LANDMARKS = {"kontor", "adelshaus", "tempel", "kaserne", "werft", "friedhof", "rathaus", "palast", "kathedrale"}
+BIG_LANDMARKS = {"kontor", "adelshaus", "tempel", "kaserne", "werft", "friedhof", "rathaus", "palast", "kathedrale",
+                 "marktplatz", "badehaus", "magierturm", "arena", "faerberei"}
 FORT_TYPES = {"festung", "bastion", "burg"}
 
 COLORS = dict(

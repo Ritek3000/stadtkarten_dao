@@ -687,6 +687,48 @@
     }
    }
   },
+  "neue_orte": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 966,
+    "baeume": 492,
+    "landstrassen": 4,
+    "gassen": 9,
+    "bruecken": 4,
+    "viertel": 3,
+    "beschriftungen": 12,
+    "tore": 4,
+    "tuerme": 18,
+    "schiffe": 0,
+    "felder": 121,
+    "stadtflaeche": 58526
+   },
+   "modell": "3e59b5aabfcecfd33fad",
+   "karten": {
+    "tag": {
+     "svg": "002ac81d69d3128d7c43",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "1a40963f3f253eab2f3a",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "4741590e62d2dfff7ff8",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    },
+    "nacht": {
+     "svg": "30aa36cc82617ff26679",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "1a40963f3f253eab2f3a",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "4741590e62d2dfff7ff8",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
   "eigene_mauer": {
    "hinweise": [],
    "zahlen": {

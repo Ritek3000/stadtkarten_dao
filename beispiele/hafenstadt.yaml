@@ -44,7 +44,8 @@ viertel:
     lage: suedost
 
 # typ: gasthaus | kontor | adelshaus | palast | rathaus | tempel | kathedrale | schmiede | muehle | wassermuehle | werft
-#      | kaserne | friedhof | laden | bauernhof
+#      | kaserne | friedhof | laden | bauernhof | marktplatz | badehaus | magierturm | arena | faerberei | hafenkran
+#      | kloster | richtstaette   (kloster und richtstaette stehen vor der Stadt, faerberei und hafenkran am Wasser)
 #      muehle (Windmühle) und bauernhof stehen vor der Stadt an einer Landstraße, wassermuehle am Flussufer
 #      festung (bzw. bastion/burg) mit lage: insel | landzunge | land  - steht außerhalb der Stadt
 #      friedhof mit lage: ausserhalb  - liegt dann vor einem Tor (passiert auch automatisch, wenn im Ort kein Platz ist)
