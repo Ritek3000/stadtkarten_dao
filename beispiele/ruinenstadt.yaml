@@ -1,0 +1,55 @@
+# Stadt mit Ruinenviertel: Nach einer Seuche und einem Brand ist ein Teil der Stadt verfallen
+# Aufruf:  .venv\Scripts\python -m stadtkarte beispiele\ruinenstadt.yaml
+
+name: Aschenfurt
+seed: 404
+einwohner: 4000       # die Ruinen zählen mit zur Stadtgröße: das Viertel ist so groß wie ein bewohntes
+
+gelaende:
+  kueste: keine
+  fluss: true
+  flussbreite: 36
+  bruecken: 2
+  wald: [west, nordwest]
+  felder: [ost, suedost, sued]
+
+mauer:
+  vorhanden: true
+  tore: 4
+
+# typ: ruinen = Ruinenviertel. ruinenanteil (optional, 0 bis 100, Standard 60): wie viel Prozent der Häuser im Viertel
+# Ruinen sind (Mauerreste oder Häuser mit eingestürztem Dach); die übrigen sind bewohnt wie in jedem Wohnviertel.
+viertel:
+  - name: Neustadt
+    typ: wohn
+    lage: ost
+  - name: Marktviertel
+    typ: markt
+    lage: mitte
+  - name: Handwerkerviertel
+    typ: handwerk
+    lage: nord
+  - name: Brandgasse
+    typ: ruinen
+    ruinenanteil: 70
+    lage: west
+
+orte:
+  - name: Zum Letzten Licht
+    kuerzel: G1
+    typ: gasthaus
+    viertel: Marktviertel
+  - name: Dreifaltigkeitskirche
+    kuerzel: T1
+    typ: tempel
+    viertel: Brandgasse      # steht unversehrt zwischen den Ruinen
+  - name: Schmiede Kohlenbrand
+    typ: schmiede
+    viertel: Handwerkerviertel
+  - name: Friedhof
+    typ: friedhof
+
+ausgabe:
+  bildgroesse: 2000
+  stil: pergament
+  formate: [svg, png]

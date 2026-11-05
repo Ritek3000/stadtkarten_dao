@@ -18,7 +18,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from .geo import axes, lines, polys, rings, ship_footprint, unit, vlen
-from . import gebirge, noise, papier, parallel, schlucht, staub, stile, umgebung, wasser
+from . import gebirge, noise, papier, parallel, ruinen, schlucht, staub, stile, umgebung, wasser
 from .roofs import detailed_roof, material_for
 from .config import OPTIONAL, ROTATION
 from .styles import BIOMES, COLORS as C, DISTRICT_TYPES, FONT, FONT_FILE, WET_POOLS
@@ -183,21 +183,30 @@ def block_svg(b, s, to_light, flat):
     """Großstadt: Häuserzeile um einen Hof. Jedes Haus ist eine Dachfläche in eigener Farbe, zum Licht hin heller;
     dazwischen Brandmauern, rundum der First in halber Haustiefe mit hellem Glanz zur Lichtseite."""
     out = []
+    ruins = b.get("ruins") or {}   # Ruinenviertel: Häuser der Zeile, die verfallen sind (Nr. -> Ruine, siehe ruinen.py)
     if b.get("court") is not None:   # Innenhof: festgetretener Boden statt Wiese, an der Hauswand verschattet
         out.append(f'<path d="{path_d(b["court"])}" fill="#7d7562" fill-opacity="0.75" stroke="#000" '
                    f'stroke-opacity="0.25" stroke-width="{f(2 * s)}"/>')
-    for seg, n, col in b["segments"]:
+    for j, (seg, n, col) in enumerate(b["segments"]):
+        if j in ruins:
+            continue
         k = 1.0 if flat else 1 + 0.28 * (n[0] * to_light[0] + n[1] * to_light[1])
         out.append(f'<path d="{path_d(seg)}" fill="{shade(col, k)}"/>')
-    walls = "".join(path_d(seg) for seg, _, _ in b["segments"])
+    walls = "".join(path_d(seg) for j, (seg, _, _) in enumerate(b["segments"]) if j not in ruins)
     out.append(f'<path d="{walls}" fill="none" stroke="#000" stroke-opacity="0.45" stroke-width="{f(0.5 * s)}"/>')
+    whole = b["poly"]
+    if ruins:   # First und Umriss nur um die Häuser, die noch ein Dach haben
+        whole = unary_union([seg for j, (seg, _, _) in enumerate(b["segments"]) if j not in ruins]).buffer(0.3 * s)
     if b["block_ridge"] and not flat:
-        rd = "".join(line_d(r) for r in b["block_ridge"])
+        rd = "".join(line_d(r if not ruins else r.intersection(whole)) for r in b["block_ridge"])
         dx, dy = to_light[0] * 0.5 * s, to_light[1] * 0.5 * s
         out.append(f'<path d="{rd}" fill="none" stroke="#000" stroke-opacity="0.5" stroke-width="{f(0.8 * s)}"/>'
                    f'<path d="{rd}" fill="none" stroke="#fff" stroke-opacity="0.22" stroke-width="{f(0.5 * s)}" '
                    f'transform="translate({f(dx)},{f(dy)})"/>')
-    out.append(f'<path d="{path_d(b["poly"])}" fill="none" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>')
+    out.append(f'<path d="{path_d(whole)}" fill="none" stroke="{C["outline"]}" stroke-width="{f(1 * s)}"/>')
+    for j, info in sorted(ruins.items()):   # die Ruinen zuletzt: ihre Mauern ragen etwas über den Grundriss
+        seg, _, col = b["segments"][j]
+        out.append(ruinen.ruin_svg(seg, info, col, None, None, s, C["outline"]))
     return "".join(out)
 
 
@@ -913,8 +922,10 @@ def night_svg(o, m, lamps, forge_glow):
     units = []
     for b in m["buildings"] + m["suburbs"]:
         if b.get("form") == "block":
-            units += [{"poly": seg, "poor": b.get("poor"), "front": n} for seg, n, _ in b["segments"]]
-        else:
+            ruins = b.get("ruins") or {}   # in Ruinen brennt kein Licht
+            units += [{"poly": seg, "poor": b.get("poor"), "front": n}
+                      for j, (seg, n, _) in enumerate(b["segments"]) if j not in ruins]
+        elif not b.get("ruin"):
             units.append(b)
     for b in units:
         if rng.random() > win_share * (0.35 if b.get("poor") else 1):   # Arme sparen Licht
@@ -2014,7 +2025,8 @@ def buildings_svg(o, m):
     # Gebäude
     stilts_svg(o, m)
     # Schattenwurf als versetzte Silhouette (statt teurem feDropShadow über die ganze Karte)
-    sil = "".join(path_d(b["poly"]) for b in m["suburbs"] + m["buildings"])
+    sil = "".join(path_d(roofs) for b in m["suburbs"] + m["buildings"]
+                  if (roofs := ruinen.standing_roofs(b)) is not None)   # Ruinen werfen nur mit ihrem Dachrest Schatten
     o.append(shadow_layer(f'<path d="{sil}"/>', 2 * s, 2.5 * s, 0.5, s))
     o.append('<g>')
     detail = m["cfg"]["ausgabe"].get("dachdetails", True)
@@ -2024,6 +2036,9 @@ def buildings_svg(o, m):
     to_light = np.array([lx * math.cos(ra) - ly * math.sin(ra), lx * math.sin(ra) + ly * math.cos(ra)])
     roof_rng = random.Random(m["cfg"]["seed"] + 7)
     for b in m["suburbs"] + m["buildings"]:
+        if b.get("ruin"):   # Ruinenviertel: Mauerreste bzw. Haus mit eingestürztem Dach
+            o.append(ruinen.ruin_svg(b["poly"], b["ruin"], b["color"], b.get("shade"), b.get("ridges"), s, C["outline"]))
+            continue
         flat = B["flat_roofs"] and not b.get("landmark")
         svg = None
         if b.get("form") == "block":

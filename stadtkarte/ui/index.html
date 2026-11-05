@@ -376,7 +376,7 @@ const DIRS = [["nordwest","NW"],["nord","N"],["nordost","NO"],["west","W"],null,
 const DIR_NAMES = {nord:"Nord", nordost:"Nordost", ost:"Ost", suedost:"Südost", sued:"Süd", suedwest:"Südwest", west:"West", nordwest:"Nordwest", mitte:"Mitte"};
 const COAST = {nord:"Norden", ost:"Osten", sued:"Süden", west:"Westen", keine:"keine Küste"};
 const BIOME = {gemaessigt:"Gemäßigt (Wiesen & Wälder)", sumpf:"Sumpf (Pfahlbauten)", nordland:"Nordland (Schnee & Eis)", steppe:"Steppe", heide:"Heide", herbst:"Herbstland", auwald:"Auwald (Flussaue)", mittelmeer:"Mittelmeer", dschungel:"Dschungel", hochmoor:"Hochmoor", wueste:"Wüste & Oasen", gebirge:"Gebirge (Zwergenstadt)", hochplateau:"Hochplateau"};
-const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel"};
+const DTYPE = {hafen:"Hafen", handwerk:"Handwerk", arbeiter:"Arbeiter", fischer:"Fischer", bauern:"Bauern", adel:"Adel", tempel:"Tempelbezirk", markt:"Markt", wohn:"Wohnviertel", armen:"Armenviertel", ruinen:"Ruinenviertel"};
 const PTYPE = {gasthaus:"Gasthaus", laden:"Laden", schmiede:"Schmiede", muehle:"Windmühle (vor der Stadt)", wassermuehle:"Wassermühle (am Fluss)", kontor:"Kontor", werft:"Werft", adelshaus:"Adelshaus", palast:"Palast", rathaus:"Rathaus / Dorfhalle", bauernhof:"Bauernhof mit Stall (vor der Stadt)", tempel:"Tempel / Schrein", kathedrale:"Kathedrale / Dom", kaserne:"Kaserne", friedhof:"Friedhof", festung:"Festung / Bastion", marktplatz:"Marktplatz", badehaus:"Badehaus", magierturm:"Magierturm", arena:"Arena", faerberei:"Färberei (am Wasser)", hafenkran:"Hafenkran (am Ufer)", kloster:"Kloster (vor der Stadt)", richtstaette:"Richtstätte (vor der Stadt)"};
 const FORM = {zufall: "Zufall (je Seed)", rund: "Rund", oval: "Oval (langgestreckt)", unregelmaessig: "Unregelmäßig",
               vieleck: "Vieleckig (gerade Mauern)", gewachsen: "Gewachsen (mit Ausbuchtungen)",
@@ -605,18 +605,28 @@ function formPages(side) {
   ];
 
   // 4. Viertel
+  const ruinenanteil = v => {   // Ruinenviertel: Anteil der Häuser, die Ruinen sind (Prozent; der Standard fehlt in der Beschreibung)
+    const wert = () => v.ruinenanteil ?? optional("viertel.ruinenanteil");
+    const out = el("span", {class: "hint"}, wert() + " % Ruinen");
+    return el("label", {class: "row"}, el("span", {}, "Ruinenanteil"),
+      el("input", {type: "range", min: 0, max: 100, step: 5, value: wert(), style: "flex:1",
+        on: {input: e => { const n = Number(e.target.value);
+          if (n === optional("viertel.ruinenanteil")) delete v.ruinenanteil; else v.ruinenanteil = n;
+          out.textContent = n + " % Ruinen"; }}}), out);
+  };
   const pageViertel = () => {
     const vList = el("div", {class: "list"});
     cfg.viertel.forEach((v, i) => vList.append(el("div", {class: "item"},
       el("div", {class: "row"}, txt(v, "name", {placeholder: "Name des Viertels"}, true),
         iconBtn("x", "Viertel entfernen", () => { cfg.viertel.splice(i, 1); renderForm(); }, "del")),
       el("div", {class: "row"},
-        select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => { v.typ = x; if (x !== "armen") delete v.ausserhalb; renderForm(); }),
+        select(OPT.district_types.map(t => [t, DTYPE[t] ?? t]), v.typ, x => { v.typ = x; if (x !== "armen") delete v.ausserhalb; if (x !== "ruinen") delete v.ruinenanteil; renderForm(); }),
         v.ausserhalb ? null
           : select([["", "Lage: automatisch"], ...Object.entries(DIR_NAMES).map(([k, t]) => [k, "Lage: " + t])], v.lage, x => { if (x) v.lage = x; else delete v.lage; })),
       v.typ === "hafen" ? el("div", {class: "row"},
         select([["klein", "Größe: klein"], ["mittel", "Größe: mittel"], ["gross", "Größe: groß"]], v.groesse ?? optional("viertel.groesse"),
           x => { if (x === optional("viertel.groesse")) delete v.groesse; else v.groesse = x; })) : null,
+      v.typ === "ruinen" ? ruinenanteil(v) : null,
       v.typ === "armen" ? el("label", {class: "row hint"},
         el("input", {type: "checkbox", checked: !!v.ausserhalb,
           on: {change: e => { if (e.target.checked) { v.ausserhalb = true; delete v.lage; } else delete v.ausserhalb; renderForm(); }}}),
@@ -625,6 +635,7 @@ function formPages(side) {
     return [
       vList, el("div", {}, el("button", {type: "button", class: "btn", on: {click: () => { cfg.viertel.push({name: "Neues Viertel", typ: "wohn"}); renderForm(); }}}, "Viertel hinzufügen")),
       el("div", {class: "hint"}, "Ein Hafen braucht Küste oder Fluss. Armenviertel liegen immer am Stadtrand, nie im Kern. " +
+         "Im Ruinenviertel sind so viele Häuser verfallen, wie der Regler zeigt; die übrigen sind bewohnt. " +
          "Ohne Viertel wird die Stadt einheitlich bebaut und ohne Viertelnamen gezeichnet."),
     ];
   };
@@ -935,7 +946,7 @@ const DISTRICT_NAMES = {
   hafen: ["Hafen", "Hafenviertel", "Kaiviertel"], handwerk: ["Handwerkerviertel", "Zunftviertel"], arbeiter: ["Arbeiterviertel", "Gerberviertel"],
   fischer: ["Fischerviertel", "Fischergasse"], bauern: ["Bauernviertel", "Ackerbürgerviertel"], adel: ["Adelsviertel", "Hochviertel"],
   tempel: ["Tempelbezirk", "Tempelviertel"], markt: ["Marktviertel", "Marktquartier"], wohn: ["Wohnviertel", "Altstadt"],
-  armen: ["Armenviertel", "Schattenviertel"],
+  armen: ["Armenviertel", "Schattenviertel"], ruinen: ["Ruinenviertel", "Brandgasse", "Trümmerviertel", "Verlassene Gasse"],
 };
 const PLACE_NAMES = {
   gasthaus: ["Zum Goldenen Hirsch", "Zur Krone", "Zum Eber", "Zum Wilden Mann", "Zur Linde", "Zum Anker", "Zum Roten Adler", "Zur Rast"],
@@ -1008,13 +1019,15 @@ function randomCfg() {
   if (c.ausgabe.ausschnitt === optional("ausgabe.ausschnitt")) delete c.ausgabe.ausschnitt;
 
   // Viertel: Hafen nur mit Wasser (im Gebirge und auf dem Plateau gibt es weder Hafen noch Fischer)
-  let types = OPT.district_types.filter(t => !((mtn || plat) && (t === "hafen" || t === "fischer")) && (t !== "hafen" || wasser));
+  let types = OPT.district_types.filter(t => !((mtn || plat) && (t === "hafen" || t === "fischer")) && (t !== "hafen" || wasser) && t !== "ruinen");
   const nV = einwohner < 2500 ? rnd(3) : einwohner < GROSS ? 2 + rnd(4) : 4 + rnd(4);
   const chosen = sample(types, nV);
   if (types.includes("hafen") && chance(0.7) && !chosen.includes("hafen") && nV > 0) chosen[0] = "hafen";
+  if (nV > 1 && chance(0.1)) chosen[nV - 1] = "ruinen";   // selten ein Ruinenviertel
   const lagen = sample(Object.keys(DIR_NAMES), Object.keys(DIR_NAMES).length);
   for (const typ of chosen) {
     const v = {name: pick(DISTRICT_NAMES[typ]), typ};
+    if (typ === "ruinen" && (v.ruinenanteil = pick([30, 50, 60, 80])) === optional("viertel.ruinenanteil")) delete v.ruinenanteil;
     if (typ === "hafen") v.groesse = pick(["klein", "mittel", "gross"]);
     else if (typ === "armen" && chance(0.35)) v.ausserhalb = true;
     else if (chance(0.5) && lagen.length) v.lage = lagen.pop();

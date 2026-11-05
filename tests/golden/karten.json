@@ -729,6 +729,79 @@
     }
    }
   },
+  "ruinenstadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 439,
+    "baeume": 1665,
+    "landstrassen": 4,
+    "gassen": 12,
+    "bruecken": 3,
+    "viertel": 4,
+    "beschriftungen": 8,
+    "tore": 4,
+    "tuerme": 21,
+    "schiffe": 0,
+    "felder": 177,
+    "stadtflaeche": 26011
+   },
+   "modell": "ce97da6af60121dfa601",
+   "karten": {
+    "tag": {
+     "svg": "ecbfae07b76b326a1f1b",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "e87dac7cdea61416a106",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "fc855c7019c6bce04480",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    },
+    "nacht": {
+     "svg": "26d6923c541aad65dd65",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "e87dac7cdea61416a106",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "fc855c7019c6bce04480",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
+  "ruinen_grossstadt": {
+   "hinweise": [],
+   "zahlen": {
+    "gebaeude": 4842,
+    "baeume": 445,
+    "landstrassen": 4,
+    "gassen": 17,
+    "bruecken": 1,
+    "viertel": 3,
+    "beschriftungen": 4,
+    "tore": 10,
+    "tuerme": 39,
+    "schiffe": 0,
+    "felder": 116,
+    "stadtflaeche": 73557
+   },
+   "modell": "cb21fe517021ddab4bd6",
+   "karten": {
+    "tag": {
+     "svg": "58aeb2a0bdfbe0831e39",
+     "bilder": [
+      "aa9c72c9219036bc0ae0",
+      "22f779bfad80091a37c6",
+      "5abccc48280ce0f14b67",
+      "9ba7c1a7b6697316dc5c",
+      "595193943188d3d67916",
+      "e6a92c3b3292e2e67c8c"
+     ]
+    }
+   }
+  },
   "eigene_mauer": {
    "hinweise": [],
    "zahlen": {

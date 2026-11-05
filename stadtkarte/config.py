@@ -67,6 +67,7 @@ OPTIONAL = {
     "ausgabe.stil": "pergament",
     "ausgabe.ausschnitt": "weit",
     "viertel.groesse": "gross",        # Größe des Hafenviertels
+    "viertel.ruinenanteil": 60,        # Ruinenviertel: Anteil der Häuser, die Ruinen sind (Prozent)
 }
 
 
@@ -351,10 +352,15 @@ def _directions(g):
                 raise ValueError(f"Unbekannte Richtung bei gelaende.{key}: {v}")
 
 
+DISTRICT_ALIASES = {"ruine": "ruinen", "ruinenviertel": "ruinen"}   # so heißt der Typ in der Oberfläche
+
+
 def _district(v, i):
-    """Ein Viertel (i-ter Eintrag, von 1 an gezählt): Name, Typ, Lage, beim Hafenviertel die Größe."""
+    """Ein Viertel (i-ter Eintrag, von 1 an gezählt): Name, Typ, Lage, beim Hafenviertel die Größe, beim Ruinenviertel
+    der Anteil der Ruinen."""
     v["name"] = text(v.get("name"), f"viertel[{i}].name")
     v["typ"] = norm(v.get("typ") or "wohn")
+    v["typ"] = DISTRICT_ALIASES.get(v["typ"], v["typ"])
     if v["typ"] not in DISTRICT_TYPES:
         raise ValueError(f"Viertel {v['name'] or i}: unbekannter Typ '{v['typ']}' "
                          f"(möglich: {', '.join(DISTRICT_TYPES)})")
@@ -362,6 +368,7 @@ def _district(v, i):
         v["ausserhalb"] = True   # Armenviertel vor der Stadtmauer
         del v["lage"]
     _harbor_size(v)
+    _ruin_share(v, i)
     if v.get("ausserhalb"):
         v["ausserhalb"] = True
     else:
@@ -385,6 +392,19 @@ def _harbor_size(v):
             v["groesse"] = gr
     else:
         v.pop("groesse", None)
+
+
+def _ruin_share(v, i):
+    """Anteil der Ruinen im Ruinenviertel in Prozent (ganze Zahl von 0 bis 100; der Standard wird weggelassen, auch
+    "60 %" ist erlaubt); andere Viertel haben keinen."""
+    if v["typ"] != "ruinen":
+        v.pop("ruinenanteil", None)
+        return
+    if isinstance(v.get("ruinenanteil"), str):
+        v["ruinenanteil"] = v["ruinenanteil"].replace("%", "").strip()
+    number(v, "ruinenanteil", f"Viertel {v['name'] or i}: ruinenanteil", int, 0, 100, OPTIONAL["viertel.ruinenanteil"])
+    if v["ruinenanteil"] == OPTIONAL["viertel.ruinenanteil"]:
+        del v["ruinenanteil"]
 
 
 def _ident(cfg):

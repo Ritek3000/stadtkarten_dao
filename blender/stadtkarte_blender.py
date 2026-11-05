@@ -65,9 +65,10 @@ MIN_HEIGHT, MAX_HEIGHT = 3.0, 150.0
 TYPE_FACTOR = {'house': 1.0, 'landmark': 2.2, 'fort': 1.4, 'suburb': 0.6}     # by building kind
 DISTRICT_FACTOR = {                                                          # by district type (Viertel)
     'hafen': 0.9, 'handwerk': 1.0, 'arbeiter': 0.85, 'fischer': 0.7, 'bauern': 0.6,
-    'adel': 1.5, 'tempel': 1.3, 'markt': 1.2, 'wohn': 1.0, 'armen': 0.6,
+    'adel': 1.5, 'tempel': 1.3, 'markt': 1.2, 'wohn': 1.0, 'armen': 0.6, 'ruinen': 1.0,
 }
 POOR_FACTOR = 0.75              # buildings flagged "poor"
+RUIN_FACTOR = 0.35              # ruined houses (Ruinenviertel, feature flag "ruin"): low wall stumps, never skyscrapers
 GLASS_MIN_HEIGHT = 30.0         # buildings at least this tall get the glass material
 MERGE_BUILDINGS = True          # True: one mesh object per district (fast) | False: one object per building
 
@@ -548,9 +549,10 @@ def building_height(index, feat, outer, holes, center, radius):
     factor = OUTSKIRTS_FACTOR + (CENTER_FACTOR - OUTSKIRTS_FACTOR) * centrality ** CENTER_FALLOFF
     footprint = abs(signed_area(outer)) - sum(abs(signed_area(h)) for h in holes)
     height = DEFAULT_HEIGHT * TYPE_FACTOR.get(feat["kind"], 1.0) * DISTRICT_FACTOR.get(feat.get("district_type"), 1.0) \
-        * (POOR_FACTOR if feat.get("poor") else 1.0) * factor * rng.uniform(1 - HEIGHT_VARIATION, 1 + HEIGHT_VARIATION)
-    if feat["kind"] == "house" and centrality >= SKYSCRAPER_ZONE and footprint >= SKYSCRAPER_MIN_FOOTPRINT \
-            and rng.random() < SKYSCRAPER_CHANCE:
+        * (POOR_FACTOR if feat.get("poor") else 1.0) * (RUIN_FACTOR if feat.get("ruin") else 1.0) \
+        * factor * rng.uniform(1 - HEIGHT_VARIATION, 1 + HEIGHT_VARIATION)
+    if feat["kind"] == "house" and not feat.get("ruin") and centrality >= SKYSCRAPER_ZONE \
+            and footprint >= SKYSCRAPER_MIN_FOOTPRINT and rng.random() < SKYSCRAPER_CHANCE:
         height *= SKYSCRAPER_BOOST
     height = min(height, MAX_ASPECT * math.sqrt(max(footprint, 0.0)))
     height = max(MIN_HEIGHT, min(height, MAX_HEIGHT))
