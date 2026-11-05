@@ -22,7 +22,8 @@ class Angaben(unittest.TestCase):
 
     def test_andere_schreibweisen(self):
         for roh, stil in (("Goldene Stunde", "abendlicht"), ("Sepia-Stich", "sepia"), ("Skizze", "bleistift"),
-                          ("Feder", "bleistift"), ("Pastell", "aquarell"), ("Farbdruck", "sepia"), ("alt", "pergament")):
+                          ("Feder", "bleistift"), ("Pastell", "aquarell"), ("Farbdruck", "sepia"), ("alt", "pergament"),
+                          ("Umrisse", "konturen"), ("Schwarz-Weiß", "konturen"), ("Malbuch", "konturen")):
             with self.subTest(roh):
                 self.assertEqual(config.from_dict({"ausgabe": {"stil": roh}})["ausgabe"]["stil"], stil)
         self.assertTrue(set(STIL_ALIASE.values()) <= set(STILE))
@@ -38,7 +39,7 @@ class Angaben(unittest.TestCase):
                 self.assertTrue(filt.startswith('<filter id="stil"'))
                 self.assertIn('result="out"', filt)   # der letzte Schritt liefert das Ergebnis
                 mul, deck = stile.bilder(stil, 500, 0.25)
-                self.assertTrue(mul or deck)
+                self.assertTrue(mul or deck or stil == "konturen")   # die Konturen sind reine Linien: keine Textur über der Karte
         self.assertEqual(stile.filter_svg("standard", 1, 2000), "")
         self.assertEqual(stile.filter_svg("pergament", 1, 2000), "")
 
@@ -75,7 +76,7 @@ class Zeichnen(unittest.TestCase):
         self.assertIn('filter="url(#stil)"', karte)
 
     def test_schrift_in_tinte(self):
-        for stil in ("bleistift",):
+        for stil in ("bleistift", "konturen"):
             with self.subTest(stil):
                 _, schrift = split_labels(self.zeichne(stil))
                 ink, halo = stile.schrift(stil)
@@ -93,6 +94,52 @@ class Zeichnen(unittest.TestCase):
         halb = Image.open(io.BytesIO(to_png(svg, zoom=0.5))).convert("L")
         a, b = np.asarray(voll, np.float32), np.asarray(halb, np.float32)
         self.assertLess(abs(a.mean() - b.mean()), 6)
+
+
+@unittest.skipIf(os.environ.get("STADTKARTE_SCHNELL") == "1", "langsame Tests übersprungen")
+class Konturen(unittest.TestCase):
+    """Zeichenstil "konturen": schwarze Linien auf reinem Weiß, ohne Flächen, Farben und Körnung."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.m = generate(config.from_dict(klein(ausgabe={"bildgroesse": 600, "stil": "konturen"})))
+
+    def test_nur_schwarz_auf_weiss(self):
+        svg = render_svg(self.m)
+        img = np.asarray(Image.open(io.BytesIO(to_png(svg))).convert("RGB"), dtype=np.float32)
+        grau = img.mean(axis=2)
+        self.assertLess(np.abs(img - grau[..., None]).max(), 3)   # keine Farbe (auch kein Lichtschein am Leuchtturm)
+        self.assertGreater((grau > 250).mean(), 0.7)               # überwiegend weißes Papier
+        self.assertGreater((grau < 60).mean(), 0.002)              # und echte schwarze Linien
+        self.assertGreater((grau < 20).mean(), 0.5 * (grau < 128).mean())   # harte Schwelle: die Linien sind voll schwarz
+        for rand in (img[0], img[-1], img[:, 0], img[:, -1]):      # kein Strich an der Kante des Filterbereichs
+            self.assertGreater(rand.mean(), 245)
+
+    def test_boden_ohne_koernung_und_ohne_leuchtfeuer_am_tag(self):
+        svg = render_svg(self.m)
+        self.assertNotIn('id="tex_umgebung"', svg)   # Bodentextur und Tönung entfallen
+        self.assertNotIn("beaconGlow", svg)
+        self.assertEqual(stile.bilder("konturen", 500, 0.25), (None, None))
+
+    def test_legende_ist_deckend_weiss_mit_schwarzem_rahmen(self):
+        _, schrift = split_labels(render_svg(self.m))
+        self.assertIn('fill="#ffffff" fill-opacity="1" stroke="#000000"', schrift)
+
+    def test_nachts_wie_die_anderen_hellen_stile(self):
+        svg = render_svg(self.m, nacht=True)
+        self.assertIn("beaconGlow", svg)   # das Leuchtfeuer gibt es nur nachts
+        self.assertIn('fill="#4a5c94"', svg)
+
+    def test_gebirge_hat_hoehenlinien_statt_schummerung(self):
+        m = generate(config.from_dict(klein(ausgabe={"bildgroesse": 500, "stil": "konturen"},
+                                            gelaende={"biotop": "gebirge", "kueste": "nord", "inseln": 0})))
+        svg = render_svg(m)
+        self.assertIn('id="tex_gebirge_linien"', svg)
+        self.assertNotIn('id="tex_gebirge"', svg)
+        m["cfg"]["ausgabe"]["stil"] = "standard"
+        svg = render_svg(m)
+        self.assertIn('id="tex_gebirge"', svg)
+        self.assertNotIn("tex_gebirge_linien", svg)
 
 
 if __name__ == "__main__":

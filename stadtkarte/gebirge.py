@@ -56,9 +56,8 @@ def _ridges(res, period, octaves, seed, stretch, warp=0.0, power=3.0, gain=2.2):
     return total / norm
 
 
-def image(W, s, data, res=None):
-    """data: rock (Flächen als Ringe), light (Licht-x, Licht-y), Farben rock_col, rock_dark, snow. Liefert eine Data-URI."""
-    res = res or max(256, W // 2)
+def _hoehenfeld(W, s, data, res):
+    """(Felsmaske als Bild, Felsmaske 0..1, Höhe hs, Maßstab k) für Bildgröße res."""
     k = res / W
     rock_img = _mask(res, k, data["rock"])
     mask = np.asarray(rock_img, np.float32) / 255
@@ -73,6 +72,29 @@ def image(W, s, data, res=None):
     h = env * (0.28 + 0.70 * big + 0.12 * side)
     inside = mask > 0.5
     hs = h / (np.percentile(h[inside], 99.5) + 1e-6) if inside.any() else h
+    return rock_img, mask, hs, k
+
+
+def hoehenlinien(W, s, data, res=None, stufen=7):
+    """Nur die Höhenlinien des Massivs als schwarze Linien auf Transparenz (Zeichenstil Konturen), als Data-URI. Dasselbe
+    Höhenfeld wie image(), die Linien liegen also dort, wo die Rücken des Bildes verlaufen. Das Bild hat die volle
+    Auflösung: Linien sind nur ein, zwei Pixel breit, und der Filter der Konturen schwellt sie hart."""
+    res = res or W
+    rock_img, mask, hs, k = _hoehenfeld(W, s, data, res)
+    gh = np.hypot(*np.gradient(hs.astype(np.float64))) + 1e-5
+    q = hs * stufen
+    dist = np.abs(q - np.round(q)) / (gh * stufen)   # Abstand zur nächsten Höhenlinie in Pixeln
+    halb = max(1.0 * s * k, 0.75)                    # halbe Strichstärke: 2 Kartenmaße, mindestens 1,5 Pixel
+    line = np.clip(1 - (dist - halb) / 0.8, 0, 1) * _smooth(hs, 0.12, 0.25)   # unten am Fußhang keine Linien
+    img = np.zeros((res, res, 4), np.uint8)
+    img[..., 3] = np.clip(line * np.asarray(rock_img, np.float32), 0, 255).astype(np.uint8)
+    return webp_uri(Image.fromarray(img, "RGBA"), quality=88, alpha_quality=90, method=0)
+
+
+def image(W, s, data, res=None):
+    """data: rock (Flächen als Ringe), light (Licht-x, Licht-y), Farben rock_col, rock_dark, snow. Liefert eine Data-URI."""
+    res = res or max(256, W // 2)
+    rock_img, mask, hs, k = _hoehenfeld(W, s, data, res)
     # Schummerung: Höhe in Pixeln, Hangneigung aus dem Gefälle; light zeigt zur Lichtquelle
     z = hs * 360 * s * k
     gy, gx = np.gradient(z.astype(np.float64))

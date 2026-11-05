@@ -282,10 +282,13 @@ STILE = {
     "schatzkarte": ("Schatzkarte", "gealtertes, fleckiges Pergament mit angebrannten Ecken"),
     "abendlicht": ("Goldene Stunde", "die Karte in warmem Abendlicht"),
     "bleistift": ("Bleistift", "Graustufen mit Schraffur wie eine Skizze"),
+    "konturen": ("Konturen (Schwarz-Weiß)", "nur die Umrisse, schwarz auf weiß, ohne Flächen und Schraffur"),
 }
 # andere Schreibweisen
 STIL_ALIASE = {"normal": "standard", "modern": "standard", "papier": "pergament", "alt": "pergament",
                "historisch": "pergament", "feder": "bleistift", "tinte": "bleistift", "tusche": "bleistift", "wasserfarbe": "aquarell",
                "sepiastich": "sepia", "schatz": "schatzkarte", "goldenestunde": "abendlicht", "abend": "abendlicht",
                "lithografie": "sepia", "druck": "sepia", "farbdruck": "sepia", "pastel": "aquarell", "pastell": "aquarell", "skizze": "bleistift",
+               "kontur": "konturen", "umriss": "konturen", "umrisse": "konturen", "umrisszeichnung": "konturen",
+               "strichzeichnung": "konturen", "malbuch": "konturen", "schwarzweiss": "konturen",
                "kupferstich": "bleistift", "koloriert": "bleistift", "kolorierterstich": "bleistift", "stich": "bleistift"}

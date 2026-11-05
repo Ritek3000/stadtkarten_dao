@@ -166,7 +166,8 @@ Browser für vier Beispiele 27 statt 35 s; unter Pyodide für fünf Beispiele 61
 | `stadtkarte/wasser.py` | Wasser mit Tiefe, Brandung und Flussufern als Bild |
 | `stadtkarte/umgebung.py`, `stadtkarte/papier.py`, `stadtkarte/staub.py` | Bodentönung nach Umgebung, Papierstruktur des Pergament-Stils, Staub |
 | `stadtkarte/bleistift.py` | Zeichenstil Bleistift: Filter mit zittrigen Doppelstrichen und Schraffurkachel |
-| `stadtkarte/stile.py` | weitere Zeichenstile (Aquarell, Sepia-Stich, Bleistift …): Filter, Papier- und Randtexturen, Schriftfarben |
+| `stadtkarte/konturen.py` | Zeichenstil Konturen: Filter, der nur die Umrisse als schwarze Linien auf Weiß übrig lässt |
+| `stadtkarte/stile.py` | weitere Zeichenstile (Aquarell, Sepia-Stich, Bleistift, Konturen …): Filter, Papier- und Randtexturen, Schriftfarben |
 | `stadtkarte/webpaket.py` | Web-Paket: Kartenbild, Beschriftung, Ortsliste und Stadtbeschreibung |
 | `stadtkarte/render.py` | Zeichnen als SVG, Export PNG/PDF; `render_svg` setzt die Karte aus Ebenen zusammen (`water_svg`, `land_svg`, `streets_svg` … `labels_svg`), von unten nach oben |
 | `stadtkarte/interaktiv.py` | interaktive Karte als einzelne HTML-Datei |
@@ -547,13 +548,21 @@ das Ergebnis des vorigen. Nicht übernommen werden Bäume, Felder, Wald, Schiffe
 | `schatzkarte` | gealtertes, fleckiges Pergament in gedeckten Farben mit angebrannten Ecken |
 | `abendlicht` (Goldene Stunde) | die Karte in warmem Abendlicht, Lichtschein oben rechts, dunkler Rand |
 | `bleistift` | Skizze in Graphit: zittrige Doppelstriche, Schraffur nach Helligkeit (helle Flächen bleiben Papier, dunkle bekommen Kreuzschraffur), Schrift in Graphit |
+| `konturen` (Schwarz-Weiß) | nur die Umrisse, schwarz auf weiß wie in einem Malbuch: Häuser, Straßen, Mauern, Küsten, Flüsse, Felder und Bäume als Linien, keine Flächen und keine Schraffur; im Gebirge Höhenlinien; Schrift schwarz mit weißem Rand, Legende weiß mit schwarzem Rahmen |
 
-Andere Schreibweisen gehen auch, etwa `Goldene Stunde`, `Sepia-Stich` oder `Skizze`. Die entfernten Stile `tusche`, `pastell`, `farbdruck` und `stich` in alten Beschreibungen werden zu `bleistift`, `aquarell`, `sepia` bzw. `bleistift`. Die Stile ab `aquarell`
+Andere Schreibweisen gehen auch, etwa `Goldene Stunde`, `Sepia-Stich`, `Skizze` oder `Umrisse`. Die entfernten Stile `tusche`, `pastell`, `farbdruck` und `stich` in alten Beschreibungen werden zu `bleistift`, `aquarell`, `sepia` bzw. `bleistift`. Die Stile ab `aquarell`
 legen einen SVG-Filter über die gezeichnete Karte (Farben umrechnen, Umrisse aus Helligkeitskanten als Tintenlinien,
 weichzeichnen) und darüber eine Papier- bzw. Randtextur (`stadtkarte/stile.py`). Beschriftung, Nachtlichter, Leuchtfeuer und
 Staub liegen über dem Filter und bleiben scharf; die SVG-Datei bleibt eine Vektorkarte. Die Nachtkarte dunkelt die gestaltete
 Karte ab. Der Filter kostet beim Rendern etwas Zeit (bei 1600 px je nach Stil rund 1 bis 6 Sekunden mehr als `standard`). Die Linien
 rechnen in Kartenmaßen und sehen daher in jeder Bildgröße und in der halb so großen Vorschau der Werkstatt gleich aus.
+
+Die `konturen` (`stadtkarte/konturen.py`) zeichnen keine Flächen: Der Filter zieht eine feine von einer groben Weichzeichnung
+ab (je Farbkanal) und behält nur die Stellen, die dunkler sind als ihre Umgebung, also je Grenze eine einzige Linie. Eine harte
+Schwelle macht daraus schwarze Striche auf reinem Weiß; was schwächer ist (Ziegelreihen, Schatten, Nebel), verschwindet. Damit
+im Boden kein Rauschen zu Linien wird, entfallen bei diesem Stil Bodenkörnung, Flecken und Relief, im Gebirge steht statt der
+Schummerung ein Netz aus Höhenlinien (`gebirge.hoehenlinien`), und der Lichtschein des Leuchtturms am Tag fehlt. Die Nachtkarte
+dunkelt wie bei den anderen hellen Stilen ab (blaue Nacht mit Lichtern); der Staub bleibt ein dunkler Schleier über den Linien.
 
 ## Ausschnitt
 
