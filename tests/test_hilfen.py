@@ -6,12 +6,13 @@ import random
 import unittest
 from unittest import mock
 
+import numpy as np
 from PIL import Image
 import shapely.affinity
 import shapely.geometry.base
 from shapely.geometry import LineString, Polygon, box
 
-from stadtkarte import bilder, geo, roofs, shapes, terrain
+from stadtkarte import bilder, geo, noise, roofs, shapes, terrain
 
 
 class Geometrie(unittest.TestCase):
@@ -185,6 +186,26 @@ class Ziegelreihen(unittest.TestCase):
         self.stuecke_wie_shapely(raute, (-5, 10), (35, 10))      # durch zwei Ecken
         self.stuecke_wie_shapely(raute, (10, 10), (40, 10))      # beginnt in der Fläche
         self.assertEqual(roofs._clip_line(roofs._edges(raute), (-5, 30), (35, 30)), [])   # daneben
+
+
+class Farbverlauf(unittest.TestCase):
+    def test_je_kanal_bitgleich_wie_mit_farbtripeln(self):
+        """noise.palette_base rechnet je Farbkanal, muss aber dieselben float32-Werte liefern wie die Rechnung mit
+        Farbtripeln: x - i (float32 minus int32) ist float64, gerundet wird erst beim Speichern. Zweimal in float32
+        gerundet wich die Bodentextur der Plateau-Karten auf Prozessoren ohne AVX-512 ab."""
+        pal, res, s = ["#5d7a3a", "#6f8a42", "#8a9a50", "#a39a5c"], 300, 0.5
+        big = noise._fbm(res, 900 * s, 3, 61, False, warp=0.6)
+        mid = noise._fbm(res, 260 * s, 3, 62, False, warp=0.4)
+        t = noise._stretch_p2_p98(0.7 * big + 0.3 * mid)
+        cols = np.array([noise._hex_rgb(c) for c in pal], np.float32)
+        x = t * (len(cols) - 1)
+        i = np.clip(np.floor(x).astype(np.int32), 0, len(cols) - 2)
+        f = (x - i)[..., None]
+        f = f * f * (3 - 2 * f)
+        soll = np.moveaxis((cols[i] * (1 - f) + cols[i + 1] * f).astype(np.float32), -1, 0)
+        ist = noise.palette_base(res, s, pal, 61)
+        self.assertEqual(ist.dtype, np.float32)
+        self.assertTrue(np.array_equal(soll.view(np.uint32), ist.view(np.uint32)))
 
 
 class Inseln(unittest.TestCase):

@@ -220,16 +220,16 @@ def palette_base(res, s, palette, seed):
     cols = np.array([_hex_rgb(c) for c in palette], np.float32)
     x = t * (len(cols) - 1)
     i = np.clip(np.floor(x).astype(np.int32), 0, len(cols) - 2)
-    f = x - i
+    f = x - i                                   # float32 minus int32: float64, wie bisher
     f = f * f * (3 - 2 * f)                     # weiche Übergänge zwischen den Farbstufen
     g = 1 - f
-    # je Kanal nachschlagen statt ganze Farbtripel: dieselben Rechenschritte, bitgleich, aber ohne die großen
-    # (res × res × 3)-Zwischenfelder
+    # je Kanal nachschlagen statt ganze Farbtripel, ohne die großen (res × res × 3)-Zwischenfelder. Gerechnet wird
+    # weiter in float64 und erst beim Speichern einmal auf float32 gerundet, so bleibt das Ergebnis bitgleich (zweimal
+    # in float32 zu runden änderte einzelne Pixel, je nach Prozessor auch die fertige Textur)
     out = np.empty((3, res, res), np.float32)
     for c in range(3):
         col = np.ascontiguousarray(cols[:, c])
-        np.multiply(col[i], g, out=out[c])
-        out[c] += col[i + 1] * f
+        out[c] = col[i] * g + col[i + 1] * f
     return out
 
 
